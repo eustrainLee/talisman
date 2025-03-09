@@ -249,18 +249,46 @@ const Doc: React.FC = () => {
                     </div>
                     <div style={{ width: '1px', height: '12px', background: '#f0f0f0' }} />
                     <div style={{ flex: 1 }} />
-                    <Space size={16} style={{ flexShrink: 0 }}>
-                        <a onClick={() => setIsGitConfigModalVisible(true)} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>
-                            <GithubOutlined /> 从Git拉取
-                        </a>
+                    <Space style={{ marginBottom: 16 }}>
                         {isPreview ? (
-                            <a onClick={() => setIsPreview(false)} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>编辑</a>
+                            <Button 
+                                type="primary" 
+                                onClick={() => setIsPreview(false)}
+                                disabled={!currentFile}
+                            >
+                                编辑
+                            </Button>
                         ) : (
                             <>
-                                <a onClick={saveMarkdown} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>保存</a>
-                                <a onClick={showEditTitleModal} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>修改标题</a>
+                                <Button 
+                                    onClick={() => {
+                                        if (currentFile) {
+                                            window.electronAPI.getDocContent(currentFile).then((content) => {
+                                                setMarkdown(content);
+                                                setIsPreview(true);
+                                            });
+                                        }
+                                    }}
+                                >
+                                    取消
+                                </Button>
+                                <Button 
+                                    type="primary" 
+                                    onClick={() => {
+                                        saveMarkdown();
+                                        setIsPreview(true);
+                                    }}
+                                >
+                                    保存
+                                </Button>
                             </>
                         )}
+                        <Button
+                            icon={<GithubOutlined />}
+                            onClick={() => setIsGitConfigModalVisible(true)}
+                        >
+                            从 Git 拉取
+                        </Button>
                     </Space>
                 </div>
                 <Layout style={{ background: '#fff' }}>
