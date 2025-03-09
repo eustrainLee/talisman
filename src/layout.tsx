@@ -1,6 +1,6 @@
 import './App.css'
 import Home from './home'
-import Account from './account'
+import Assets from './assets'
 import Doc from './doc'
 import { Layout, Menu, MenuProps, theme } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
@@ -24,8 +24,8 @@ const items: MenuProps['items'] = [
     label: 'Home',
   },
   {
-    key: 'account',
-    label: 'Account',
+    key: 'assets',
+    label: 'Assets',
   },
   {
     key: 'doc',
@@ -92,7 +92,7 @@ const BaseLayout: React.FC = () => {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
-            <Route path="/account" element={<Account />} />
+            <Route path="/assets" element={<Assets />} />
             <Route path="/doc" element={<Doc />} />
           </Routes>
         </Content>
