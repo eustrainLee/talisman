@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -28,6 +28,7 @@ interface DocFile {
     title: string;
     key: string;
     children?: DocFile[];
+    isDirectory?: boolean;
 }
 
 const Doc: React.FC = () => {
@@ -230,24 +231,38 @@ const Doc: React.FC = () => {
                                     defaultSelectedKeys={['/docs/index.md']}
                                     defaultExpandAll
                                     blockNode={false}
-                                    showLine={false}
+                                    showLine={{ showLeafIcon: false }}
                                     fieldNames={{
                                         title: 'title',
-                                        key: 'key'
+                                        key: 'key',
+                                        children: 'children'
                                     }}
                                     onSelect={(selectedKeys) => {
                                         if (selectedKeys.length > 0) {
-                                            if (!isPreview && markdown) {
-                                                saveMarkdown().then(() => {
-                                                    setCurrentFile(selectedKeys[0] as string);
-                                                });
-                                            } else {
-                                                setCurrentFile(selectedKeys[0] as string);
+                                            const key = selectedKeys[0] as string;
+                                            const node = docFiles.find(file => file.key === key);
+                                            if (node && !node.isDirectory) {
+                                                if (!isPreview && markdown) {
+                                                    saveMarkdown().then(() => {
+                                                        setCurrentFile(key);
+                                                    });
+                                                } else {
+                                                    setCurrentFile(key);
+                                                }
                                             }
                                         }
                                     }}
                                     treeData={docFiles}
-                                    style={{ fontSize: '12px' }}
+                                    style={{ 
+                                        fontSize: '12px',
+                                        padding: '0 4px'
+                                    }}
+                                    icon={(nodeProps: any) => {
+                                        if (nodeProps.data?.isDirectory) {
+                                            return <FolderOutlined />;
+                                        }
+                                        return <FileOutlined />;
+                                    }}
                                 />
                             </div>
                         </Sider>

@@ -10,6 +10,95 @@ interface DocConfig {
   };
 }
 
+interface DocNode {
+  title: string;
+  key: string;
+  isDirectory?: boolean;
+  children?: DocNode[];
+}
+
+function buildDocTree(files: string[], docsPath: string, config: DocConfig): DocNode[] {
+  const tree: DocNode[] = [];
+  const dirMap = new Map<string, DocNode>();
+
+  // 首先创建所有目录节点
+  files.forEach(file => {
+    const parts = file.split('/');
+    let currentPath = '';
+
+    // 处理每一级目录
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      const parentPath = currentPath;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+      if (!dirMap.has(currentPath)) {
+        const node: DocNode = {
+          title: config[currentPath]?.title || part,
+          key: `/docs/${currentPath}`,
+          isDirectory: true,
+          children: []
+        };
+        dirMap.set(currentPath, node);
+
+        if (parentPath) {
+          const parentNode = dirMap.get(parentPath);
+          parentNode?.children?.push(node);
+        } else {
+          tree.push(node);
+        }
+      }
+    }
+  });
+
+  // 然后添加文件节点
+  files.forEach(file => {
+    const parts = file.split('/');
+    const fileName = parts[parts.length - 1];
+    const dirPath = parts.slice(0, -1).join('/');
+    
+    const node: DocNode = {
+      title: config[file]?.title || fileName,
+      key: `/docs/${file}`,
+      isDirectory: false
+    };
+
+    if (dirPath) {
+      const dirNode = dirMap.get(dirPath);
+      dirNode?.children?.push(node);
+    } else {
+      tree.push(node);
+    }
+  });
+
+  // 对每个目录中的内容进行排序
+  const sortNodes = (nodes: DocNode[]) => {
+    nodes.sort((a, b) => {
+      // 目录优先
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+      // 同类型按照配置的顺序排序
+      const orderA = config[a.key.slice(6)]?.order || 0;
+      const orderB = config[b.key.slice(6)]?.order || 0;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      // 最后按标题字母顺序排序
+      return a.title.localeCompare(b.title);
+    });
+    // 递归排序子目录
+    nodes.forEach(node => {
+      if (node.children) {
+        sortNodes(node.children);
+      }
+    });
+  };
+  sortNodes(tree);
+
+  return tree;
+}
+
 export function setupIpcHandlers(publicPath: string) {
   // 获取文档列表
   ipcMain.handle('doc:list', async () => {
@@ -37,21 +126,7 @@ export function setupIpcHandlers(publicPath: string) {
       }
 
       // 构建文档树
-      return [{
-        title: config['index.md']?.title || '文档',
-        key: '/docs/index.md',
-        children: files
-          .filter(file => file !== 'index.md')
-          .map(file => ({
-            title: config[file]?.title || file,
-            key: `/docs/${file}`
-          }))
-          .sort((a, b) => {
-            const orderA = config[a.key.slice(6)]?.order || 0
-            const orderB = config[b.key.slice(6)]?.order || 0
-            return orderA - orderB
-          })
-      }]
+      return buildDocTree(files, docsPath, config);
     } catch (error) {
       console.error('获取文档列表失败:', error)
       throw error
