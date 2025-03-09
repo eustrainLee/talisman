@@ -4,21 +4,18 @@ import Account from './account'
 import Doc from './doc'
 import { Layout, Menu, MenuProps, theme } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 const { Header, Content, Footer, Sider } = Layout;
-import React from 'react'
+import React, { useState } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 const siderStyle: React.CSSProperties = {
-  overflow: 'auto',
-  height: '100vh',
-  // width: '100vh',
-  position: 'sticky',
-  insetInlineStart: 0,
-  backgroundColor: 'white',
+  position: 'fixed',
+  left: 0,
   top: 0,
   bottom: 0,
-  scrollbarWidth: 'thin',
-  scrollbarGutter: 'stable',
+  zIndex: 100,
+  backgroundColor: 'white',
 };
 
 const items: MenuProps['items'] = [
@@ -37,42 +34,70 @@ const items: MenuProps['items'] = [
 ];
 
 const BaseLayout: React.FC = () => {
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
+  const { token } = theme.useToken();
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(true);
 
   const onClick: MenuProps['onClick'] = (e) => {
     navigate(`/${e.key}`);
   };
   
   return (
-    <>
-      <Layout hasSider>
-        <Sider style={siderStyle}>
-          <div>123</div>
-          <Menu 
-            theme='light' 
-            mode='inline' 
-            defaultSelectedKeys={['home']} 
-            items={items} 
-            onClick={onClick} 
-          />
-        </Sider>
-        <Layout>
-          <Header style={{padding: 0, background: colorBgContainer}} />
-          <Content style= {{ margin: '24px 16px 0', overflow: 'initial'}}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/home" element={<Home />} />
-              <Route path="/account" element={<Account />} />
-              <Route path="/doc" element={<Doc />} />
-            </Routes>
-          </Content>
-        </Layout>
+    <Layout>
+      <Sider 
+        style={siderStyle}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={(value) => setCollapsed(value)}
+        trigger={null}
+      >
+        <div style={{ 
+          height: '64px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          color: '#1677ff',
+          fontSize: collapsed ? '14px' : '18px'
+        }}>
+          {collapsed ? 'T' : 'Talisman'}
+          {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
+            className: 'trigger',
+            onClick: () => setCollapsed(!collapsed),
+            style: { 
+              fontSize: '16px', 
+              cursor: 'pointer',
+              padding: '8px',
+              transition: 'all 0.3s'
+            }
+          })}
+        </div>
+        <Menu 
+          theme='light' 
+          mode='inline' 
+          defaultSelectedKeys={['home']} 
+          items={items} 
+          onClick={onClick}
+        />
+      </Sider>
+      <Layout style={{ 
+        marginLeft: collapsed ? '80px' : '200px',
+        transition: 'margin-left 0.2s'
+      }}>
+        <Content style={{ 
+          overflow: 'initial',
+          minHeight: '100vh'
+        }}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/home" element={<Home />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/doc" element={<Doc />} />
+          </Routes>
+        </Content>
       </Layout>
-    </>
-  )
+    </Layout>
+  );
 }
 
 export default BaseLayout
