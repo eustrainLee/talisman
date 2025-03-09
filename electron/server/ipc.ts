@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { glob } from 'glob'
+import simpleGit from 'simple-git'
 
 interface DocConfig {
   [key: string]: {
@@ -15,6 +16,12 @@ interface DocNode {
   key: string;
   isDirectory?: boolean;
   children?: DocNode[];
+}
+
+interface GitConfig {
+  repoUrl: string;
+  branch: string;
+  docPath: string;
 }
 
 function buildDocTree(files: string[], docsPath: string, config: DocConfig): DocNode[] {
@@ -100,6 +107,70 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
 }
 
 export function setupIpcHandlers(publicPath: string) {
+  const git = simpleGit();
+  const gitConfigPath = path.join(publicPath, 'docs', 'git-config.json');
+
+  // 从远程仓库拉取文档
+  ipcMain.handle('doc:pull-from-git', async (event, config: GitConfig) => {
+    try {
+      const docsPath = path.join(publicPath, 'docs');
+      const tempPath = path.join(publicPath, 'temp-git');
+      
+      // 保存 Git 配置
+      fs.writeFileSync(gitConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+
+      // 清理临时目录
+      if (fs.existsSync(tempPath)) {
+        fs.rmSync(tempPath, { recursive: true, force: true });
+      }
+      fs.mkdirSync(tempPath);
+
+      // 克隆仓库
+      await git.clone(config.repoUrl, tempPath);
+      await git.cwd(tempPath);
+      await git.checkout(config.branch);
+
+      // 指定的文档目录
+      const sourceDocPath = path.join(tempPath, config.docPath);
+      if (!fs.existsSync(sourceDocPath)) {
+        throw new Error('指定的文档目录不存在');
+      }
+
+      // 复制文档文件
+      const files = glob.sync('**/*.{md,json}', { cwd: sourceDocPath });
+      files.forEach(file => {
+        const sourcePath = path.join(sourceDocPath, file);
+        const targetPath = path.join(docsPath, file);
+        
+        // 确保目标目录存在
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(sourcePath, targetPath);
+      });
+
+      // 清理临时目录
+      fs.rmSync(tempPath, { recursive: true, force: true });
+
+      return { success: true };
+    } catch (error) {
+      console.error('从Git拉取文档失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取 Git 配置
+  ipcMain.handle('doc:get-git-config', async () => {
+    try {
+      if (fs.existsSync(gitConfigPath)) {
+        const config = JSON.parse(fs.readFileSync(gitConfigPath, 'utf-8'));
+        return config;
+      }
+      return null;
+    } catch (error) {
+      console.error('获取Git配置失败:', error);
+      throw error;
+    }
+  });
+
   // 获取文档列表
   ipcMain.handle('doc:list', async () => {
     try {

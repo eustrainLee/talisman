@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined } from '@ant-design/icons';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -31,6 +31,12 @@ interface DocFile {
     isDirectory?: boolean;
 }
 
+interface GitConfig {
+    repoUrl: string;
+    branch: string;
+    docPath: string;
+}
+
 const Doc: React.FC = () => {
     const [markdown, setMarkdown] = useState('');
     const [isPreview, setIsPreview] = useState(true);
@@ -40,10 +46,13 @@ const Doc: React.FC = () => {
     const [docListCollapsed, setDocListCollapsed] = useState(false);
     const [form] = Form.useForm();
     const [prevMarkdown, setPrevMarkdown] = useState('');
+    const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
+    const [gitConfigForm] = Form.useForm();
 
     useEffect(() => {
         loadMarkdownFile(currentFile);
         loadDocList();
+        loadGitConfig();
     }, [currentFile]);
 
     const loadDocList = async () => {
@@ -183,6 +192,33 @@ const Doc: React.FC = () => {
         return undefined;
     };
 
+    const loadGitConfig = async () => {
+        try {
+            if (USE_IPC) {
+                const config = await window.electronAPI.getGitConfig();
+                if (config) {
+                    gitConfigForm.setFieldsValue(config);
+                }
+            }
+        } catch (error) {
+            console.error('加载Git配置失败:', error);
+        }
+    };
+
+    const handlePullFromGit = async (values: GitConfig) => {
+        try {
+            if (USE_IPC) {
+                await window.electronAPI.pullFromGit(values);
+                message.success('从Git仓库拉取文档成功');
+                setIsGitConfigModalVisible(false);
+                loadDocList();
+            }
+        } catch (error) {
+            console.error('从Git拉取文档失败:', error);
+            message.error('从Git拉取文档失败');
+        }
+    };
+
     return (
         <Layout style={{ background: '#fff', height: '100%', margin: 0 }}>
             <Card 
@@ -214,6 +250,9 @@ const Doc: React.FC = () => {
                     <div style={{ width: '1px', height: '12px', background: '#f0f0f0' }} />
                     <div style={{ flex: 1 }} />
                     <Space size={16} style={{ flexShrink: 0 }}>
+                        <a onClick={() => setIsGitConfigModalVisible(true)} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>
+                            <GithubOutlined /> 从Git拉取
+                        </a>
                         {isPreview ? (
                             <a onClick={() => setIsPreview(false)} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>编辑</a>
                         ) : (
@@ -344,6 +383,42 @@ const Doc: React.FC = () => {
                         rules={[{ required: true, message: '请输入文档标题' }]}
                     >
                         <Input />
+                    </Form.Item>
+                </Form>
+            </Modal>
+            <Modal
+                title="Git仓库配置"
+                open={isGitConfigModalVisible}
+                onOk={() => gitConfigForm.submit()}
+                onCancel={() => setIsGitConfigModalVisible(false)}
+            >
+                <Form
+                    form={gitConfigForm}
+                    onFinish={handlePullFromGit}
+                    layout="vertical"
+                >
+                    <Form.Item
+                        name="repoUrl"
+                        label="仓库地址"
+                        rules={[{ required: true, message: '请输入仓库地址' }]}
+                    >
+                        <Input placeholder="例如：https://github.com/user/repo.git" />
+                    </Form.Item>
+                    <Form.Item
+                        name="branch"
+                        label="分支"
+                        rules={[{ required: true, message: '请输入分支名' }]}
+                        initialValue="main"
+                    >
+                        <Input placeholder="例如：main" />
+                    </Form.Item>
+                    <Form.Item
+                        name="docPath"
+                        label="文档目录"
+                        rules={[{ required: true, message: '请输入文档目录' }]}
+                        initialValue="docs"
+                    >
+                        <Input placeholder="例如：docs" />
                     </Form.Item>
                 </Form>
             </Modal>
