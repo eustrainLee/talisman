@@ -12,6 +12,7 @@ import 'markdown-navbar/dist/navbar.css';
 import { MdEditor } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
+import './doc.css';
 
 const { Sider, Content } = Layout;
 
@@ -59,13 +60,7 @@ const Doc: React.FC = () => {
         } catch (error) {
             console.error('获取文档列表失败:', error);
             message.error('获取文档列表失败');
-            setDocFiles([
-                {
-                    title: '文档',
-                    key: '/docs/index.md',
-                    children: []
-                }
-            ]);
+            setDocFiles([]);
         }
     };
 
@@ -93,6 +88,7 @@ const Doc: React.FC = () => {
             if (USE_IPC) {
                 await window.electronAPI.saveDoc(currentFile, markdown);
                 message.success('保存成功');
+                setIsPreview(true);
             } else {
                 const response = await fetch(`${API_BASE_URL}/api/docs/save`, {
                     method: 'POST',
@@ -110,6 +106,7 @@ const Doc: React.FC = () => {
                 }
 
                 message.success('保存成功');
+                setIsPreview(true);
             }
         } catch (error) {
             console.error('保存失败:', error);
@@ -167,167 +164,135 @@ const Doc: React.FC = () => {
     };
 
     return (
-        <Layout style={{ background: '#fff', height: '100%', margin: '-24px -16px' }}>
-            <Sider 
-                width={docListCollapsed ? 0 : 160}
-                style={{ 
-                    background: '#fff',
-                    borderRight: '1px solid #f0f0f0',
-                    position: 'fixed',
-                    height: '100vh',
-                    left: docListCollapsed ? -160 : 80,
-                    top: 0,
-                    overflowY: 'auto',
-                    transition: 'all 0.2s'
-                }}
+        <Layout style={{ background: '#fff', height: '100%', margin: 0 }}>
+            <Card 
+                style={{ borderRadius: 0 }}
+                bodyStyle={{ padding: 0 }}
             >
                 <div style={{ 
-                    padding: '20px',
-                    display: docListCollapsed ? 'none' : 'block'
+                    padding: '16px 24px',
+                    borderBottom: '1px solid #f0f0f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '16px'
                 }}>
                     <div style={{
                         display: 'flex',
-                        justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '16px'
-                    }}>
-                        <h3 style={{ margin: 0 }}>文档列表</h3>
-                        <MenuFoldOutlined 
-                            onClick={() => setDocListCollapsed(true)}
-                            style={{ 
-                                cursor: 'pointer',
-                                fontSize: '16px',
-                                padding: '8px',
-                                margin: '-8px'
-                            }}
-                        />
-                    </div>
-                    <Tree
-                        defaultSelectedKeys={['/docs/index.md']}
-                        defaultExpandAll
-                        onSelect={(selectedKeys) => {
-                            if (selectedKeys.length > 0) {
-                                if (!isPreview && markdown) {
-                                    saveMarkdown().then(() => {
-                                        setCurrentFile(selectedKeys[0] as string);
-                                    });
-                                } else {
-                                    setCurrentFile(selectedKeys[0] as string);
-                                }
-                            }
-                        }}
-                        treeData={docFiles}
-                    />
-                </div>
-            </Sider>
-            <Layout style={{ 
-                marginLeft: docListCollapsed ? 0 : 160,
-                transition: 'margin-left 0.2s',
-                background: '#fff'
-            }}>
-                {docListCollapsed && (
-                    <div style={{
-                        position: 'fixed',
-                        left: 80,
-                        top: 0,
-                        padding: '8px 12px',
-                        background: '#fff',
-                        borderRadius: '0 4px 4px 0',
-                        boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+                        gap: '4px',
                         cursor: 'pointer',
-                        zIndex: 100,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }} onClick={() => setDocListCollapsed(false)}>
-                        <MenuUnfoldOutlined />
-                        <span>文档列表</span>
+                        width: '100%',
+                        paddingLeft: '4px'
+                    }} onClick={() => setDocListCollapsed(!docListCollapsed)}>
+                        {docListCollapsed ? (
+                            <MenuUnfoldOutlined style={{ transition: 'transform 0.2s' }} />
+                        ) : (
+                            <MenuFoldOutlined style={{ transition: 'transform 0.2s' }} />
+                        )}
+                        <span>目录</span>
                     </div>
-                )}
-                <Content style={{ 
-                    padding: '24px', 
-                    minHeight: 'calc(100vh - 64px)',
-                    overflow: 'initial'
-                }}>
-                    {isPreview ? (
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                            <Card 
-                                title="文档预览" 
-                                extra={
-                                    <Space>
-                                        <a onClick={showEditTitleModal}>修改标题</a>
-                                        <a onClick={() => setIsPreview(false)}>切换到编辑模式</a>
-                                    </Space>
-                                }
-                            >
-                                <Layout>
-                                    <Content style={{ padding: '0 24px' }}>
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            rehypePlugins={[rehypeRaw]}
-                                            components={{
-                                                code: ({ inline, className, children, ...props }: CodeProps) => {
-                                                    const match = /language-(\w+)/.exec(className || '');
-                                                    return !inline && match ? (
-                                                        <SyntaxHighlighter
-                                                            style={vscDarkPlus}
-                                                            language={match[1]}
-                                                            PreTag="div"
-                                                            {...props}
-                                                        >
-                                                            {String(children).replace(/\n$/, '')}
-                                                        </SyntaxHighlighter>
-                                                    ) : (
-                                                        <code className={className} {...props}>
-                                                            {children}
-                                                        </code>
-                                                    );
-                                                }
-                                            }}
-                                        >
-                                            {markdown}
-                                        </ReactMarkdown>
-                                    </Content>
-                                    <Sider 
-                                        width={160} 
-                                        style={{ 
-                                            background: '#fff',
-                                            padding: '20px',
-                                            borderLeft: '1px solid #f0f0f0'
-                                        }}
-                                    >
-                                        <div style={{ position: 'sticky', top: 84 }}>
-                                            <h3>目录</h3>
-                                            <MarkNav
-                                                className="article-menu"
-                                                source={markdown}
-                                                ordered={false}
-                                            />
-                                        </div>
-                                    </Sider>
-                                </Layout>
-                            </Card>
-                        </Space>
-                    ) : (
-                        <Card 
-                            title="文档编辑" 
-                            extra={
-                                <Space>
-                                    <a onClick={saveMarkdown}>保存</a>
-                                    <a onClick={showEditTitleModal}>修改标题</a>
-                                    <a onClick={() => setIsPreview(true)}>切换到预览模式</a>
-                                </Space>
-                            }
+                    <div style={{ width: '1px', height: '14px', background: '#f0f0f0' }} />
+                    <div style={{ flex: 1 }} />
+                    <Space>
+                        {isPreview ? (
+                            <a onClick={() => setIsPreview(false)}>切换到编辑模式</a>
+                        ) : (
+                            <>
+                                <a onClick={saveMarkdown}>保存</a>
+                                <a onClick={showEditTitleModal}>修改标题</a>
+                            </>
+                        )}
+                    </Space>
+                </div>
+                <Layout style={{ background: '#fff' }}>
+                    <div style={{
+                        width: docListCollapsed ? 0 : 200,
+                        overflow: 'hidden',
+                        transition: 'width 0.3s ease-in-out'
+                    }}>
+                        <Sider 
+                            width={200}
+                            style={{ 
+                                background: '#fff',
+                                borderRight: '1px solid #f0f0f0',
+                                height: 'calc(100vh - 117px)',
+                                overflow: 'hidden'
+                            }}
                         >
+                            <div style={{ 
+                                padding: '12px',
+                                width: 200,
+                                opacity: docListCollapsed ? 0 : 1,
+                                transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
+                                transition: 'all 0.3s ease-in-out'
+                            }}>
+                                <Tree
+                                    defaultSelectedKeys={['/docs/index.md']}
+                                    defaultExpandAll
+                                    blockNode={false}
+                                    showLine={false}
+                                    fieldNames={{
+                                        title: 'title',
+                                        key: 'key'
+                                    }}
+                                    onSelect={(selectedKeys) => {
+                                        if (selectedKeys.length > 0) {
+                                            if (!isPreview && markdown) {
+                                                saveMarkdown().then(() => {
+                                                    setCurrentFile(selectedKeys[0] as string);
+                                                });
+                                            } else {
+                                                setCurrentFile(selectedKeys[0] as string);
+                                            }
+                                        }
+                                    }}
+                                    treeData={docFiles}
+                                    style={{ fontSize: '12px' }}
+                                />
+                            </div>
+                        </Sider>
+                    </div>
+                    <Content style={{ 
+                        padding: '24px',
+                        minHeight: 'calc(100vh - 117px)',
+                        transition: 'all 0.3s ease-in-out'
+                    }}>
+                        {isPreview ? (
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw]}
+                                components={{
+                                    code: ({ inline, className, children, ...props }: CodeProps) => {
+                                        const match = /language-(\w+)/.exec(className || '');
+                                        return !inline && match ? (
+                                            <SyntaxHighlighter
+                                                style={vscDarkPlus}
+                                                language={match[1]}
+                                                PreTag="div"
+                                                {...props}
+                                            >
+                                                {String(children).replace(/\n$/, '')}
+                                            </SyntaxHighlighter>
+                                        ) : (
+                                            <code className={className} {...props}>
+                                                {children}
+                                            </code>
+                                        );
+                                    }
+                                }}
+                            >
+                                {markdown}
+                            </ReactMarkdown>
+                        ) : (
                             <MdEditor
                                 modelValue={markdown}
                                 onChange={setMarkdown}
-                                style={{ height: 'calc(100vh - 200px)' }}
+                                style={{ height: 'calc(100vh - 117px)' }}
                             />
-                        </Card>
-                    )}
-                </Content>
-            </Layout>
+                        )}
+                    </Content>
+                </Layout>
+            </Card>
             <Modal
                 title="修改文档标题"
                 open={isEditTitleModalVisible}
