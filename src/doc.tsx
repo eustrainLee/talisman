@@ -39,6 +39,7 @@ const Doc: React.FC = () => {
     const [isEditTitleModalVisible, setIsEditTitleModalVisible] = useState(false);
     const [docListCollapsed, setDocListCollapsed] = useState(false);
     const [form] = Form.useForm();
+    const [prevMarkdown, setPrevMarkdown] = useState('');
 
     useEffect(() => {
         loadMarkdownFile(currentFile);
@@ -70,6 +71,7 @@ const Doc: React.FC = () => {
             if (USE_IPC) {
                 const text = await window.electronAPI.getDocContent(path);
                 setMarkdown(text);
+                setPrevMarkdown(text);
             } else {
                 const response = await fetch(`${API_BASE_URL}${path}`);
                 if (!response.ok) {
@@ -77,6 +79,7 @@ const Doc: React.FC = () => {
                 }
                 const text = await response.text();
                 setMarkdown(text);
+                setPrevMarkdown(text);
             }
         } catch (error) {
             console.error('加载文档失败:', error);
@@ -117,13 +120,14 @@ const Doc: React.FC = () => {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (!isPreview && markdown) {
+            if (!isPreview && markdown && markdown !== prevMarkdown) {
                 saveMarkdown();
+                setPrevMarkdown(markdown);
             }
         }, 2000);
 
         return () => clearTimeout(timer);
-    }, [markdown, isPreview]);
+    }, [markdown, isPreview, prevMarkdown]);
 
     const updateDocConfig = async (values: { title: string }) => {
         try {
@@ -164,6 +168,21 @@ const Doc: React.FC = () => {
         setIsEditTitleModalVisible(true);
     };
 
+    const findNode = (nodes: DocFile[], key: string): DocFile | undefined => {
+        for (const node of nodes) {
+            if (node.key === key) {
+                return node;
+            }
+            if (node.children) {
+                const found = findNode(node.children, key);
+                if (found) {
+                    return found;
+                }
+            }
+        }
+        return undefined;
+    };
+
     return (
         <Layout style={{ background: '#fff', height: '100%', margin: 0 }}>
             <Card 
@@ -171,7 +190,7 @@ const Doc: React.FC = () => {
                 bodyStyle={{ padding: 0 }}
             >
                 <div style={{ 
-                    padding: '16px 24px',
+                    padding: '8px 24px',
                     borderBottom: '1px solid #f0f0f0',
                     display: 'flex',
                     alignItems: 'center',
@@ -192,15 +211,15 @@ const Doc: React.FC = () => {
                         )}
                         <span>目录</span>
                     </div>
-                    <div style={{ width: '1px', height: '14px', background: '#f0f0f0' }} />
+                    <div style={{ width: '1px', height: '12px', background: '#f0f0f0' }} />
                     <div style={{ flex: 1 }} />
-                    <Space>
+                    <Space size={16} style={{ flexShrink: 0 }}>
                         {isPreview ? (
-                            <a onClick={() => setIsPreview(false)}>切换到编辑模式</a>
+                            <a onClick={() => setIsPreview(false)} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>编辑</a>
                         ) : (
                             <>
-                                <a onClick={saveMarkdown}>保存</a>
-                                <a onClick={showEditTitleModal}>修改标题</a>
+                                <a onClick={saveMarkdown} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>保存</a>
+                                <a onClick={showEditTitleModal} style={{ whiteSpace: 'nowrap', padding: '0 8px' }}>修改标题</a>
                             </>
                         )}
                     </Space>
@@ -231,7 +250,7 @@ const Doc: React.FC = () => {
                                     defaultSelectedKeys={['/docs/index.md']}
                                     defaultExpandAll
                                     blockNode={false}
-                                    showLine={{ showLeafIcon: false }}
+                                    showLine={true}
                                     fieldNames={{
                                         title: 'title',
                                         key: 'key',
@@ -240,7 +259,7 @@ const Doc: React.FC = () => {
                                     onSelect={(selectedKeys) => {
                                         if (selectedKeys.length > 0) {
                                             const key = selectedKeys[0] as string;
-                                            const node = docFiles.find(file => file.key === key);
+                                            const node = findNode(docFiles, key);
                                             if (node && !node.isDirectory) {
                                                 if (!isPreview && markdown) {
                                                     saveMarkdown().then(() => {
@@ -259,9 +278,9 @@ const Doc: React.FC = () => {
                                     }}
                                     icon={(nodeProps: any) => {
                                         if (nodeProps.data?.isDirectory) {
-                                            return <FolderOutlined />;
+                                            return <FolderOutlined style={{ color: '#1677ff' }} />;
                                         }
-                                        return <FileOutlined />;
+                                        return <FileOutlined style={{ color: '#666' }} />;
                                     }}
                                 />
                             </div>

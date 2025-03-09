@@ -50,6 +50,7 @@ const BaseLayout: React.FC = () => {
         collapsed={collapsed}
         onCollapse={(value) => setCollapsed(value)}
         trigger={null}
+        width={160}
       >
         <div style={{ 
           height: '64px', 
@@ -81,7 +82,7 @@ const BaseLayout: React.FC = () => {
         />
       </Sider>
       <Layout style={{ 
-        marginLeft: collapsed ? '80px' : '200px',
+        marginLeft: collapsed ? '80px' : '160px',
         transition: 'margin-left 0.2s'
       }}>
         <Content style={{ 

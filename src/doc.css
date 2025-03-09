@@ -1,7 +1,66 @@
-.ant-tree-indent {
-    width: 0 !important;
+.ant-tree {
+    background: transparent !important;
 }
 
-.ant-tree-indent-unit {
-    width: 0 !important;
+.ant-tree .ant-tree-node-content-wrapper {
+    padding: 4px 8px !important;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.ant-tree .ant-tree-node-content-wrapper:hover {
+    background-color: #f0f5ff !important;
+}
+
+.ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
+    background-color: #e6f4ff !important;
+}
+
+.ant-tree .ant-tree-switcher {
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ant-tree .ant-tree-indent {
+    width: auto !important;
+}
+
+.ant-tree .ant-tree-indent-unit {
+    width: 24px !important;
+    position: relative;
+}
+
+.ant-tree .ant-tree-indent-unit::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 12px;
+    width: 1px;
+    background-color: #d9d9d9;
+}
+
+.ant-tree .ant-tree-switcher::after {
+    content: '';
+    position: absolute;
+    height: 1px;
+    background-color: #d9d9d9;
+    right: 12px;
+    width: 12px;
+    top: 50%;
+}
+
+.ant-tree .ant-tree-treenode:last-child > .ant-tree-indent > .ant-tree-indent-unit::before {
+    height: 50%;
+}
+
+.ant-tree .ant-tree-node-content-wrapper .ant-tree-title {
+    margin-left: 8px;
+}
+
+.ant-tree .ant-tree-switcher {
+    position: relative;
+    z-index: 1;
 } 
