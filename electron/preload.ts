@@ -1,24 +1,26 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, IpcRendererEvent } from 'electron'
+
+// 自定义的 API 接口
+export interface IElectronAPI {
+  getDocList: () => Promise<any>;
+  getDocContent: (path: string) => Promise<string>;
+  saveDoc: (path: string, content: string) => Promise<void>;
+  updateDocConfig: (path: string, title: string) => Promise<void>;
+  on: (channel: 'main-process-message', callback: (event: IpcRendererEvent, message: string) => void) => void;
+}
 
 // --------- Expose some API to the Renderer process ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.off(channel, ...omit)
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.send(channel, ...omit)
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args
-    return ipcRenderer.invoke(channel, ...omit)
-  },
-
-  // You can expose other APTs you need here.
-  // ...
+contextBridge.exposeInMainWorld('electronAPI', {
+  getDocList: () => ipcRenderer.invoke('doc:list'),
+  getDocContent: (path: string) => ipcRenderer.invoke('doc:get', path),
+  saveDoc: (path: string, content: string) => ipcRenderer.invoke('doc:save', path, content),
+  updateDocConfig: (path: string, title: string) => ipcRenderer.invoke('doc:config', path, title),
+  on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => ipcRenderer.on(channel, callback),
 })
+
+// 声明全局类型
+declare global {
+  interface Window {
+    electronAPI: IElectronAPI;
+  }
+}

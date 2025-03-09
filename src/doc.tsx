@@ -11,6 +11,7 @@ import MarkNav from 'markdown-navbar';
 import 'markdown-navbar/dist/navbar.css';
 import { MdEditor } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
+import { API_BASE_URL, USE_IPC } from './config';
 
 const { Sider, Content } = Layout;
 
@@ -44,15 +45,20 @@ const Doc: React.FC = () => {
 
     const loadDocList = async () => {
         try {
-            const response = await fetch('/api/docs/list');
-            if (!response.ok) {
-                throw new Error('获取文档列表失败');
+            if (USE_IPC) {
+                const files = await window.electronAPI.getDocList();
+                setDocFiles(files);
+            } else {
+                const response = await fetch(`${API_BASE_URL}/api/docs/list`);
+                if (!response.ok) {
+                    throw new Error('获取文档列表失败');
+                }
+                const files = await response.json();
+                setDocFiles(files);
             }
-            const files = await response.json();
-            setDocFiles(files);
         } catch (error) {
             console.error('获取文档列表失败:', error);
-            // 设置默认文档列表
+            message.error('获取文档列表失败');
             setDocFiles([
                 {
                     title: '文档',
@@ -65,12 +71,17 @@ const Doc: React.FC = () => {
 
     const loadMarkdownFile = async (path: string) => {
         try {
-            const response = await fetch(path);
-            if (!response.ok) {
-                throw new Error('文件加载失败');
+            if (USE_IPC) {
+                const text = await window.electronAPI.getDocContent(path);
+                setMarkdown(text);
+            } else {
+                const response = await fetch(`${API_BASE_URL}${path}`);
+                if (!response.ok) {
+                    throw new Error('文件加载失败');
+                }
+                const text = await response.text();
+                setMarkdown(text);
             }
-            const text = await response.text();
-            setMarkdown(text);
         } catch (error) {
             console.error('加载文档失败:', error);
             message.error('文档加载失败');
@@ -79,22 +90,27 @@ const Doc: React.FC = () => {
 
     const saveMarkdown = async () => {
         try {
-            const response = await fetch('/api/docs/save', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: currentFile,
-                    content: markdown,
-                }),
-            });
+            if (USE_IPC) {
+                await window.electronAPI.saveDoc(currentFile, markdown);
+                message.success('保存成功');
+            } else {
+                const response = await fetch(`${API_BASE_URL}/api/docs/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        path: currentFile,
+                        content: markdown,
+                    }),
+                });
 
-            if (!response.ok) {
-                throw new Error('保存失败');
+                if (!response.ok) {
+                    throw new Error('保存失败');
+                }
+
+                message.success('保存成功');
             }
-
-            message.success('保存成功');
         } catch (error) {
             console.error('保存失败:', error);
             message.error('保存失败');
@@ -113,24 +129,31 @@ const Doc: React.FC = () => {
 
     const updateDocConfig = async (values: { title: string }) => {
         try {
-            const response = await fetch('/api/docs/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    path: currentFile,
-                    title: values.title,
-                }),
-            });
+            if (USE_IPC) {
+                await window.electronAPI.updateDocConfig(currentFile, values.title);
+                message.success('更新成功');
+                loadDocList();
+                setIsEditTitleModalVisible(false);
+            } else {
+                const response = await fetch(`${API_BASE_URL}/api/docs/config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        path: currentFile,
+                        title: values.title,
+                    }),
+                });
 
-            if (!response.ok) {
-                throw new Error('更新配置失败');
+                if (!response.ok) {
+                    throw new Error('更新配置失败');
+                }
+
+                message.success('更新成功');
+                loadDocList();
+                setIsEditTitleModalVisible(false);
             }
-
-            message.success('更新成功');
-            loadDocList(); // 重新加载文档列表
-            setIsEditTitleModalVisible(false);
         } catch (error) {
             console.error('更新配置失败:', error);
             message.error('更新配置失败');

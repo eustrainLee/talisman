@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { setupIpcHandlers } from './server/ipc'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -28,9 +29,11 @@ let win: BrowserWindow | null
 
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: path.join(process.env.VITE_PUBLIC!, 'electron-vite.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
+      nodeIntegration: true,
+      contextIsolation: true,
     },
     width: 1080,
     height: 720,
@@ -68,7 +71,8 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(()=>{
+app.whenReady().then(() => {
+  setupIpcHandlers(process.env.VITE_PUBLIC!)
   createWindow()
   const {Menu} = require('electron')
   Menu.setApplicationMenu(null)
