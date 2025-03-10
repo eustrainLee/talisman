@@ -26,3 +26,4 @@ dist-ssr
 
 # My documents is private
 public/docs/
+public/remote_docs/

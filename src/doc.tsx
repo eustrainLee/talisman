@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -48,18 +48,26 @@ const Doc: React.FC = () => {
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
     const [gitConfigForm] = Form.useForm();
+    const [isRemoteMode, setIsRemoteMode] = useState(false);
 
     useEffect(() => {
         loadMarkdownFile(currentFile);
         loadDocList();
         loadGitConfig();
-    }, [currentFile]);
+    }, [currentFile, isRemoteMode]);
 
     const loadDocList = async () => {
         try {
             if (USE_IPC) {
-                const files = await window.electronAPI.getDocList();
+                const basePath = isRemoteMode ? '/remote_docs' : '/docs';
+                const files = await window.electronAPI.getDocList(basePath);
                 setDocFiles(files);
+                if (currentFile) {
+                    const newPath = isRemoteMode ? 
+                        currentFile.replace('/docs/', '/remote_docs/') : 
+                        currentFile.replace('/remote_docs/', '/docs/');
+                    setCurrentFile(newPath);
+                }
             } else {
                 const response = await fetch(`${API_BASE_URL}/api/docs/list`);
                 if (!response.ok) {
@@ -237,7 +245,6 @@ const Doc: React.FC = () => {
                         alignItems: 'center',
                         gap: '4px',
                         cursor: 'pointer',
-                        width: '100%',
                         paddingLeft: '4px'
                     }} onClick={() => setDocListCollapsed(!docListCollapsed)}>
                         {docListCollapsed ? (
@@ -246,6 +253,18 @@ const Doc: React.FC = () => {
                             <MenuFoldOutlined style={{ transition: 'transform 0.2s' }} />
                         )}
                         <span>目录</span>
+                        <Button
+                            icon={<SwapOutlined />}
+                            type={isRemoteMode ? "primary" : "default"}
+                            size="small"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsRemoteMode(!isRemoteMode);
+                            }}
+                            style={{ marginLeft: '8px' }}
+                        >
+                            {isRemoteMode ? '远程文档' : '本地文档'}
+                        </Button>
                     </div>
                     <div style={{ width: '1px', height: '12px', background: '#f0f0f0' }} />
                     <div style={{ flex: 1 }} />
