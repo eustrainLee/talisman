@@ -273,7 +273,15 @@ const Doc: React.FC = () => {
     return (
         <Layout style={{ background: '#fff', height: '100%', margin: 0 }}>
             <Card 
-                style={{ borderRadius: 0 }}
+                style={{ 
+                    borderRadius: 0,
+                    position: 'fixed',
+                    top: 0,
+                    left: '80px',
+                    right: 0,
+                    zIndex: 100,
+                    transition: 'left 0.3s ease-in-out'
+                }}
                 bodyStyle={{ padding: 0 }}
             >
                 <div style={{ 
@@ -281,7 +289,8 @@ const Doc: React.FC = () => {
                     borderBottom: '1px solid #f0f0f0',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '16px'
+                    gap: '16px',
+                    backgroundColor: '#fff'
                 }}>
                     <div style={{
                         display: 'flex',
@@ -363,244 +372,260 @@ const Doc: React.FC = () => {
                         </Button>
                     </Space>
                 </div>
-                <Layout style={{ background: '#fff' }}>
-                    <div style={{
-                        width: docListCollapsed ? 0 : 200,
-                        overflow: 'hidden',
-                        transition: 'width 0.3s ease-in-out'
-                    }}>
-                        <Sider 
-                            width={200}
-                            style={{ 
-                                background: '#fff',
-                                borderRight: '1px solid #f0f0f0',
-                                height: 'calc(100vh - 117px)',
-                                overflow: 'hidden'
-                            }}
-                        >
-                            <div style={{ 
-                                padding: '12px',
-                                width: 200,
-                                opacity: docListCollapsed ? 0 : 1,
-                                transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
-                                transition: 'all 0.3s ease-in-out'
-                            }}>
-                                <Tree
-                                    defaultSelectedKeys={['/docs/index.md']}
-                                    defaultExpandAll
-                                    blockNode={false}
-                                    showLine={true}
-                                    fieldNames={{
-                                        title: 'title',
-                                        key: 'key',
-                                        children: 'children'
-                                    }}
-                                    onSelect={(selectedKeys) => {
-                                        if (selectedKeys.length > 0) {
-                                            const key = selectedKeys[0] as string;
-                                            const node = findNode(docFiles, key);
-                                            if (node && !node.isDirectory) {
-                                                if (!isPreview && markdown) {
-                                                    saveMarkdown().then(() => {
-                                                        setCurrentFile(key);
-                                                    });
-                                                } else {
+            </Card>
+            <Layout style={{ 
+                background: '#fff',
+                marginTop: '57px',
+                height: 'calc(100vh - 57px)',
+                overflow: 'hidden'
+            }}>
+                <div style={{
+                    width: docListCollapsed ? 0 : 200,
+                    overflow: 'hidden',
+                    transition: 'width 0.3s ease-in-out',
+                    height: 'calc(100vh - 57px)',
+                    position: 'fixed',
+                    left: '80px',
+                    top: '57px',
+                    bottom: 0,
+                    zIndex: 101,
+                    backgroundColor: '#fff'
+                }}>
+                    <Sider 
+                        width={200}
+                        style={{ 
+                            background: '#fff',
+                            borderRight: '1px solid #f0f0f0',
+                            height: '100%',
+                            overflow: 'hidden'
+                        }}
+                    >
+                        <div style={{ 
+                            padding: '12px',
+                            width: 200,
+                            height: '100%',
+                            opacity: docListCollapsed ? 0 : 1,
+                            transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
+                            transition: 'all 0.3s ease-in-out',
+                            overflow: 'auto'
+                        }}>
+                            <Tree
+                                defaultSelectedKeys={['/docs/index.md']}
+                                defaultExpandAll
+                                blockNode={false}
+                                showLine={true}
+                                fieldNames={{
+                                    title: 'title',
+                                    key: 'key',
+                                    children: 'children'
+                                }}
+                                onSelect={(selectedKeys) => {
+                                    if (selectedKeys.length > 0) {
+                                        const key = selectedKeys[0] as string;
+                                        const node = findNode(docFiles, key);
+                                        if (node && !node.isDirectory) {
+                                            if (!isPreview && markdown) {
+                                                saveMarkdown().then(() => {
                                                     setCurrentFile(key);
-                                                }
+                                                });
+                                            } else {
+                                                setCurrentFile(key);
                                             }
                                         }
-                                    }}
-                                    treeData={docFiles}
-                                    style={{ 
-                                        fontSize: '12px',
-                                        padding: '0 4px'
-                                    }}
-                                    icon={(nodeProps: any) => {
-                                        if (nodeProps.data?.isDirectory) {
-                                            return <FolderOutlined style={{ color: '#1677ff' }} />;
-                                        }
-                                        return <FileOutlined style={{ color: '#666' }} />;
-                                    }}
-                                />
-                            </div>
-                        </Sider>
-                    </div>
-                    <Content style={{ 
-                        padding: '24px',
-                        minHeight: 'calc(100vh - 117px)',
-                        transition: 'all 0.3s ease-in-out'
-                    }}>
-                        {isPreview ? (
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw]}
-                                components={{
-                                    code: ({ inline, className, children, node, ...props }: CodeProps) => {
-                                        // 处理代码内容，移除末尾换行符
-                                        const content = String(children).replace(/\n$/, '');
-                                        
-                                        // 通过节点的位置信息来判断是否为代码块
-                                        const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+                                    }
+                                }}
+                                treeData={docFiles}
+                                style={{ 
+                                    fontSize: '12px',
+                                    padding: '0 4px'
+                                }}
+                                icon={(nodeProps: any) => {
+                                    if (nodeProps.data?.isDirectory) {
+                                        return <FolderOutlined style={{ color: '#1677ff' }} />;
+                                    }
+                                    return <FileOutlined style={{ color: '#666' }} />;
+                                }}
+                            />
+                        </div>
+                    </Sider>
+                </div>
+                <Content style={{ 
+                    padding: '24px',
+                    marginLeft: docListCollapsed ? 0 : '200px',
+                    transition: 'margin-left 0.3s ease-in-out',
+                    height: '100%',
+                    overflow: 'auto'
+                }}>
+                    {isPreview ? (
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
+                            components={{
+                                code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                    // 处理代码内容，移除末尾换行符
+                                    const content = String(children).replace(/\n$/, '');
+                                    
+                                    // 通过节点的位置信息来判断是否为代码块
+                                    const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
 
-                                        // 处理行内代码（单个反引号包裹）
-                                        if (!isCodeBlock) {
-                                            return (
-                                                <code
-                                                    style={{
-                                                        backgroundColor: '#f5f5f5',
-                                                        color: '#d63200',
-                                                        padding: '2px 4px',
-                                                        borderRadius: '3px',
-                                                        fontSize: '0.9em',
-                                                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                                                    }}
-                                                    {...props}
-                                                >
-                                                    {content}
-                                                </code>
-                                            );
-                                        }
-
-                                        // 处理代码块（三个反引号包裹）
+                                    // 处理行内代码（单个反引号包裹）
+                                    if (!isCodeBlock) {
                                         return (
-                                            <div style={{ position: 'relative' }}>
-                                                <SyntaxHighlighter
-                                                    style={oneLight as any}
-                                                    language={className ? className.replace(/language-/, '') : ''}
-                                                    PreTag="div"
-                                                    customStyle={{
-                                                        margin: '1em 0',
-                                                        padding: '1em',
-                                                        borderRadius: '6px',
-                                                        fontSize: '85%',
-                                                        backgroundColor: '#f6f8fa',
-                                                        border: '1px solid #eaecef'
-                                                    }}
-                                                    {...props}
-                                                >
-                                                    {content}
-                                                </SyntaxHighlighter>
-                                                {className && (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            top: '0',
-                                                            right: '0',
-                                                            padding: '0.2em 0.6em',
-                                                            fontSize: '85%',
-                                                            color: '#57606a',
-                                                            backgroundColor: '#f6f8fa',
-                                                            borderLeft: '1px solid #eaecef',
-                                                            borderBottom: '1px solid #eaecef',
-                                                            borderRadius: '0 6px 0 6px'
-                                                        }}
-                                                    >
-                                                        {className.replace(/language-/, '')}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    },
-                                    table: ({ children, ...props }) => (
-                                        <div style={{ overflowX: 'auto', margin: '1em 0' }}>
-                                            <table
+                                            <code
                                                 style={{
-                                                    borderCollapse: 'collapse',
-                                                    width: '100%',
-                                                    fontSize: '14px',
-                                                    lineHeight: '1.5'
+                                                    backgroundColor: '#f5f5f5',
+                                                    color: '#d63200',
+                                                    padding: '2px 4px',
+                                                    borderRadius: '3px',
+                                                    fontSize: '0.9em',
+                                                    fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
                                                 }}
                                                 {...props}
                                             >
-                                                {children}
-                                            </table>
+                                                {content}
+                                            </code>
+                                        );
+                                    }
+
+                                    // 处理代码块（三个反引号包裹）
+                                    return (
+                                        <div style={{ position: 'relative' }}>
+                                            <SyntaxHighlighter
+                                                style={oneLight as any}
+                                                language={className ? className.replace(/language-/, '') : ''}
+                                                PreTag="div"
+                                                customStyle={{
+                                                    margin: '1em 0',
+                                                    padding: '1em',
+                                                    borderRadius: '6px',
+                                                    fontSize: '85%',
+                                                    backgroundColor: '#f6f8fa',
+                                                    border: '1px solid #eaecef'
+                                                }}
+                                                {...props}
+                                            >
+                                                {content}
+                                            </SyntaxHighlighter>
+                                            {className && (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '0',
+                                                        right: '0',
+                                                        padding: '0.2em 0.6em',
+                                                        fontSize: '85%',
+                                                        color: '#57606a',
+                                                        backgroundColor: '#f6f8fa',
+                                                        borderLeft: '1px solid #eaecef',
+                                                        borderBottom: '1px solid #eaecef',
+                                                        borderRadius: '0 6px 0 6px'
+                                                    }}
+                                                >
+                                                    {className.replace(/language-/, '')}
+                                                </div>
+                                            )}
                                         </div>
-                                    ),
-                                    th: ({ children, ...props }) => (
-                                        <th
+                                    );
+                                },
+                                table: ({ children, ...props }) => (
+                                    <div style={{ overflowX: 'auto', margin: '1em 0' }}>
+                                        <table
                                             style={{
-                                                backgroundColor: '#f6f8fa',
-                                                border: '1px solid #d0d7de',
-                                                padding: '8px 12px',
-                                                textAlign: 'left'
+                                                borderCollapse: 'collapse',
+                                                width: '100%',
+                                                fontSize: '14px',
+                                                lineHeight: '1.5'
                                             }}
                                             {...props}
                                         >
                                             {children}
-                                        </th>
-                                    ),
-                                    td: ({ children, ...props }) => (
-                                        <td
-                                            style={{
-                                                border: '1px solid #d0d7de',
-                                                padding: '8px 12px'
-                                            }}
-                                            {...props}
-                                        >
-                                            {children}
-                                        </td>
-                                    )
-                                }}
-                            >
-                                {markdown}
-                            </ReactMarkdown>
-                        ) : (
-                            <MdEditor
-                                modelValue={markdown}
-                                onChange={setMarkdown}
-                                style={{
-                                    height: 'calc(100vh - 117px)',
-                                    '--md-editor-code-head-display': 'block',
-                                    '--md-editor-code-flag-display': 'none'
-                                } as any}
-                                theme="light"
-                                previewTheme="github"
-                                codeTheme="github"
-                                showCodeRowNumber={false}
-                                preview={true}
-                                noPrettier={true}
-                                noMermaid={false}
-                                noKatex={true}
-                                onSave={() => saveMarkdown(false)}
-                                sanitize={(html) => html}
-                                formatCopiedText={(text) => text}
-                                toolbars={[
-                                    'bold',
-                                    'underline',
-                                    'italic',
-                                    'strikeThrough',
-                                    '-',
-                                    'title',
-                                    'sub',
-                                    'sup',
-                                    'quote',
-                                    'unorderedList',
-                                    'orderedList',
-                                    'task',
-                                    '-',
-                                    'codeRow',
-                                    'code',
-                                    'link',
-                                    'image',
-                                    'table',
-                                    'mermaid',
-                                    '-',
-                                    'revoke',
-                                    'next',
-                                    'save',
-                                    '=',
-                                    'prettier',
-                                    'pageFullscreen',
-                                    'fullscreen',
-                                    'preview',
-                                    'htmlPreview',
-                                    'catalog'
-                                ] as any[]}
-                            />
-                        )}
-                    </Content>
-                </Layout>
-            </Card>
+                                        </table>
+                                    </div>
+                                ),
+                                th: ({ children, ...props }) => (
+                                    <th
+                                        style={{
+                                            backgroundColor: '#f6f8fa',
+                                            border: '1px solid #d0d7de',
+                                            padding: '8px 12px',
+                                            textAlign: 'left'
+                                        }}
+                                        {...props}
+                                    >
+                                        {children}
+                                    </th>
+                                ),
+                                td: ({ children, ...props }) => (
+                                    <td
+                                        style={{
+                                            border: '1px solid #d0d7de',
+                                            padding: '8px 12px'
+                                        }}
+                                        {...props}
+                                    >
+                                        {children}
+                                    </td>
+                                )
+                            }}
+                        >
+                            {markdown}
+                        </ReactMarkdown>
+                    ) : (
+                        <MdEditor
+                            modelValue={markdown}
+                            onChange={setMarkdown}
+                            style={{
+                                height: 'calc(100vh - 117px)',
+                                '--md-editor-code-head-display': 'block',
+                                '--md-editor-code-flag-display': 'none'
+                            } as any}
+                            theme="light"
+                            previewTheme="github"
+                            codeTheme="github"
+                            showCodeRowNumber={false}
+                            preview={true}
+                            noPrettier={true}
+                            noMermaid={false}
+                            noKatex={true}
+                            onSave={() => saveMarkdown(false)}
+                            sanitize={(html) => html}
+                            formatCopiedText={(text) => text}
+                            toolbars={[
+                                'bold',
+                                'underline',
+                                'italic',
+                                'strikeThrough',
+                                '-',
+                                'title',
+                                'sub',
+                                'sup',
+                                'quote',
+                                'unorderedList',
+                                'orderedList',
+                                'task',
+                                '-',
+                                'codeRow',
+                                'code',
+                                'link',
+                                'image',
+                                'table',
+                                'mermaid',
+                                '-',
+                                'revoke',
+                                'next',
+                                'save',
+                                '=',
+                                'prettier',
+                                'pageFullscreen',
+                                'fullscreen',
+                                'preview',
+                                'htmlPreview',
+                                'catalog'
+                            ] as any[]}
+                        />
+                    )}
+                </Content>
+            </Layout>
             <Modal
                 title="修改文档标题"
                 open={isEditTitleModalVisible}
