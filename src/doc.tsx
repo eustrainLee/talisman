@@ -483,7 +483,46 @@ const Doc: React.FC = () => {
                                                 )}
                                             </div>
                                         );
-                                    }
+                                    },
+                                    table: ({ children, ...props }) => (
+                                        <div style={{ overflowX: 'auto', margin: '1em 0' }}>
+                                            <table
+                                                style={{
+                                                    borderCollapse: 'collapse',
+                                                    width: '100%',
+                                                    fontSize: '14px',
+                                                    lineHeight: '1.5'
+                                                }}
+                                                {...props}
+                                            >
+                                                {children}
+                                            </table>
+                                        </div>
+                                    ),
+                                    th: ({ children, ...props }) => (
+                                        <th
+                                            style={{
+                                                backgroundColor: '#f6f8fa',
+                                                border: '1px solid #d0d7de',
+                                                padding: '8px 12px',
+                                                textAlign: 'left'
+                                            }}
+                                            {...props}
+                                        >
+                                            {children}
+                                        </th>
+                                    ),
+                                    td: ({ children, ...props }) => (
+                                        <td
+                                            style={{
+                                                border: '1px solid #d0d7de',
+                                                padding: '8px 12px'
+                                            }}
+                                            {...props}
+                                        >
+                                            {children}
+                                        </td>
+                                    )
                                 }}
                             >
                                 {markdown}
