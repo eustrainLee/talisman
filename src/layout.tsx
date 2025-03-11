@@ -1,4 +1,3 @@
-import './App.css'
 import Home from './home'
 import Assets from './assets'
 import Doc from './doc'

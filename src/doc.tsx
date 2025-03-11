@@ -4,7 +4,8 @@ import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, Git
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import type { SyntaxHighlighterProps } from 'react-syntax-highlighter';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import MarkNav from 'markdown-navbar';
@@ -16,12 +17,11 @@ import './doc.css';
 
 const { Sider, Content } = Layout;
 
-interface CodeProps {
-    node?: any;
+interface CodeProps extends React.HTMLAttributes<HTMLElement> {
     inline?: boolean;
     className?: string;
     children?: React.ReactNode;
-    [key: string]: any;
+    node?: any;
 }
 
 interface DocFile {
@@ -407,21 +407,81 @@ const Doc: React.FC = () => {
                                 remarkPlugins={[remarkGfm]}
                                 rehypePlugins={[rehypeRaw]}
                                 components={{
-                                    code: ({ inline, className, children, ...props }: CodeProps) => {
-                                        const match = /language-(\w+)/.exec(className || '');
-                                        return !inline && match ? (
-                                            <SyntaxHighlighter
-                                                style={vscDarkPlus}
-                                                language={match[1]}
-                                                PreTag="div"
-                                                {...props}
-                                            >
-                                                {String(children).replace(/\n$/, '')}
-                                            </SyntaxHighlighter>
-                                        ) : (
-                                            <code className={className} {...props}>
-                                                {children}
-                                            </code>
+                                    code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                        console.log('Code props:', { 
+                                            inline, 
+                                            className, 
+                                            children, 
+                                            node,
+                                            nodeType: node?.type,
+                                            nodeTagName: node?.tagName,
+                                            childrenType: typeof children,
+                                            childrenLength: Array.isArray(children) ? children.length : 'not array'
+                                        });
+                                        
+                                        // 处理代码内容，移除末尾换行符
+                                        const content = String(children).replace(/\n$/, '');
+                                        
+                                        // 通过节点的位置信息来判断是否为代码块
+                                        const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+
+                                        // 处理行内代码（单个反引号包裹）
+                                        if (!isCodeBlock) {
+                                            return (
+                                                <code
+                                                    style={{
+                                                        backgroundColor: '#f5f5f5',
+                                                        color: '#d63200',
+                                                        padding: '2px 4px',
+                                                        borderRadius: '3px',
+                                                        fontSize: '0.9em',
+                                                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
+                                                    }}
+                                                    {...props}
+                                                >
+                                                    {content}
+                                                </code>
+                                            );
+                                        }
+
+                                        // 处理代码块（三个反引号包裹）
+                                        return (
+                                            <div style={{ position: 'relative' }}>
+                                                <SyntaxHighlighter
+                                                    style={oneLight as any}
+                                                    language={className ? className.replace(/language-/, '') : ''}
+                                                    PreTag="div"
+                                                    customStyle={{
+                                                        margin: '1em 0',
+                                                        padding: '1em',
+                                                        borderRadius: '6px',
+                                                        fontSize: '85%',
+                                                        backgroundColor: '#f6f8fa',
+                                                        border: '1px solid #eaecef'
+                                                    }}
+                                                    {...props}
+                                                >
+                                                    {content}
+                                                </SyntaxHighlighter>
+                                                {className && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '0',
+                                                            right: '0',
+                                                            padding: '0.2em 0.6em',
+                                                            fontSize: '85%',
+                                                            color: '#57606a',
+                                                            backgroundColor: '#f6f8fa',
+                                                            borderLeft: '1px solid #eaecef',
+                                                            borderBottom: '1px solid #eaecef',
+                                                            borderRadius: '0 6px 0 6px'
+                                                        }}
+                                                    >
+                                                        {className.replace(/language-/, '')}
+                                                    </div>
+                                                )}
+                                            </div>
                                         );
                                     }
                                 }}
