@@ -44,6 +44,7 @@ const Doc: React.FC = () => {
     const [docFiles, setDocFiles] = useState<DocFile[]>([]);
     const [isEditTitleModalVisible, setIsEditTitleModalVisible] = useState(false);
     const [docListCollapsed, setDocListCollapsed] = useState(false);
+    const [previousDocListState, setPreviousDocListState] = useState(false);
     const [form] = Form.useForm();
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
@@ -55,6 +56,15 @@ const Doc: React.FC = () => {
         loadDocList();
         loadGitConfig();
     }, [currentFile, isRemoteMode]);
+
+    useEffect(() => {
+        if (!isPreview) {
+            setPreviousDocListState(docListCollapsed);
+            setDocListCollapsed(true);
+        } else {
+            setDocListCollapsed(previousDocListState);
+        }
+    }, [isPreview]);
 
     const loadDocList = async () => {
         try {
@@ -244,9 +254,10 @@ const Doc: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '4px',
-                        cursor: 'pointer',
-                        paddingLeft: '4px'
-                    }} onClick={() => setDocListCollapsed(!docListCollapsed)}>
+                        cursor: isPreview ? 'pointer' : 'not-allowed',
+                        paddingLeft: '4px',
+                        opacity: isPreview ? 1 : 0.5
+                    }} onClick={() => isPreview && setDocListCollapsed(!docListCollapsed)}>
                         {docListCollapsed ? (
                             <MenuUnfoldOutlined style={{ transition: 'transform 0.2s' }} />
                         ) : (
@@ -262,6 +273,7 @@ const Doc: React.FC = () => {
                                 setIsRemoteMode(!isRemoteMode);
                             }}
                             style={{ marginLeft: '8px' }}
+                            disabled={!isPreview}
                         >
                             {isRemoteMode ? '远程文档' : '本地文档'}
                         </Button>
