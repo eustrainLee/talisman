@@ -271,7 +271,12 @@ const Doc: React.FC = () => {
     };
 
     return (
-        <Layout style={{ background: '#fff', height: '100%', margin: 0 }}>
+        <Layout style={{ 
+            background: '#fff', 
+            height: '100vh', 
+            margin: 0,
+            overflow: 'hidden'
+        }}>
             <Card 
                 style={{ 
                     borderRadius: 0,
@@ -279,8 +284,7 @@ const Doc: React.FC = () => {
                     top: 0,
                     left: '80px',
                     right: 0,
-                    zIndex: 100,
-                    transition: 'left 0.3s ease-in-out'
+                    zIndex: 100
                 }}
                 bodyStyle={{ padding: 0 }}
             >
@@ -383,7 +387,7 @@ const Doc: React.FC = () => {
                     width: docListCollapsed ? 0 : 200,
                     overflow: 'hidden',
                     transition: 'width 0.3s ease-in-out',
-                    height: 'calc(100vh - 57px)',
+                    height: '100%',
                     position: 'fixed',
                     left: '80px',
                     top: '57px',
@@ -450,132 +454,134 @@ const Doc: React.FC = () => {
                     </Sider>
                 </div>
                 <Content style={{ 
-                    padding: '24px',
+                    padding: '16px',
                     marginLeft: docListCollapsed ? 0 : '200px',
                     transition: 'margin-left 0.3s ease-in-out',
                     height: '100%',
                     overflow: 'auto'
                 }}>
                     {isPreview ? (
-                        <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeRaw]}
-                            components={{
-                                code: ({ inline, className, children, node, ...props }: CodeProps) => {
-                                    // 处理代码内容，移除末尾换行符
-                                    const content = String(children).replace(/\n$/, '');
-                                    
-                                    // 通过节点的位置信息来判断是否为代码块
-                                    const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+                        <div style={{ height: '100%', overflow: 'auto' }}>
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw]}
+                                components={{
+                                    code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                        // 处理代码内容，移除末尾换行符
+                                        const content = String(children).replace(/\n$/, '');
+                                        
+                                        // 通过节点的位置信息来判断是否为代码块
+                                        const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
 
-                                    // 处理行内代码（单个反引号包裹）
-                                    if (!isCodeBlock) {
-                                        return (
-                                            <code
-                                                style={{
-                                                    backgroundColor: '#f5f5f5',
-                                                    color: '#d63200',
-                                                    padding: '2px 4px',
-                                                    borderRadius: '3px',
-                                                    fontSize: '0.9em',
-                                                    fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                                                }}
-                                                {...props}
-                                            >
-                                                {content}
-                                            </code>
-                                        );
-                                    }
-
-                                    // 处理代码块（三个反引号包裹）
-                                    return (
-                                        <div style={{ position: 'relative' }}>
-                                            <SyntaxHighlighter
-                                                style={oneLight as any}
-                                                language={className ? className.replace(/language-/, '') : ''}
-                                                PreTag="div"
-                                                customStyle={{
-                                                    margin: '1em 0',
-                                                    padding: '1em',
-                                                    borderRadius: '6px',
-                                                    fontSize: '85%',
-                                                    backgroundColor: '#f6f8fa',
-                                                    border: '1px solid #eaecef'
-                                                }}
-                                                {...props}
-                                            >
-                                                {content}
-                                            </SyntaxHighlighter>
-                                            {className && (
-                                                <div
+                                        // 处理行内代码（单个反引号包裹）
+                                        if (!isCodeBlock) {
+                                            return (
+                                                <code
                                                     style={{
-                                                        position: 'absolute',
-                                                        top: '0',
-                                                        right: '0',
-                                                        padding: '0.2em 0.6em',
-                                                        fontSize: '85%',
-                                                        color: '#57606a',
-                                                        backgroundColor: '#f6f8fa',
-                                                        borderLeft: '1px solid #eaecef',
-                                                        borderBottom: '1px solid #eaecef',
-                                                        borderRadius: '0 6px 0 6px'
+                                                        backgroundColor: '#f5f5f5',
+                                                        color: '#d63200',
+                                                        padding: '2px 4px',
+                                                        borderRadius: '3px',
+                                                        fontSize: '0.9em',
+                                                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
                                                     }}
+                                                    {...props}
                                                 >
-                                                    {className.replace(/language-/, '')}
-                                                </div>
-                                            )}
+                                                    {content}
+                                                </code>
+                                            );
+                                        }
+
+                                        // 处理代码块（三个反引号包裹）
+                                        return (
+                                            <div style={{ position: 'relative' }}>
+                                                <SyntaxHighlighter
+                                                    style={oneLight as any}
+                                                    language={className ? className.replace(/language-/, '') : ''}
+                                                    PreTag="div"
+                                                    customStyle={{
+                                                        margin: '1em 0',
+                                                        padding: '1em',
+                                                        borderRadius: '6px',
+                                                        fontSize: '85%',
+                                                        backgroundColor: '#f6f8fa',
+                                                        border: '1px solid #eaecef'
+                                                    }}
+                                                    {...props}
+                                                >
+                                                    {content}
+                                                </SyntaxHighlighter>
+                                                {className && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '0',
+                                                            right: '0',
+                                                            padding: '0.2em 0.6em',
+                                                            fontSize: '85%',
+                                                            color: '#57606a',
+                                                            backgroundColor: '#f6f8fa',
+                                                            borderLeft: '1px solid #eaecef',
+                                                            borderBottom: '1px solid #eaecef',
+                                                            borderRadius: '0 6px 0 6px'
+                                                        }}
+                                                    >
+                                                        {className.replace(/language-/, '')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    },
+                                    table: ({ children, ...props }) => (
+                                        <div style={{ overflowX: 'auto', margin: '1em 0' }}>
+                                            <table
+                                                style={{
+                                                    borderCollapse: 'collapse',
+                                                    width: '100%',
+                                                    fontSize: '14px',
+                                                    lineHeight: '1.5'
+                                                }}
+                                                {...props}
+                                            >
+                                                {children}
+                                            </table>
                                         </div>
-                                    );
-                                },
-                                table: ({ children, ...props }) => (
-                                    <div style={{ overflowX: 'auto', margin: '1em 0' }}>
-                                        <table
+                                    ),
+                                    th: ({ children, ...props }) => (
+                                        <th
                                             style={{
-                                                borderCollapse: 'collapse',
-                                                width: '100%',
-                                                fontSize: '14px',
-                                                lineHeight: '1.5'
+                                                backgroundColor: '#f6f8fa',
+                                                border: '1px solid #d0d7de',
+                                                padding: '8px 12px',
+                                                textAlign: 'left'
                                             }}
                                             {...props}
                                         >
                                             {children}
-                                        </table>
-                                    </div>
-                                ),
-                                th: ({ children, ...props }) => (
-                                    <th
-                                        style={{
-                                            backgroundColor: '#f6f8fa',
-                                            border: '1px solid #d0d7de',
-                                            padding: '8px 12px',
-                                            textAlign: 'left'
-                                        }}
-                                        {...props}
-                                    >
-                                        {children}
-                                    </th>
-                                ),
-                                td: ({ children, ...props }) => (
-                                    <td
-                                        style={{
-                                            border: '1px solid #d0d7de',
-                                            padding: '8px 12px'
-                                        }}
-                                        {...props}
-                                    >
-                                        {children}
-                                    </td>
-                                )
-                            }}
-                        >
-                            {markdown}
-                        </ReactMarkdown>
+                                        </th>
+                                    ),
+                                    td: ({ children, ...props }) => (
+                                        <td
+                                            style={{
+                                                border: '1px solid #d0d7de',
+                                                padding: '8px 12px'
+                                            }}
+                                            {...props}
+                                        >
+                                            {children}
+                                        </td>
+                                    )
+                                }}
+                            >
+                                {markdown}
+                            </ReactMarkdown>
+                        </div>
                     ) : (
                         <MdEditor
                             modelValue={markdown}
                             onChange={setMarkdown}
                             style={{
-                                height: 'calc(100vh - 117px)',
+                                height: '100%',
                                 '--md-editor-code-head-display': 'block',
                                 '--md-editor-code-flag-display': 'none'
                             } as any}
