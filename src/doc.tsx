@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button } from 'antd';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
@@ -46,10 +46,11 @@ const Doc: React.FC = () => {
     const [docListCollapsed, setDocListCollapsed] = useState(false);
     const [previousDocListState, setPreviousDocListState] = useState(false);
     const [form] = Form.useForm();
-    const [prevMarkdown, setPrevMarkdown] = useState('');
     const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
     const [gitConfigForm] = Form.useForm();
     const [isRemoteMode, setIsRemoteMode] = useState(false);
+    const [autoSave, setAutoSave] = useState(false);
+    const [prevMarkdown, setPrevMarkdown] = useState('');
 
     useEffect(() => {
         loadMarkdownFile(currentFile);
@@ -65,6 +66,17 @@ const Doc: React.FC = () => {
             setDocListCollapsed(previousDocListState);
         }
     }, [isPreview]);
+
+    useEffect(() => {
+        if (autoSave && !isPreview && markdown !== prevMarkdown) {
+            const timer = setTimeout(() => {
+                saveMarkdown(false);
+                setPrevMarkdown(markdown);
+            }, 60000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [markdown, autoSave]);
 
     const loadDocList = async () => {
         try {
@@ -114,12 +126,14 @@ const Doc: React.FC = () => {
         }
     };
 
-    const saveMarkdown = async () => {
+    const saveMarkdown = async (exitEdit: boolean = true) => {
         try {
             if (USE_IPC) {
                 await window.electronAPI.saveDoc(currentFile, markdown);
                 message.success('保存成功');
-                setIsPreview(true);
+                if (exitEdit) {
+                    setIsPreview(true);
+                }
             } else {
                 const response = await fetch(`${API_BASE_URL}/api/docs/save`, {
                     method: 'POST',
@@ -137,24 +151,15 @@ const Doc: React.FC = () => {
                 }
 
                 message.success('保存成功');
-                setIsPreview(true);
+                if (exitEdit) {
+                    setIsPreview(true);
+                }
             }
         } catch (error) {
             console.error('保存失败:', error);
             message.error('保存失败');
         }
     };
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (!isPreview && markdown && markdown !== prevMarkdown) {
-                saveMarkdown();
-                setPrevMarkdown(markdown);
-            }
-        }, 2000);
-
-        return () => clearTimeout(timer);
-    }, [markdown, isPreview, prevMarkdown]);
 
     const updateDocConfig = async (values: { title: string }) => {
         try {
@@ -291,6 +296,17 @@ const Doc: React.FC = () => {
                             </Button>
                         ) : (
                             <>
+                                <Form.Item
+                                    valuePropName="checked"
+                                    style={{ marginBottom: 0 }}
+                                >
+                                    <Checkbox
+                                        checked={autoSave}
+                                        onChange={(e) => setAutoSave(e.target.checked)}
+                                    >
+                                        自动保存
+                                    </Checkbox>
+                                </Form.Item>
                                 <Button 
                                     onClick={() => {
                                         if (currentFile) {
@@ -305,10 +321,7 @@ const Doc: React.FC = () => {
                                 </Button>
                                 <Button 
                                     type="primary" 
-                                    onClick={() => {
-                                        saveMarkdown();
-                                        setIsPreview(true);
-                                    }}
+                                    onClick={() => saveMarkdown(true)}
                                 >
                                     保存
                                 </Button>
