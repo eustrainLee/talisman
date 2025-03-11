@@ -78,6 +78,34 @@ const Doc: React.FC = () => {
         }
     }, [markdown, autoSave]);
 
+    useEffect(() => {
+        const removeDecorations = () => {
+            const decorations = document.querySelectorAll('.md-editor-code-flag');
+            decorations.forEach(el => {
+                if (el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            });
+        };
+
+        removeDecorations();
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach(() => {
+                removeDecorations();
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
     const loadDocList = async () => {
         try {
             if (USE_IPC) {
@@ -408,17 +436,6 @@ const Doc: React.FC = () => {
                                 rehypePlugins={[rehypeRaw]}
                                 components={{
                                     code: ({ inline, className, children, node, ...props }: CodeProps) => {
-                                        console.log('Code props:', { 
-                                            inline, 
-                                            className, 
-                                            children, 
-                                            node,
-                                            nodeType: node?.type,
-                                            nodeTagName: node?.tagName,
-                                            childrenType: typeof children,
-                                            childrenLength: Array.isArray(children) ? children.length : 'not array'
-                                        });
-                                        
                                         // 处理代码内容，移除末尾换行符
                                         const content = String(children).replace(/\n$/, '');
                                         
@@ -531,7 +548,54 @@ const Doc: React.FC = () => {
                             <MdEditor
                                 modelValue={markdown}
                                 onChange={setMarkdown}
-                                style={{ height: 'calc(100vh - 117px)' }}
+                                style={{
+                                    height: 'calc(100vh - 117px)',
+                                    '--md-editor-code-head-display': 'block',
+                                    '--md-editor-code-flag-display': 'none'
+                                } as any}
+                                theme="light"
+                                previewTheme="github"
+                                codeTheme="github"
+                                showCodeRowNumber={false}
+                                preview={true}
+                                noPrettier={true}
+                                noMermaid={false}
+                                noKatex={true}
+                                onSave={() => saveMarkdown(false)}
+                                sanitize={(html) => html}
+                                formatCopiedText={(text) => text}
+                                toolbars={[
+                                    'bold',
+                                    'underline',
+                                    'italic',
+                                    'strikeThrough',
+                                    '-',
+                                    'title',
+                                    'sub',
+                                    'sup',
+                                    'quote',
+                                    'unorderedList',
+                                    'orderedList',
+                                    'task',
+                                    '-',
+                                    'codeRow',
+                                    'code',
+                                    'link',
+                                    'image',
+                                    'table',
+                                    'mermaid',
+                                    '-',
+                                    'revoke',
+                                    'next',
+                                    'save',
+                                    '=',
+                                    'prettier',
+                                    'pageFullscreen',
+                                    'fullscreen',
+                                    'preview',
+                                    'htmlPreview',
+                                    'catalog'
+                                ] as any[]}
                             />
                         )}
                     </Content>
