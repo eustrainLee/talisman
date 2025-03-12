@@ -50,14 +50,15 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [isEditTitleModalVisible, setIsEditTitleModalVisible] = useState(false);
     const [docListCollapsed, setDocListCollapsed] = useState(false);
     const [previousDocListState, setPreviousDocListState] = useState(false);
-    const [form] = Form.useForm();
     const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
-    const [gitConfigForm] = Form.useForm();
     const [isRemoteMode, setIsRemoteMode] = useState(false);
     const [autoSave, setAutoSave] = useState(false);
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [collapsed, setCollapsed] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
+
+    const [editTitleForm] = Form.useForm();
+    const [gitConfigForm] = Form.useForm();
 
     const handleModeChange = async (mode?: boolean) => {
         const newMode = mode !== undefined ? mode : !isRemoteMode;
@@ -100,7 +101,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     useEffect(() => {
         handleModeChange(false);
-        loadGitConfig();
     }, []);
 
     useEffect(() => {
@@ -156,6 +156,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             observer.disconnect();
         };
     }, []);
+
+    useEffect(() => {
+        if (isGitConfigModalVisible) {
+            loadGitConfig();
+        }
+    }, [isGitConfigModalVisible]);
 
     const loadMarkdownFile = async (path: string) => {
         if (!path) return;
@@ -249,7 +255,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     const showEditTitleModal = () => {
         const currentDoc = docFiles.find(file => file.key === currentFile);
-        form.setFieldsValue({ title: currentDoc?.title });
+        editTitleForm.setFieldsValue({ title: currentDoc?.title });
         setIsEditTitleModalVisible(true);
     };
 
@@ -363,7 +369,10 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             </Button>
                         ) : (
                             <>
-                                <Form form={form}>
+                                <Form 
+                                    form={editTitleForm}
+                                    style={{ marginBottom: 0 }}
+                                >
                                     <Form.Item
                                         valuePropName="checked"
                                         style={{ marginBottom: 0 }}
@@ -645,11 +654,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             <Modal
                 title="修改文档标题"
                 open={isEditTitleModalVisible}
-                onOk={() => form.submit()}
+                onOk={() => editTitleForm.submit()}
                 onCancel={() => setIsEditTitleModalVisible(false)}
             >
                 <Form
-                    form={form}
+                    form={editTitleForm}
                     onFinish={updateDocConfig}
                     layout="vertical"
                 >
