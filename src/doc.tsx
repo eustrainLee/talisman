@@ -37,7 +37,11 @@ interface GitConfig {
     docPath: string;
 }
 
-const Doc: React.FC = () => {
+interface Props {
+    menuCollapsed?: boolean;
+}
+
+const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [markdown, setMarkdown] = useState('');
     const [isPreview, setIsPreview] = useState(true);
     const [currentFile, setCurrentFile] = useState('/docs/index.md');
@@ -51,6 +55,7 @@ const Doc: React.FC = () => {
     const [isRemoteMode, setIsRemoteMode] = useState(false);
     const [autoSave, setAutoSave] = useState(false);
     const [prevMarkdown, setPrevMarkdown] = useState('');
+    const [collapsed, setCollapsed] = useState(false);
 
     useEffect(() => {
         loadMarkdownFile(currentFile);
@@ -282,9 +287,10 @@ const Doc: React.FC = () => {
                     borderRadius: 0,
                     position: 'fixed',
                     top: 0,
-                    left: '80px',
+                    left: menuCollapsed ? '80px' : '160px',
                     right: 0,
-                    zIndex: 100
+                    zIndex: 99,
+                    transition: 'left 0.2s'
                 }}
                 bodyStyle={{ padding: 0 }}
             >
@@ -386,14 +392,14 @@ const Doc: React.FC = () => {
                 <div style={{
                     width: docListCollapsed ? 0 : 200,
                     overflow: 'hidden',
-                    transition: 'width 0.3s ease-in-out',
                     height: '100%',
                     position: 'fixed',
-                    left: '80px',
+                    left: menuCollapsed ? '80px' : '160px',
                     top: '57px',
                     bottom: 0,
-                    zIndex: 101,
-                    backgroundColor: '#fff'
+                    zIndex: 98,
+                    backgroundColor: '#fff',
+                    transition: 'left 0.2s, width 0.3s ease-in-out'
                 }}>
                     <Sider 
                         width={200}

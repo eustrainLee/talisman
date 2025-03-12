@@ -13,7 +13,7 @@ const siderStyle: React.CSSProperties = {
   left: 0,
   top: 0,
   bottom: 0,
-  zIndex: 100,
+  zIndex: 1000,
   backgroundColor: 'white',
 };
 
@@ -92,7 +92,7 @@ const BaseLayout: React.FC = () => {
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
             <Route path="/assets" element={<Assets />} />
-            <Route path="/doc" element={<Doc />} />
+            <Route path="/doc" element={<Doc menuCollapsed={collapsed} />} />
           </Routes>
         </Content>
       </Layout>
