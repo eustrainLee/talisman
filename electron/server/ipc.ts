@@ -8,18 +8,23 @@ import { promisify } from 'util'
 
 const globPromise = promisify(glob)
 
+interface DocNodeConfig {
+  title: string;
+  name: string;  // 文件名或目录名
+  type: 'file' | 'directory';
+  children?: DocNodeConfig[];  // 改为数组
+}
+
 interface DocConfig {
-  [key: string]: {
-    title?: string;
-    order?: number;
-  };
+  files: DocNodeConfig[];  // 改为 files
 }
 
 interface DocNode {
   title: string;
   key: string;
-  isDirectory?: boolean;
+  isDirectory: boolean;
   children?: DocNode[];
+  exists?: boolean;  // 添加文件存在性标记
 }
 
 interface GitConfig {
@@ -28,90 +33,208 @@ interface GitConfig {
   docPath: string;
 }
 
+function checkFileExists(filePath: string): boolean {
+  try {
+    const stat = fs.statSync(filePath);
+    return stat.isFile();
+  } catch (error) {
+    return false;
+  }
+}
+
 function buildDocTree(files: string[], docsPath: string, config: DocConfig): DocNode[] {
-  const tree: DocNode[] = [];
-  const dirMap = new Map<string, DocNode>();
   const isRemote = path.basename(docsPath) === 'remote_docs';
+  const prefix = isRemote ? '/remote_docs/' : '/docs/';
+  const tree: DocNode[] = [];
+  const nodeMap = new Map<string, DocNode>();
+  const configMap = new Map<string, DocNodeConfig & { index: number }>();
 
-  // 首先创建所有目录节点
-  files.forEach(file => {
-    const parts = file.split('/');
-    let currentPath = '';
-
-    // 处理每一级目录
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      if (!dirMap.has(currentPath)) {
-        const configKey = currentPath;
-        const node: DocNode = {
-          title: config[configKey]?.title || part,
-          key: isRemote ? `/remote_docs/${currentPath}` : `/docs/${currentPath}`,
-          isDirectory: true,
-          children: []
-        };
-        dirMap.set(currentPath, node);
-
-        if (parentPath) {
-          const parentNode = dirMap.get(parentPath);
-          parentNode?.children?.push(node);
-        } else {
-          tree.push(node);
-        }
-      }
+  // 检查文件是否存在
+  function checkFileExists(filePath: string): boolean {
+    const fullPath = path.join(docsPath, filePath);
+    try {
+      const stat = fs.statSync(fullPath);
+      return stat.isFile();
+    } catch {
+      return false;
     }
-  });
+  }
 
-  // 然后添加文件节点
-  files.forEach(file => {
-    const parts = file.split('/');
-    const fileName = parts[parts.length - 1];
-    const dirPath = parts.slice(0, -1).join('/');
-    const configKey = file;
+  // 检查目录是否存在
+  function checkDirExists(dirPath: string): boolean {
+    const fullPath = path.join(docsPath, dirPath);
+    try {
+      const stat = fs.statSync(fullPath);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  // 构建配置映射
+  function buildConfigMap(nodes: DocNodeConfig[], parentPath: string = '') {
+    nodes.forEach((node, index) => {
+      const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
+      configMap.set(nodePath, { ...node, index });
+      
+      if (node.type === 'directory' && node.children) {
+        buildConfigMap(node.children, nodePath);
+      }
+    });
+  }
+
+  if (config.files) {
+    buildConfigMap(config.files);
+  }
+
+  // 获取配置的辅助函数
+  function getNodeConfig(nodePath: string): (DocNodeConfig & { index: number }) | undefined {
+    return configMap.get(nodePath);
+  }
+
+  // 创建目录节点的辅助函数
+  function ensureDirectoryNode(dirPath: string, parentNode: DocNode[] | undefined = undefined): DocNode[] {
+    if (!dirPath) return tree;
+    
+    const fullKey = prefix + dirPath;
+    const existingNode = nodeMap.get(fullKey);
+    if (existingNode) {
+      return existingNode.children!;
+    }
+
+    const parts = dirPath.split('/');
+    let currentPath = '';
+    let currentParent = parentNode || tree;
+
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const currentKey = prefix + currentPath;
+      
+      let node = nodeMap.get(currentKey);
+      if (!node) {
+        // 检查是否有配置
+        const nodeConfig = getNodeConfig(currentPath);
+        node = {
+          title: nodeConfig?.title || part,
+          key: currentKey,
+          isDirectory: true,
+          children: [],
+          exists: checkDirExists(currentPath)  // 使用新的目录检查函数
+        };
+        nodeMap.set(currentKey, node);
+        currentParent.push(node);
+      }
+      currentParent = node.children!;
+    }
+
+    return currentParent;
+  }
+
+  // 添加文件节点的辅助函数
+  function addFileNode(filePath: string, parentNode: DocNode[]) {
+    const fullKey = prefix + filePath;
+    if (nodeMap.has(fullKey)) return;
+
+    // 检查是否有配置
+    const nodeConfig = getNodeConfig(filePath);
+    const fileName = path.basename(filePath);
     
     const node: DocNode = {
-      title: config[configKey]?.title || fileName,
-      key: isRemote ? `/remote_docs/${file}` : `/docs/${file}`,
-      isDirectory: false
+      title: nodeConfig?.title || fileName.replace(/\.md$/, ''),
+      key: fullKey,
+      isDirectory: false,
+      exists: checkFileExists(filePath)  // 检查文件是否存在
     };
+    nodeMap.set(fullKey, node);
+    parentNode.push(node);
+  }
 
-    if (dirPath) {
-      const dirNode = dirMap.get(dirPath);
-      dirNode?.children?.push(node);
-    } else {
-      tree.push(node);
-    }
+  // 首先处理配置中的节点
+  if (config.files) {
+    config.files.forEach(nodeConfig => {
+      const normalizedPath = nodeConfig.name.replace(/\\/g, '/');
+      const dirPath = path.dirname(normalizedPath);
+      
+      if (nodeConfig.type === 'directory') {
+        const parentNode = dirPath === '.' ? tree : ensureDirectoryNode(dirPath);
+        const fullKey = prefix + normalizedPath;
+        
+        // 如果目录节点已存在，跳过
+        if (nodeMap.has(fullKey)) return;
+        
+        const exists = checkDirExists(normalizedPath);
+        const node: DocNode = {
+          title: nodeConfig.title || path.basename(normalizedPath),
+          key: fullKey,
+          isDirectory: true,
+          children: [],
+          exists
+        };
+        nodeMap.set(node.key, node);
+        parentNode.push(node);
+      } else {
+        const parentNode = dirPath === '.' ? tree : ensureDirectoryNode(dirPath);
+        const fullKey = prefix + normalizedPath;
+        
+        // 如果文件节点已存在，跳过
+        if (nodeMap.has(fullKey)) return;
+        
+        const exists = checkFileExists(normalizedPath);
+        const node: DocNode = {
+          title: nodeConfig.title || path.basename(normalizedPath).replace(/\.md$/, ''),
+          key: fullKey,
+          isDirectory: false,
+          exists
+        };
+        nodeMap.set(node.key, node);
+        parentNode.push(node);
+      }
+    });
+  }
+
+  // 处理未配置的文件
+  files.forEach(file => {
+    const normalizedPath = file.replace(/\\/g, '/');
+    const fullKey = prefix + normalizedPath;
+    
+    // 如果文件已经在节点映射中，跳过
+    if (nodeMap.has(fullKey)) return;
+
+    const dirPath = path.dirname(normalizedPath);
+    const parentNode = dirPath === '.' ? tree : ensureDirectoryNode(dirPath);
+    addFileNode(normalizedPath, parentNode);
   });
 
-  // 对每个目录中的内容进行排序
-  const sortNodes = (nodes: DocNode[]) => {
+  // 递归排序函数
+  function sortNodes(nodes: DocNode[]) {
     nodes.sort((a, b) => {
-      // 目录优先
       if (a.isDirectory !== b.isDirectory) {
         return a.isDirectory ? -1 : 1;
       }
-      // 同类型按照配置的顺序排序
-      const configKeyA = a.key.slice(isRemote ? 12 : 6);
-      const configKeyB = b.key.slice(isRemote ? 12 : 6);
-      const orderA = config[configKeyA]?.order || 0;
-      const orderB = config[configKeyB]?.order || 0;
-      if (orderA !== orderB) {
-        return orderA - orderB;
+      
+      // 获取节点的配置和索引
+      const configA = getNodeConfig(a.key.slice(prefix.length));
+      const configB = getNodeConfig(b.key.slice(prefix.length));
+      
+      // 比较索引
+      const indexA = configA?.index ?? Number.MAX_SAFE_INTEGER;
+      const indexB = configB?.index ?? Number.MAX_SAFE_INTEGER;
+      if (indexA !== indexB) {
+        return indexA - indexB;
       }
-      // 最后按标题字母顺序排序
+      
       return a.title.localeCompare(b.title);
     });
-    // 递归排序子目录
+
+    // 递归排序子节点
     nodes.forEach(node => {
       if (node.children) {
         sortNodes(node.children);
       }
     });
-  };
-  sortNodes(tree);
+  }
 
+  sortNodes(tree);
   return tree;
 }
 
@@ -132,12 +255,34 @@ export function setupIpcHandlers(publicPath: string) {
 
       const files = await globPromise('**/*.md', { cwd: rootPath });
       const configPath = path.join(publicPath, isRemote ? 'remote_docs/config.json' : 'docs/config.json');
-      let config: DocConfig = {};
+      let config: DocConfig = { files: [] };
 
       if (fs.existsSync(configPath)) {
         try {
           const configContent = await fsPromises.readFile(configPath, 'utf-8');
-          config = JSON.parse(configContent);
+          const rawConfig = JSON.parse(configContent);
+          
+          // 如果是旧格式，转换为新格式
+          if (!rawConfig.files && !rawConfig.nodes) {
+            const newConfig: DocConfig = { files: [] };
+            function convertOldConfig(oldConfig: any) {
+              Object.entries(oldConfig).forEach(([key, value]: [string, any]) => {
+                const isFile = key.endsWith('.md');
+                newConfig.files.push({
+                  title: value.title || key,
+                  name: key,
+                  type: isFile ? 'file' : 'directory',
+                  ...(isFile ? {} : { children: [] })
+                });
+              });
+            }
+            convertOldConfig(rawConfig);
+            config = newConfig;
+          } else {
+            config = {
+              files: rawConfig.files || rawConfig.nodes || []
+            };
+          }
         } catch (error) {
           console.error('读取配置文件失败:', error);
         }
@@ -155,13 +300,17 @@ export function setupIpcHandlers(publicPath: string) {
     try {
       const fullPath = path.join(publicPath, docPath.slice(1));
       if (!fs.existsSync(fullPath)) {
-        throw new Error('文档不存在');
+        throw new Error('文档不存在，请先创建文档');
       }
       const content = await fsPromises.readFile(fullPath, 'utf-8');
       return content;
     } catch (error) {
       console.error('读取文档失败:', error);
-      throw error;
+      // 确保返回中文错误消息
+      if (error instanceof Error) {
+        throw new Error(error.message.includes('不存在') ? error.message : '读取文档失败');
+      }
+      throw new Error('读取文档失败');
     }
   });
 
@@ -186,13 +335,36 @@ export function setupIpcHandlers(publicPath: string) {
   // 更新文档配置
   ipcMain.handle('doc:config', async (event, docPath: string, title: string) => {
     try {
-      const configPath = path.join(publicPath, 'docs', 'config.json');
-      let config: DocConfig = {};
+      const isRemote = docPath.startsWith('/remote_docs/');
+      const configPath = path.join(publicPath, isRemote ? 'remote_docs/config.json' : 'docs/config.json');
+      let config: DocConfig = { files: [] };
 
       if (fs.existsSync(configPath)) {
         try {
           const configContent = await fsPromises.readFile(configPath, 'utf-8');
-          config = JSON.parse(configContent);
+          const rawConfig = JSON.parse(configContent);
+          
+          // 如果是旧格式，转换为新格式
+          if (!rawConfig.files && !rawConfig.nodes) {
+            const newConfig: DocConfig = { files: [] };
+            function convertOldConfig(oldConfig: any) {
+              Object.entries(oldConfig).forEach(([key, value]: [string, any]) => {
+                const isFile = key.endsWith('.md');
+                newConfig.files.push({
+                  title: value.title || key,
+                  name: key,
+                  type: isFile ? 'file' : 'directory',
+                  ...(isFile ? {} : { children: [] })
+                });
+              });
+            }
+            convertOldConfig(rawConfig);
+            config = newConfig;
+          } else {
+            config = {
+              files: rawConfig.files || rawConfig.nodes || []
+            };
+          }
         } catch (error) {
           console.error('读取配置文件失败:', error);
         }
@@ -202,10 +374,38 @@ export function setupIpcHandlers(publicPath: string) {
                           docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
                           docPath;
 
-      config[relativePath] = {
-        ...config[relativePath],
-        title
-      };
+      const isFile = relativePath.endsWith('.md');
+      const pathParts = relativePath.split('/');
+      let currentConfig = config.files;
+      
+      // 创建或更新路径上的所有节点
+      for (let i = 0; i < pathParts.length; i++) {
+        const part = pathParts[i];
+        const isLastPart = i === pathParts.length - 1;
+        
+        if (!currentConfig.find(node => node.name === part)) {
+          currentConfig.push({
+            title: isLastPart ? title : part,
+            name: part,
+            type: isLastPart ? (isFile ? 'file' : 'directory') : 'directory',
+            ...(isLastPart ? {} : { children: [] })
+          });
+        } else if (isLastPart) {
+          const node = currentConfig.find(node => node.name === part);
+          if (node) {
+            node.title = title;
+          }
+        }
+        
+        if (!isLastPart) {
+          const node = currentConfig.find(node => node.name === part);
+          if (node && node.children) {
+            currentConfig = node.children;
+          } else {
+            currentConfig = [];
+          }
+        }
+      }
 
       await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
       return { success: true };

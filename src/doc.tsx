@@ -29,6 +29,7 @@ interface DocFile {
     key: string;
     children?: DocFile[];
     isDirectory?: boolean;
+    exists?: boolean;
 }
 
 interface GitConfig {
@@ -311,7 +312,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     zIndex: 99,
                     transition: 'left 0.2s'
                 }}
-                bodyStyle={{ padding: 0 }}
+                styles={{ body: { padding: 0 } }}
             >
                 <div style={{ 
                     padding: '8px 24px',
@@ -362,17 +363,19 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             </Button>
                         ) : (
                             <>
-                                <Form.Item
-                                    valuePropName="checked"
-                                    style={{ marginBottom: 0 }}
-                                >
-                                    <Checkbox
-                                        checked={autoSave}
-                                        onChange={(e) => setAutoSave(e.target.checked)}
+                                <Form form={form}>
+                                    <Form.Item
+                                        valuePropName="checked"
+                                        style={{ marginBottom: 0 }}
                                     >
-                                        自动保存
-                                    </Checkbox>
-                                </Form.Item>
+                                        <Checkbox
+                                            checked={autoSave}
+                                            onChange={(e) => setAutoSave(e.target.checked)}
+                                        >
+                                            自动保存
+                                        </Checkbox>
+                                    </Form.Item>
+                                </Form>
                                 <Button 
                                     onClick={() => {
                                         if (currentFile) {
@@ -448,11 +451,23 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         key: 'key',
                                         children: 'children'
                                     }}
+                                    titleRender={(nodeData: any) => (
+                                        <span style={{ 
+                                            textDecoration: nodeData.exists === false ? 'line-through' : 'none',
+                                            color: nodeData.exists === false ? '#999' : 'inherit'
+                                        }}>
+                                            {nodeData.title}
+                                        </span>
+                                    )}
                                     onSelect={(selectedKeys) => {
                                         if (selectedKeys.length > 0) {
                                             const key = selectedKeys[0] as string;
                                             const node = findNode(docFiles, key);
                                             if (node && !node.isDirectory) {
+                                                if (node.exists === false) {
+                                                    message.error('该文档不存在，无法打开');
+                                                    return;
+                                                }
                                                 if (!isPreview && markdown) {
                                                     saveMarkdown().then(() => {
                                                         setCurrentFile(key);
@@ -472,7 +487,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         if (nodeProps.data?.isDirectory) {
                                             return <FolderOutlined style={{ color: '#1677ff' }} />;
                                         }
-                                        return <FileOutlined style={{ color: '#666' }} />;
+                                        return <FileOutlined style={{ color: nodeProps.data?.exists === false ? '#999' : '#666' }} />;
                                     }}
                                 />
                             ) : (
