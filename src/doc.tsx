@@ -424,6 +424,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 defaultExpandAll
                                 blockNode={false}
                                 showLine={true}
+                                expandAction="click"
                                 fieldNames={{
                                     title: 'title',
                                     key: 'key',
