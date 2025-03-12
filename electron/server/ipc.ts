@@ -117,19 +117,13 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取文档列表
   ipcMain.handle('doc:list', async (event, basePath = '/docs') => {
     const rootPath = path.join(publicPath, basePath.slice(1));
-    const indexPath = path.join(rootPath, 'index.md');
-
-    // 确保目录存在
-    if (!fs.existsSync(rootPath)) {
-      await fsPromises.mkdir(rootPath, { recursive: true });
-    }
-
-    // 确保 index.md 存在（仅对 docs 目录）
-    if (basePath === '/docs' && !fs.existsSync(indexPath)) {
-      await fsPromises.writeFile(indexPath, '# Welcome to Talisman\n', 'utf-8');
-    }
 
     try {
+      // 如果目录不存在，直接返回空数组
+      if (!fs.existsSync(rootPath)) {
+        return [];
+      }
+
       const files = await globPromise('**/*.md', { cwd: rootPath });
       const configPath = path.join(publicPath, 'docs', 'config.json');
       let config: DocConfig = {};

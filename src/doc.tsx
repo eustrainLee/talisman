@@ -58,10 +58,49 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [collapsed, setCollapsed] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
 
-    const handleModeChange = () => {
-        setIsRemoteMode(!isRemoteMode);
-        loadDocList();
+    const handleModeChange = async (mode?: boolean) => {
+        const newMode = mode !== undefined ? mode : !isRemoteMode;
+        setIsRemoteMode(newMode);
+        try {
+            const basePath = newMode ? '/remote_docs' : '/docs';
+            if (USE_IPC) {
+                const files = await window.electronAPI.getDocList(basePath);
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                setDocFiles(files);
+            } else {
+                const response = await fetch(`${API_BASE_URL}/api/docs/list?noCreate=true`);
+                if (!response.ok) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                const files = await response.json();
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                setDocFiles(files);
+            }
+        } catch (error) {
+            console.error('获取文档列表失败:', error);
+            setDocFiles([]);
+            setCurrentFile('');
+            setMarkdown('');
+        }
     };
+
+    useEffect(() => {
+        handleModeChange(false);
+        loadGitConfig();
+    }, []);
 
     useEffect(() => {
         if (currentFile && docFiles.length > 0) {
@@ -116,49 +155,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             observer.disconnect();
         };
     }, []);
-
-    const loadDocList = async () => {
-        try {
-            if (USE_IPC) {
-                const basePath = isRemoteMode ? '/remote_docs' : '/docs';
-                const files = await window.electronAPI.getDocList(basePath);
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-                if (currentFile) {
-                    const newPath = isRemoteMode ? 
-                        currentFile.replace('/docs/', '/remote_docs/') : 
-                        currentFile.replace('/remote_docs/', '/docs/');
-                    setCurrentFile(newPath);
-                }
-            } else {
-                const response = await fetch(`${API_BASE_URL}/api/docs/list`);
-                if (!response.ok) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                const files = await response.json();
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-            }
-        } catch (error) {
-            console.error('获取文档列表失败:', error);
-            setDocFiles([]);
-            setCurrentFile('');
-            setMarkdown('');
-        }
-    };
 
     const loadMarkdownFile = async (path: string) => {
         if (!path) return;
@@ -222,7 +218,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             if (USE_IPC) {
                 await window.electronAPI.updateDocConfig(currentFile, values.title);
                 message.success('更新成功');
-                loadDocList();
+                handleModeChange();
                 setIsEditTitleModalVisible(false);
             } else {
                 const response = await fetch(`${API_BASE_URL}/api/docs/config`, {
@@ -241,7 +237,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 }
 
                 message.success('更新成功');
-                loadDocList();
+                handleModeChange();
                 setIsEditTitleModalVisible(false);
             }
         } catch (error) {
@@ -290,7 +286,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 await window.electronAPI.pullFromGit(values);
                 message.success('从Git仓库拉取文档成功');
                 setIsGitConfigModalVisible(false);
-                loadDocList();
+                handleModeChange();
             }
         } catch (error) {
             console.error('从Git拉取文档失败:', error);
@@ -380,11 +376,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 <Button 
                                     onClick={() => {
                                         if (currentFile) {
-                                            window.electronAPI.getDocContent(currentFile).then((content) => {
-                                                setMarkdown(content);
-                                                setIsPreview(true);
-                                            });
+                                            loadMarkdownFile(currentFile);
                                         }
+                                        setIsPreview(true);
                                     }}
                                 >
                                     取消
@@ -442,44 +436,54 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             transition: 'all 0.3s ease-in-out',
                             overflow: 'auto'
                         }}>
-                            <Tree
-                                defaultSelectedKeys={[]}
-                                defaultExpandAll
-                                blockNode={false}
-                                showLine={true}
-                                expandAction="click"
-                                fieldNames={{
-                                    title: 'title',
-                                    key: 'key',
-                                    children: 'children'
-                                }}
-                                onSelect={(selectedKeys) => {
-                                    if (selectedKeys.length > 0) {
-                                        const key = selectedKeys[0] as string;
-                                        const node = findNode(docFiles, key);
-                                        if (node && !node.isDirectory) {
-                                            if (!isPreview && markdown) {
-                                                saveMarkdown().then(() => {
+                            {docFiles.length > 0 ? (
+                                <Tree
+                                    defaultSelectedKeys={[]}
+                                    defaultExpandAll
+                                    blockNode={false}
+                                    showLine={true}
+                                    expandAction="click"
+                                    fieldNames={{
+                                        title: 'title',
+                                        key: 'key',
+                                        children: 'children'
+                                    }}
+                                    onSelect={(selectedKeys) => {
+                                        if (selectedKeys.length > 0) {
+                                            const key = selectedKeys[0] as string;
+                                            const node = findNode(docFiles, key);
+                                            if (node && !node.isDirectory) {
+                                                if (!isPreview && markdown) {
+                                                    saveMarkdown().then(() => {
+                                                        setCurrentFile(key);
+                                                    });
+                                                } else {
                                                     setCurrentFile(key);
-                                                });
-                                            } else {
-                                                setCurrentFile(key);
+                                                }
                                             }
                                         }
-                                    }
-                                }}
-                                treeData={docFiles}
-                                style={{ 
-                                    fontSize: '12px',
-                                    padding: '0 4px'
-                                }}
-                                icon={(nodeProps: any) => {
-                                    if (nodeProps.data?.isDirectory) {
-                                        return <FolderOutlined style={{ color: '#1677ff' }} />;
-                                    }
-                                    return <FileOutlined style={{ color: '#666' }} />;
-                                }}
-                            />
+                                    }}
+                                    treeData={docFiles}
+                                    style={{ 
+                                        fontSize: '12px',
+                                        padding: '0 4px'
+                                    }}
+                                    icon={(nodeProps: any) => {
+                                        if (nodeProps.data?.isDirectory) {
+                                            return <FolderOutlined style={{ color: '#1677ff' }} />;
+                                        }
+                                        return <FileOutlined style={{ color: '#666' }} />;
+                                    }}
+                                />
+                            ) : (
+                                <div style={{
+                                    color: '#999',
+                                    textAlign: 'center',
+                                    padding: '20px 0'
+                                }}>
+                                    {isRemoteMode ? '暂无远程文档' : '暂无本地文档'}
+                                </div>
+                            )}
                         </div>
                     </Sider>
                 </div>
@@ -490,175 +494,136 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     height: '100%',
                     overflow: 'auto'
                 }}>
-                    {isPreview ? (
-                        <div style={{ height: '100%', overflow: 'auto' }}>
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeRaw]}
-                                components={{
-                                    code: ({ inline, className, children, node, ...props }: CodeProps) => {
-                                        // 处理代码内容，移除末尾换行符
-                                        const content = String(children).replace(/\n$/, '');
-                                        
-                                        // 通过节点的位置信息来判断是否为代码块
-                                        const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
-
-                                        // 处理行内代码（单个反引号包裹）
-                                        if (!isCodeBlock) {
+                    {currentFile ? (
+                        isPreview ? (
+                            <div style={{ height: '100%', overflow: 'auto' }}>
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeRaw]}
+                                    components={{
+                                        code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                            const content = String(children).replace(/\n$/, '');
+                                            const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+                                            if (!isCodeBlock) {
+                                                return (
+                                                    <code
+                                                        style={{
+                                                            backgroundColor: '#f5f5f5',
+                                                            color: '#d63200',
+                                                            padding: '2px 4px',
+                                                            borderRadius: '3px',
+                                                            fontSize: '0.9em',
+                                                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
+                                                        }}
+                                                        {...props}
+                                                    >
+                                                        {content}
+                                                    </code>
+                                                );
+                                            }
                                             return (
-                                                <code
-                                                    style={{
-                                                        backgroundColor: '#f5f5f5',
-                                                        color: '#d63200',
-                                                        padding: '2px 4px',
-                                                        borderRadius: '3px',
-                                                        fontSize: '0.9em',
-                                                        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                                                    }}
-                                                    {...props}
-                                                >
-                                                    {content}
-                                                </code>
+                                                <div style={{ position: 'relative' }}>
+                                                    <SyntaxHighlighter
+                                                        style={oneLight as any}
+                                                        language={className ? className.replace(/language-/, '') : ''}
+                                                        PreTag="div"
+                                                        customStyle={{
+                                                            margin: '1em 0',
+                                                            padding: '1em',
+                                                            borderRadius: '6px',
+                                                            fontSize: '85%',
+                                                            backgroundColor: '#f6f8fa',
+                                                            border: '1px solid #eaecef'
+                                                        }}
+                                                        {...props}
+                                                    >
+                                                        {content}
+                                                    </SyntaxHighlighter>
+                                                    {className && (
+                                                        <div
+                                                            style={{
+                                                                position: 'absolute',
+                                                                top: '0',
+                                                                right: '0',
+                                                                padding: '0.2em 0.6em',
+                                                                fontSize: '85%',
+                                                                color: '#57606a',
+                                                                backgroundColor: '#f6f8fa',
+                                                                borderLeft: '1px solid #eaecef',
+                                                                borderBottom: '1px solid #eaecef',
+                                                                borderRadius: '0 6px 0 6px'
+                                                            }}
+                                                        >
+                                                            {className.replace(/language-/, '')}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             );
                                         }
-
-                                        // 处理代码块（三个反引号包裹）
-                                        return (
-                                            <div style={{ position: 'relative' }}>
-                                                <SyntaxHighlighter
-                                                    style={oneLight as any}
-                                                    language={className ? className.replace(/language-/, '') : ''}
-                                                    PreTag="div"
-                                                    customStyle={{
-                                                        margin: '1em 0',
-                                                        padding: '1em',
-                                                        borderRadius: '6px',
-                                                        fontSize: '85%',
-                                                        backgroundColor: '#f6f8fa',
-                                                        border: '1px solid #eaecef'
-                                                    }}
-                                                    {...props}
-                                                >
-                                                    {content}
-                                                </SyntaxHighlighter>
-                                                {className && (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            top: '0',
-                                                            right: '0',
-                                                            padding: '0.2em 0.6em',
-                                                            fontSize: '85%',
-                                                            color: '#57606a',
-                                                            backgroundColor: '#f6f8fa',
-                                                            borderLeft: '1px solid #eaecef',
-                                                            borderBottom: '1px solid #eaecef',
-                                                            borderRadius: '0 6px 0 6px'
-                                                        }}
-                                                    >
-                                                        {className.replace(/language-/, '')}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    },
-                                    table: ({ children, ...props }) => (
-                                        <div style={{ overflowX: 'auto', margin: '1em 0' }}>
-                                            <table
-                                                style={{
-                                                    borderCollapse: 'collapse',
-                                                    width: '100%',
-                                                    fontSize: '14px',
-                                                    lineHeight: '1.5'
-                                                }}
-                                                {...props}
-                                            >
-                                                {children}
-                                            </table>
-                                        </div>
-                                    ),
-                                    th: ({ children, ...props }) => (
-                                        <th
-                                            style={{
-                                                backgroundColor: '#f6f8fa',
-                                                border: '1px solid #d0d7de',
-                                                padding: '8px 12px',
-                                                textAlign: 'left'
-                                            }}
-                                            {...props}
-                                        >
-                                            {children}
-                                        </th>
-                                    ),
-                                    td: ({ children, ...props }) => (
-                                        <td
-                                            style={{
-                                                border: '1px solid #d0d7de',
-                                                padding: '8px 12px'
-                                            }}
-                                            {...props}
-                                        >
-                                            {children}
-                                        </td>
-                                    )
-                                }}
-                            >
-                                {markdown}
-                            </ReactMarkdown>
-                        </div>
+                                    }}
+                                >
+                                    {markdown}
+                                </ReactMarkdown>
+                            </div>
+                        ) : (
+                            <MdEditor
+                                modelValue={markdown}
+                                onChange={setMarkdown}
+                                style={{
+                                    height: '100%',
+                                    '--md-editor-code-head-display': 'block',
+                                    '--md-editor-code-flag-display': 'none'
+                                } as any}
+                                theme="light"
+                                previewTheme="github"
+                                codeTheme="github"
+                                showCodeRowNumber={false}
+                                preview={true}
+                                noPrettier={true}
+                                noMermaid={false}
+                                noKatex={true}
+                                onSave={() => saveMarkdown(false)}
+                                sanitize={(html) => html}
+                                formatCopiedText={(text) => text}
+                                toolbars={[
+                                    'bold',
+                                    'underline',
+                                    'italic',
+                                    'strikeThrough',
+                                    '-',
+                                    'title',
+                                    'sub',
+                                    'sup',
+                                    'quote',
+                                    'unorderedList',
+                                    'orderedList',
+                                    'task',
+                                    '-',
+                                    'codeRow',
+                                    'code',
+                                    'link',
+                                    'image',
+                                    'table',
+                                    'mermaid',
+                                    '-',
+                                    'revoke',
+                                    'next',
+                                    'save',
+                                    '=',
+                                    'prettier',
+                                    'pageFullscreen',
+                                    'fullscreen',
+                                    'preview',
+                                    'htmlPreview',
+                                    'catalog'
+                                ] as any[]}
+                            />
+                        )
                     ) : (
-                        <MdEditor
-                            modelValue={markdown}
-                            onChange={setMarkdown}
-                            style={{
-                                height: '100%',
-                                '--md-editor-code-head-display': 'block',
-                                '--md-editor-code-flag-display': 'none'
-                            } as any}
-                            theme="light"
-                            previewTheme="github"
-                            codeTheme="github"
-                            showCodeRowNumber={false}
-                            preview={true}
-                            noPrettier={true}
-                            noMermaid={false}
-                            noKatex={true}
-                            onSave={() => saveMarkdown(false)}
-                            sanitize={(html) => html}
-                            formatCopiedText={(text) => text}
-                            toolbars={[
-                                'bold',
-                                'underline',
-                                'italic',
-                                'strikeThrough',
-                                '-',
-                                'title',
-                                'sub',
-                                'sup',
-                                'quote',
-                                'unorderedList',
-                                'orderedList',
-                                'task',
-                                '-',
-                                'codeRow',
-                                'code',
-                                'link',
-                                'image',
-                                'table',
-                                'mermaid',
-                                '-',
-                                'revoke',
-                                'next',
-                                'save',
-                                '=',
-                                'prettier',
-                                'pageFullscreen',
-                                'fullscreen',
-                                'preview',
-                                'htmlPreview',
-                                'catalog'
-                            ] as any[]}
-                        />
+                        <div style={{
+                            height: '100%'
+                        }}>
+                        </div>
                     )}
                 </Content>
             </Layout>
