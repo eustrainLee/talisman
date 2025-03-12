@@ -31,6 +31,7 @@ interface GitConfig {
 function buildDocTree(files: string[], docsPath: string, config: DocConfig): DocNode[] {
   const tree: DocNode[] = [];
   const dirMap = new Map<string, DocNode>();
+  const isRemote = path.basename(docsPath) === 'remote_docs';
 
   // 首先创建所有目录节点
   files.forEach(file => {
@@ -44,9 +45,10 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
       currentPath = currentPath ? `${currentPath}/${part}` : part;
 
       if (!dirMap.has(currentPath)) {
+        const configKey = currentPath;
         const node: DocNode = {
-          title: config[currentPath]?.title || part,
-          key: `/docs/${currentPath}`,
+          title: config[configKey]?.title || part,
+          key: isRemote ? `/remote_docs/${currentPath}` : `/docs/${currentPath}`,
           isDirectory: true,
           children: []
         };
@@ -67,10 +69,11 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
     const parts = file.split('/');
     const fileName = parts[parts.length - 1];
     const dirPath = parts.slice(0, -1).join('/');
+    const configKey = file;
     
     const node: DocNode = {
-      title: config[file]?.title || fileName,
-      key: `/docs/${file}`,
+      title: config[configKey]?.title || fileName,
+      key: isRemote ? `/remote_docs/${file}` : `/docs/${file}`,
       isDirectory: false
     };
 
@@ -90,8 +93,10 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
         return a.isDirectory ? -1 : 1;
       }
       // 同类型按照配置的顺序排序
-      const orderA = config[a.key.slice(6)]?.order || 0;
-      const orderB = config[b.key.slice(6)]?.order || 0;
+      const configKeyA = a.key.slice(isRemote ? 12 : 6);
+      const configKeyB = b.key.slice(isRemote ? 12 : 6);
+      const orderA = config[configKeyA]?.order || 0;
+      const orderB = config[configKeyB]?.order || 0;
       if (orderA !== orderB) {
         return orderA - orderB;
       }
@@ -117,6 +122,7 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取文档列表
   ipcMain.handle('doc:list', async (event, basePath = '/docs') => {
     const rootPath = path.join(publicPath, basePath.slice(1));
+    const isRemote = basePath === '/remote_docs';
 
     try {
       // 如果目录不存在，直接返回空数组
@@ -125,12 +131,16 @@ export function setupIpcHandlers(publicPath: string) {
       }
 
       const files = await globPromise('**/*.md', { cwd: rootPath });
-      const configPath = path.join(publicPath, 'docs', 'config.json');
+      const configPath = path.join(publicPath, isRemote ? 'remote_docs/config.json' : 'docs/config.json');
       let config: DocConfig = {};
 
       if (fs.existsSync(configPath)) {
-        const configContent = await fsPromises.readFile(configPath, 'utf-8');
-        config = JSON.parse(configContent);
+        try {
+          const configContent = await fsPromises.readFile(configPath, 'utf-8');
+          config = JSON.parse(configContent);
+        } catch (error) {
+          console.error('读取配置文件失败:', error);
+        }
       }
 
       return buildDocTree(files, rootPath, config);
@@ -143,11 +153,12 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取文档内容
   ipcMain.handle('doc:get', async (event, docPath: string) => {
     try {
-      const fullPath = path.join(publicPath, docPath);
+      const fullPath = path.join(publicPath, docPath.slice(1));
       if (!fs.existsSync(fullPath)) {
         throw new Error('文档不存在');
       }
-      return await fsPromises.readFile(fullPath, 'utf-8');
+      const content = await fsPromises.readFile(fullPath, 'utf-8');
+      return content;
     } catch (error) {
       console.error('读取文档失败:', error);
       throw error;
@@ -157,7 +168,7 @@ export function setupIpcHandlers(publicPath: string) {
   // 保存文档
   ipcMain.handle('doc:save', async (event, docPath: string, content: string) => {
     try {
-      const fullPath = path.join(publicPath, docPath);
+      const fullPath = path.join(publicPath, docPath.slice(1));
       const dir = path.dirname(fullPath);
       
       if (!fs.existsSync(dir)) {
@@ -179,12 +190,20 @@ export function setupIpcHandlers(publicPath: string) {
       let config: DocConfig = {};
 
       if (fs.existsSync(configPath)) {
-        const configContent = await fsPromises.readFile(configPath, 'utf-8');
-        config = JSON.parse(configContent);
+        try {
+          const configContent = await fsPromises.readFile(configPath, 'utf-8');
+          config = JSON.parse(configContent);
+        } catch (error) {
+          console.error('读取配置文件失败:', error);
+        }
       }
 
-      config[docPath] = {
-        ...config[docPath],
+      const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
+                          docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
+                          docPath;
+
+      config[relativePath] = {
+        ...config[relativePath],
         title
       };
 
