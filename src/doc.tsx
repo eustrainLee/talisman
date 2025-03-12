@@ -44,7 +44,7 @@ interface Props {
 const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [markdown, setMarkdown] = useState('');
     const [isPreview, setIsPreview] = useState(true);
-    const [currentFile, setCurrentFile] = useState('/docs/index.md');
+    const [currentFile, setCurrentFile] = useState('');
     const [docFiles, setDocFiles] = useState<DocFile[]>([]);
     const [isEditTitleModalVisible, setIsEditTitleModalVisible] = useState(false);
     const [docListCollapsed, setDocListCollapsed] = useState(false);
@@ -56,12 +56,18 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [autoSave, setAutoSave] = useState(false);
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [collapsed, setCollapsed] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    const handleModeChange = () => {
+        setIsRemoteMode(!isRemoteMode);
+        loadDocList();
+    };
 
     useEffect(() => {
-        loadMarkdownFile(currentFile);
-        loadDocList();
-        loadGitConfig();
-    }, [currentFile, isRemoteMode]);
+        if (currentFile && docFiles.length > 0) {
+            loadMarkdownFile(currentFile);
+        }
+    }, [currentFile]);
 
     useEffect(() => {
         if (!isPreview) {
@@ -116,6 +122,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             if (USE_IPC) {
                 const basePath = isRemoteMode ? '/remote_docs' : '/docs';
                 const files = await window.electronAPI.getDocList(basePath);
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
                 setDocFiles(files);
                 if (currentFile) {
                     const newPath = isRemoteMode ? 
@@ -126,19 +138,31 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             } else {
                 const response = await fetch(`${API_BASE_URL}/api/docs/list`);
                 if (!response.ok) {
-                    throw new Error('获取文档列表失败');
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
                 }
                 const files = await response.json();
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
                 setDocFiles(files);
             }
         } catch (error) {
             console.error('获取文档列表失败:', error);
-            message.error('获取文档列表失败');
             setDocFiles([]);
+            setCurrentFile('');
+            setMarkdown('');
         }
     };
 
     const loadMarkdownFile = async (path: string) => {
+        if (!path) return;
+        
         try {
             if (USE_IPC) {
                 const text = await window.electronAPI.getDocContent(path);
@@ -147,7 +171,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             } else {
                 const response = await fetch(`${API_BASE_URL}${path}`);
                 if (!response.ok) {
-                    throw new Error('文件加载失败');
+                    return;
                 }
                 const text = await response.text();
                 setMarkdown(text);
@@ -155,7 +179,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             }
         } catch (error) {
             console.error('加载文档失败:', error);
-            message.error('文档加载失败');
         }
     };
 
@@ -322,7 +345,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             size="small"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setIsRemoteMode(!isRemoteMode);
+                                handleModeChange();
                             }}
                             style={{ marginLeft: '8px' }}
                             disabled={!isPreview}
@@ -420,7 +443,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             overflow: 'auto'
                         }}>
                             <Tree
-                                defaultSelectedKeys={['/docs/index.md']}
+                                defaultSelectedKeys={[]}
                                 defaultExpandAll
                                 blockNode={false}
                                 showLine={true}

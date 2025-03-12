@@ -1,0 +1,63 @@
+{
+  "docs": {
+    "/docs/index.md": {
+      "title": "首页",
+      "order": 1
+    }
+  },
+  "index.md": {
+    "title": "首页",
+    "order": 0
+  },
+  "doc2.md": {
+    "title": "文档2"
+  },
+  "getting-started": {
+    "title": "入门指南",
+    "order": 1
+  },
+  "getting-started/quick-start.md": {
+    "title": "快速入门",
+    "order": 1
+  },
+  "getting-started/installation.md": {
+    "title": "安装说明",
+    "order": 2
+  },
+  "advanced": {
+    "title": "进阶主题",
+    "order": 2
+  },
+  "advanced/configuration.md": {
+    "title": "配置指南",
+    "order": 1
+  },
+  "advanced/plugins": {
+    "title": "插件系统",
+    "order": 2
+  },
+  "advanced/plugins/overview.md": {
+    "title": "插件概览",
+    "order": 1
+  },
+  "advanced/plugins/development.md": {
+    "title": "插件开发",
+    "order": 2
+  },
+  "devdoc": {
+    "title": "开发文档",
+    "order": 100
+  },
+  "devdoc/overview.md": {
+    "title": "项目概述",
+    "order": 1
+  },
+  "devdoc/architecture.md": {
+    "title": "架构设计",
+    "order": 2
+  },
+  "devdoc/modules.md": {
+    "title": "功能模块",
+    "order": 3
+  }
+}
