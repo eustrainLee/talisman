@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined } from '@ant-design/icons';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Menu } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined } from '@ant-design/icons';
 import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -38,6 +38,13 @@ interface GitConfig {
     docPath: string;
 }
 
+interface DocNode {
+    title: string;
+    key: string;
+    isLeaf: boolean;
+    children?: DocNode[];
+}
+
 interface Props {
     menuCollapsed?: boolean;
 }
@@ -56,9 +63,15 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [collapsed, setCollapsed] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [isPathConfigModalVisible, setIsPathConfigModalVisible] = useState(false);
+    const [docList, setDocList] = useState<DocNode[]>([]);
+    const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
+    const [docContent, setDocContent] = useState<string>('');
+    const [pathModalVisible, setPathModalVisible] = useState(false);
 
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
+    const [pathForm] = Form.useForm();
 
     const handleModeChange = async (mode?: boolean) => {
         const newMode = mode !== undefined ? mode : !isRemoteMode;
@@ -301,6 +314,100 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
+    const handlePathConfigSubmit = async (values: { localPath: string; remotePath: string }) => {
+        try {
+            if (USE_IPC) {
+                await window.electronAPI.updatePathConfig(values);
+                message.success('路径配置更新成功');
+                setIsPathConfigModalVisible(false);
+                handleModeChange(isRemoteMode);
+            }
+        } catch (error) {
+            console.error('更新路径配置失败:', error);
+            message.error('更新路径配置失败');
+        }
+    };
+
+    const loadPathConfig = async () => {
+        try {
+            if (USE_IPC) {
+                const config = await window.electronAPI.getPathConfig();
+                if (config) {
+                    pathForm.setFieldsValue(config);
+                }
+            }
+        } catch (error) {
+            console.error('加载路径配置失败:', error);
+        }
+    };
+
+    const loadDocList = async () => {
+        try {
+            const basePath = isRemoteMode ? '/remote_docs' : '/docs';
+            if (USE_IPC) {
+                const files = await window.electronAPI.getDocList(basePath);
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                setDocFiles(files);
+            } else {
+                const response = await fetch(`${API_BASE_URL}/api/docs/list?noCreate=true`);
+                if (!response.ok) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                const files = await response.json();
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                setDocFiles(files);
+            }
+        } catch (error) {
+            console.error('获取文档列表失败:', error);
+            setDocFiles([]);
+            setCurrentFile('');
+            setMarkdown('');
+        }
+    };
+
+    const handlePathModalOk = async () => {
+        try {
+            const values = await pathForm.validateFields();
+            const success = await window.electronAPI.updatePathConfig(values);
+            if (success) {
+                message.success('路径配置已更新');
+                setPathModalVisible(false);
+                loadDocList();
+                if (currentFile) {
+                    loadMarkdownFile(currentFile);
+                }
+            } else {
+                message.error('更新路径配置失败');
+            }
+        } catch (error) {
+            message.error('表单验证失败');
+        }
+    };
+
+    const settingsMenu = (
+        <Menu>
+            <Menu.Item key="pathConfig" onClick={() => {
+                loadPathConfig();
+                setPathModalVisible(true);
+            }}>
+                文档目录设置
+            </Menu.Item>
+        </Menu>
+    );
+
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -408,6 +515,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         >
                             从 Git 拉取
                         </Button>
+                        <Dropdown
+                            overlay={settingsMenu}
+                        >
+                            <Button icon={<SettingOutlined />} />
+                        </Dropdown>
                     </Space>
                 </div>
             </Card>
@@ -703,6 +815,32 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         initialValue="docs"
                     >
                         <Input placeholder="例如：docs" />
+                    </Form.Item>
+                </Form>
+            </Modal>
+            <Modal
+                title="文档目录设置"
+                open={pathModalVisible}
+                onOk={handlePathModalOk}
+                onCancel={() => setPathModalVisible(false)}
+            >
+                <Form
+                    form={pathForm}
+                    layout="vertical"
+                >
+                    <Form.Item
+                        name="localPath"
+                        label="本地文档目录"
+                        rules={[{ required: true, message: '请输入本地文档目录路径' }]}
+                    >
+                        <Input placeholder="请输入本地文档目录路径" />
+                    </Form.Item>
+                    <Form.Item
+                        name="remotePath"
+                        label="远程文档目录"
+                        rules={[{ required: true, message: '请输入远程文档目录路径' }]}
+                    >
+                        <Input placeholder="请输入远程文档目录路径" />
                     </Form.Item>
                 </Form>
             </Modal>

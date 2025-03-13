@@ -25,5 +25,8 @@ dist-ssr
 *.sw?
 
 # My documents is private
+path-config.json
+
 public/docs/
 public/remote_docs/
+

@@ -33,6 +33,11 @@ interface GitConfig {
   docPath: string;
 }
 
+interface PathConfig {
+    localPath: string;
+    remotePath: string;
+}
+
 function checkFileExists(filePath: string): boolean {
   try {
     const stat = fs.statSync(filePath);
@@ -241,20 +246,45 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
 export function setupIpcHandlers(publicPath: string) {
   const git = simpleGit();
   const gitConfigPath = path.join(publicPath, 'docs', 'git-config.json');
+  const pathConfigPath = path.join(publicPath, 'path-config.json');
 
   // 获取文档列表
   ipcMain.handle('doc:list', async (event, basePath = '/docs') => {
-    const rootPath = path.join(publicPath, basePath.slice(1));
-    const isRemote = basePath === '/remote_docs';
-
     try {
+      // 读取路径配置
+      let pathConfig: PathConfig = {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+      
+      try {
+        if (fs.existsSync(pathConfigPath)) {
+          pathConfig = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+        }
+      } catch (error) {
+        console.error('读取路径配置失败:', error);
+      }
+
+      // 根据模式选择路径
+      const isRemote = basePath === '/remote_docs';
+      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      
+      // 处理路径
+      let rootPath: string;
+      if (path.isAbsolute(configuredPath)) {
+        rootPath = configuredPath;
+      } else {
+        rootPath = path.resolve(publicPath, '..', configuredPath);
+      }
+
       // 如果目录不存在，直接返回空数组
       if (!fs.existsSync(rootPath)) {
+        console.error('目录不存在:', rootPath);
         return [];
       }
 
       const files = await globPromise('**/*.md', { cwd: rootPath });
-      const configPath = path.join(publicPath, isRemote ? 'remote_docs/config.json' : 'docs/config.json');
+      const configPath = path.join(rootPath, 'config.json');
       let config: DocConfig = { files: [] };
 
       if (fs.existsSync(configPath)) {
@@ -298,15 +328,44 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取文档内容
   ipcMain.handle('doc:get', async (event, docPath: string) => {
     try {
-      const fullPath = path.join(publicPath, docPath.slice(1));
+      // 读取路径配置
+      let pathConfig: PathConfig = {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+      
+      try {
+        if (fs.existsSync(pathConfigPath)) {
+          pathConfig = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+        }
+      } catch (error) {
+        console.error('读取路径配置失败:', error);
+      }
+
+      // 根据路径选择配置
+      const isRemote = docPath.startsWith('/remote_docs/');
+      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
+                          docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
+                          docPath;
+      
+      // 处理路径
+      let basePath: string;
+      if (path.isAbsolute(configuredPath)) {
+        basePath = configuredPath;
+      } else {
+        basePath = path.resolve(publicPath, '..', configuredPath);
+      }
+      
+      const fullPath = path.join(basePath, relativePath);
+      
       if (!fs.existsSync(fullPath)) {
-        throw new Error('文档不存在，请先创建文档');
+        throw new Error('文档不存在');
       }
       const content = await fsPromises.readFile(fullPath, 'utf-8');
       return content;
     } catch (error) {
       console.error('读取文档失败:', error);
-      // 确保返回中文错误消息
       if (error instanceof Error) {
         throw new Error(error.message.includes('不存在') ? error.message : '读取文档失败');
       }
@@ -317,7 +376,36 @@ export function setupIpcHandlers(publicPath: string) {
   // 保存文档
   ipcMain.handle('doc:save', async (event, docPath: string, content: string) => {
     try {
-      const fullPath = path.join(publicPath, docPath.slice(1));
+      // 读取路径配置
+      let pathConfig: PathConfig = {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+      
+      try {
+        if (fs.existsSync(pathConfigPath)) {
+          pathConfig = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+        }
+      } catch (error) {
+        console.error('读取路径配置失败:', error);
+      }
+
+      // 根据路径选择配置
+      const isRemote = docPath.startsWith('/remote_docs/');
+      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
+                          docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
+                          docPath;
+      
+      // 处理路径
+      let basePath: string;
+      if (path.isAbsolute(configuredPath)) {
+        basePath = configuredPath;
+      } else {
+        basePath = path.resolve(publicPath, '..', configuredPath);
+      }
+      
+      const fullPath = path.join(basePath, relativePath);
       const dir = path.dirname(fullPath);
       
       if (!fs.existsSync(dir)) {
@@ -335,8 +423,33 @@ export function setupIpcHandlers(publicPath: string) {
   // 更新文档配置
   ipcMain.handle('doc:config', async (event, docPath: string, title: string) => {
     try {
+      // 读取路径配置
+      let pathConfig: PathConfig = {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+      
+      try {
+        if (fs.existsSync(pathConfigPath)) {
+          pathConfig = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+        }
+      } catch (error) {
+        console.error('读取路径配置失败:', error);
+      }
+
+      // 根据路径选择配置
       const isRemote = docPath.startsWith('/remote_docs/');
-      const configPath = path.join(publicPath, isRemote ? 'remote_docs/config.json' : 'docs/config.json');
+      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      
+      // 处理路径
+      let basePath: string;
+      if (path.isAbsolute(configuredPath)) {
+        basePath = configuredPath;
+      } else {
+        basePath = path.resolve(publicPath, '..', configuredPath);
+      }
+      
+      const configPath = path.join(basePath, 'config.json');
       let config: DocConfig = { files: [] };
 
       if (fs.existsSync(configPath)) {
@@ -476,6 +589,37 @@ export function setupIpcHandlers(publicPath: string) {
       return null;
     } catch (error) {
       console.error('获取Git配置失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取路径配置
+  ipcMain.handle('doc:get-path-config', async () => {
+    try {
+      if (fs.existsSync(pathConfigPath)) {
+        const config = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+        return config;
+      }
+      return {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+    } catch (error) {
+      console.error('读取路径配置失败:', error);
+      return {
+        localPath: 'public/docs',
+        remotePath: 'public/remote_docs'
+      };
+    }
+  });
+
+  // 更新路径配置
+  ipcMain.handle('doc:update-path-config', async (event, config: PathConfig) => {
+    try {
+      fs.writeFileSync(pathConfigPath, JSON.stringify(config, null, 2));
+      return true;
+    } catch (error) {
+      console.error('更新路径配置失败:', error);
       throw error;
     }
   });
