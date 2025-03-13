@@ -182,4 +182,34 @@
 
 .md-editor-rt .md-editor-code-head .md-editor-code-copy {
     order: 1 !important;
+}
+
+/* Markdown 表格样式 */
+table {
+    border-collapse: collapse;
+    margin: 1em 0;
+    width: 100%;
+}
+
+th, td {
+    border: 1px solid #dfe2e5;
+    padding: 8px 12px;
+}
+
+th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+}
+
+tr:nth-child(2n) {
+    background-color: #fafbfc;
+}
+
+/* 确保表格内的代码块样式正确 */
+td code {
+    background-color: rgba(27,31,35,0.05);
+    border-radius: 3px;
+    font-size: 85%;
+    margin: 0;
+    padding: 0.2em 0.4em;
 } 

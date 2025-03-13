@@ -370,7 +370,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         ) : (
                             <>
                                 <Form 
-                                    form={editTitleForm}
                                     style={{ marginBottom: 0 }}
                                 >
                                     <Form.Item
