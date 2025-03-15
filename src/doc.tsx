@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Menu } from 'antd';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown } from 'antd';
+import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined } from '@ant-design/icons';
-import type { DataNode } from 'antd/es/tree';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import type { SyntaxHighlighterProps } from 'react-syntax-highlighter';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
-import MarkNav from 'markdown-navbar';
 import 'markdown-navbar/dist/navbar.css';
 import { MdEditor } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
+import { docsAPI } from './api/docs';
+import type { DocFile, GitConfig } from './api/docs';
 
 const { Sider, Content } = Layout;
 
@@ -21,28 +22,12 @@ interface CodeProps extends React.HTMLAttributes<HTMLElement> {
     inline?: boolean;
     className?: string;
     children?: React.ReactNode;
-    node?: any;
-}
-
-interface DocFile {
-    title: string;
-    key: string;
-    children?: DocFile[];
-    isDirectory?: boolean;
-    exists?: boolean;
-}
-
-interface GitConfig {
-    repoUrl: string;
-    branch: string;
-    docPath: string;
-}
-
-interface DocNode {
-    title: string;
-    key: string;
-    isLeaf: boolean;
-    children?: DocNode[];
+    node?: {
+        position?: {
+            start?: { line: number };
+            end?: { line: number };
+        };
+    };
 }
 
 interface Props {
@@ -61,13 +46,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [isRemoteMode, setIsRemoteMode] = useState(false);
     const [autoSave, setAutoSave] = useState(false);
     const [prevMarkdown, setPrevMarkdown] = useState('');
-    const [collapsed, setCollapsed] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(false);
-    const [isPathConfigModalVisible, setIsPathConfigModalVisible] = useState(false);
-    const [docList, setDocList] = useState<DocNode[]>([]);
-    const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
-    const [docContent, setDocContent] = useState<string>('');
     const [pathModalVisible, setPathModalVisible] = useState(false);
+    const [siderWidth, setSiderWidth] = useState(240);
 
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
@@ -266,12 +246,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    const showEditTitleModal = () => {
-        const currentDoc = docFiles.find(file => file.key === currentFile);
-        editTitleForm.setFieldsValue({ title: currentDoc?.title });
-        setIsEditTitleModalVisible(true);
-    };
-
     const findNode = (nodes: DocFile[], key: string): DocFile | undefined => {
         for (const node of nodes) {
             if (node.key === key) {
@@ -314,30 +288,13 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    const handlePathConfigSubmit = async (values: { localPath: string; remotePath: string }) => {
+    const handlePathConfig = async () => {
         try {
-            if (USE_IPC) {
-                await window.electronAPI.updatePathConfig(values);
-                message.success('路径配置更新成功');
-                setIsPathConfigModalVisible(false);
-                handleModeChange(isRemoteMode);
-            }
+            const config = await docsAPI.getPathConfig();
+            pathForm.setFieldsValue(config);
+            setPathModalVisible(true);
         } catch (error) {
-            console.error('更新路径配置失败:', error);
-            message.error('更新路径配置失败');
-        }
-    };
-
-    const loadPathConfig = async () => {
-        try {
-            if (USE_IPC) {
-                const config = await window.electronAPI.getPathConfig();
-                if (config) {
-                    pathForm.setFieldsValue(config);
-                }
-            }
-        } catch (error) {
-            console.error('加载路径配置失败:', error);
+            message.error('获取路径配置失败');
         }
     };
 
@@ -397,16 +354,15 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    const settingsMenu = (
-        <Menu>
-            <Menu.Item key="pathConfig" onClick={() => {
-                loadPathConfig();
-                setPathModalVisible(true);
-            }}>
-                文档目录设置
-            </Menu.Item>
-        </Menu>
-    );
+    const settingsMenu = {
+        items: [
+            {
+                key: 'pathConfig',
+                label: '文档目录设置',
+                onClick: () => handlePathConfig()
+            }
+        ]
+    };
 
     return (
         <Layout style={{ 
@@ -420,7 +376,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     borderRadius: 0,
                     position: 'fixed',
                     top: 0,
-                    left: menuCollapsed ? '80px' : '160px',
+                    left: menuCollapsed ? '80px' : '200px',
                     right: 0,
                     zIndex: 99,
                     transition: 'left 0.2s'
@@ -516,7 +472,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             从 Git 拉取
                         </Button>
                         <Dropdown
-                            overlay={settingsMenu}
+                            menu={settingsMenu}
                         >
                             <Button icon={<SettingOutlined />} />
                         </Dropdown>
@@ -527,107 +483,135 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 background: '#fff',
                 marginTop: '57px',
                 height: 'calc(100vh - 57px)',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                position: 'relative'
             }}>
-                <div style={{
-                    width: docListCollapsed ? 0 : 200,
-                    overflow: 'hidden',
-                    height: '100%',
-                    position: 'fixed',
-                    left: menuCollapsed ? '80px' : '160px',
-                    top: '57px',
-                    bottom: 0,
-                    zIndex: 98,
-                    backgroundColor: '#fff',
-                    transition: 'left 0.2s, width 0.3s ease-in-out'
-                }}>
-                    <Sider 
-                        width={200}
-                        style={{ 
-                            background: '#fff',
-                            borderRight: '1px solid #f0f0f0',
-                            height: '100%',
-                            overflow: 'hidden'
-                        }}
-                    >
-                        <div style={{ 
-                            padding: '12px',
-                            width: 200,
-                            height: '100%',
-                            opacity: docListCollapsed ? 0 : 1,
-                            transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
-                            transition: 'all 0.3s ease-in-out',
-                            overflow: 'auto'
-                        }}>
-                            {docFiles.length > 0 ? (
-                                <Tree
-                                    defaultSelectedKeys={[]}
-                                    defaultExpandAll
-                                    blockNode={false}
-                                    showLine={true}
-                                    expandAction="click"
-                                    fieldNames={{
-                                        title: 'title',
-                                        key: 'key',
-                                        children: 'children'
-                                    }}
-                                    titleRender={(nodeData: any) => (
-                                        <span style={{ 
-                                            textDecoration: nodeData.exists === false ? 'line-through' : 'none',
-                                            color: nodeData.exists === false ? '#999' : 'inherit'
-                                        }}>
-                                            {nodeData.title}
-                                        </span>
-                                    )}
-                                    onSelect={(selectedKeys) => {
-                                        if (selectedKeys.length > 0) {
-                                            const key = selectedKeys[0] as string;
-                                            const node = findNode(docFiles, key);
-                                            if (node && !node.isDirectory) {
-                                                if (node.exists === false) {
-                                                    message.error('该文档不存在，无法打开');
-                                                    return;
-                                                }
-                                                if (!isPreview && markdown) {
-                                                    saveMarkdown().then(() => {
+                <Resizable
+                    width={docListCollapsed ? 0 : siderWidth}
+                    height={0}
+                    onResize={(_e: React.SyntheticEvent, { size }: { size: { width: number } }) => {
+                        if (!docListCollapsed) {
+                            setSiderWidth(size.width);
+                        }
+                    }}
+                    handle={
+                        <div
+                            style={{
+                                position: 'absolute',
+                                right: -5,
+                                top: 0,
+                                bottom: 0,
+                                width: 10,
+                                cursor: 'col-resize',
+                                zIndex: 99
+                            }}
+                        />
+                    }
+                    draggableOpts={{ enableUserSelectHack: false }}
+                    minConstraints={[160, 0]}
+                    maxConstraints={[400, 0]}
+                >
+                    <div style={{
+                        width: docListCollapsed ? 0 : siderWidth,
+                        overflow: 'hidden',
+                        height: '100%',
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        zIndex: 98,
+                        backgroundColor: '#fff',
+                        transition: docListCollapsed ? 'width 0.3s ease-in-out' : 'none',
+                        borderRight: docListCollapsed ? 'none' : '1px solid #f0f0f0'
+                    }}>
+                        <Sider 
+                            width={siderWidth}
+                            style={{ 
+                                background: '#fff',
+                                height: '100%',
+                                overflow: 'hidden'
+                            }}
+                        >
+                            <div style={{
+                                padding: '12px',
+                                width: siderWidth,
+                                height: '100%',
+                                opacity: docListCollapsed ? 0 : 1,
+                                transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
+                                transition: 'all 0.3s ease-in-out',
+                                overflow: 'auto'
+                            }}>
+                                {docFiles.length > 0 ? (
+                                    <Tree
+                                        defaultSelectedKeys={[]}
+                                        defaultExpandAll
+                                        blockNode={false}
+                                        showLine={true}
+                                        expandAction="click"
+                                        fieldNames={{
+                                            title: 'title',
+                                            key: 'key',
+                                            children: 'children'
+                                        }}
+                                        titleRender={(nodeData: any) => (
+                                            <span style={{ 
+                                                textDecoration: nodeData.exists === false ? 'line-through' : 'none',
+                                                color: nodeData.exists === false ? '#999' : 'inherit'
+                                            }}>
+                                                {nodeData.title}
+                                            </span>
+                                        )}
+                                        onSelect={(selectedKeys) => {
+                                            if (selectedKeys.length > 0) {
+                                                const key = selectedKeys[0] as string;
+                                                const node = findNode(docFiles, key);
+                                                if (node && !node.isDirectory) {
+                                                    if (node.exists === false) {
+                                                        message.error('该文档不存在，无法打开');
+                                                        return;
+                                                    }
+                                                    if (!isPreview && markdown) {
+                                                        saveMarkdown().then(() => {
+                                                            setCurrentFile(key);
+                                                        });
+                                                    } else {
                                                         setCurrentFile(key);
-                                                    });
-                                                } else {
-                                                    setCurrentFile(key);
+                                                    }
                                                 }
                                             }
-                                        }
-                                    }}
-                                    treeData={docFiles}
-                                    style={{ 
-                                        fontSize: '12px',
-                                        padding: '0 4px'
-                                    }}
-                                    icon={(nodeProps: any) => {
-                                        if (nodeProps.data?.isDirectory) {
-                                            return <FolderOutlined style={{ color: '#1677ff' }} />;
-                                        }
-                                        return <FileOutlined style={{ color: nodeProps.data?.exists === false ? '#999' : '#666' }} />;
-                                    }}
-                                />
-                            ) : (
-                                <div style={{
-                                    color: '#999',
-                                    textAlign: 'center',
-                                    padding: '20px 0'
-                                }}>
-                                    {isRemoteMode ? '暂无远程文档' : '暂无本地文档'}
-                                </div>
-                            )}
-                        </div>
-                    </Sider>
-                </div>
+                                        }}
+                                        treeData={docFiles}
+                                        style={{ 
+                                            fontSize: '12px',
+                                            padding: '0 4px'
+                                        }}
+                                        icon={(nodeProps: any) => {
+                                            if (nodeProps.data?.isDirectory) {
+                                                return <FolderOutlined style={{ color: '#1677ff' }} />;
+                                            }
+                                            return <FileOutlined style={{ color: nodeProps.data?.exists === false ? '#999' : '#666' }} />;
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        color: '#999',
+                                        textAlign: 'center',
+                                        padding: '20px 0'
+                                    }}>
+                                        {isRemoteMode ? '暂无远程文档' : '暂无本地文档'}
+                                    </div>
+                                )}
+                            </div>
+                        </Sider>
+                    </div>
+                </Resizable>
                 <Content style={{ 
-                    padding: '16px',
-                    marginLeft: docListCollapsed ? 0 : '200px',
-                    transition: 'margin-left 0.3s ease-in-out',
+                    padding: '16px 24px',
+                    marginLeft: docListCollapsed ? 0 : `${siderWidth}px`,
+                    transition: docListCollapsed ? 'margin-left 0.3s ease-in-out' : 'none',
                     height: '100%',
-                    overflow: 'auto'
+                    overflow: 'auto',
+                    backgroundColor: '#fff'
                 }}>
                     {currentFile ? (
                         isPreview ? (

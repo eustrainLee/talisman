@@ -30,3 +30,5 @@ path-config.json
 public/docs/
 public/remote_docs/
 
+# release directory
+release

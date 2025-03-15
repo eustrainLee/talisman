@@ -1,6 +1,5 @@
-import React from 'react';
-import { Card, Row, Col, Statistic, Space, Table, Tag } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, UserOutlined, ShoppingCartOutlined, DollarOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Tag, Space } from 'antd';
+import { UserOutlined, ShoppingCartOutlined, DollarOutlined } from '@ant-design/icons';
 
 function Home() {
     // 模拟的表格数据

@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import path from 'node:path'
+import fs from 'node:fs'
 import electron from 'vite-plugin-electron/simple'
 import react from '@vitejs/plugin-react'
 import renderer from 'vite-plugin-electron-renderer'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     electron({
@@ -27,6 +29,26 @@ export default defineConfig({
         : {},
     }),
     renderer(),
+    {
+      name: 'copy-config-files',
+      closeBundle() {
+        const defaultConfig = {
+          localPath: 'docs',
+          remotePath: 'remote_docs'
+        };
+
+        // 确保目标目录存在
+        if (!fs.existsSync('dist')) {
+          fs.mkdirSync('dist', { recursive: true });
+        }
+
+        // 写入默认配置文件
+        fs.writeFileSync(
+          path.join('dist', 'path-config.json'),
+          JSON.stringify(defaultConfig, null, 2)
+        );
+      }
+    }
   ],
   server: {
     proxy: {

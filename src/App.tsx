@@ -1,5 +1,4 @@
 import BaseLayout from './layout';
-import { BrowserRouter } from 'react-router-dom';
 import { useEffect } from 'react';
 
 function App() {
@@ -7,11 +6,7 @@ function App() {
     document.title = 'Talisman';
   }, []);
 
-  return (
-    <BrowserRouter>
-      <BaseLayout />
-    </BrowserRouter>
-  )
+  return <BaseLayout />;
 }
 
-export default App
+export default App;

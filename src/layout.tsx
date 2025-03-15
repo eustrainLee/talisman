@@ -1,12 +1,13 @@
-import Home from './home'
-import Assets from './assets'
-import Doc from './doc'
-import { Layout, Menu, MenuProps, theme } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
-const { Header, Content, Footer, Sider } = Layout;
 import React, { useState } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Layout, Menu } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { HomeOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { Route, Routes } from 'react-router-dom'
+import Home from './home'
+import Doc from './doc'
+import Assets from './assets'
+
+const { Content, Sider } = Layout;
 
 const siderStyle: React.CSSProperties = {
   position: 'fixed',
@@ -15,89 +16,79 @@ const siderStyle: React.CSSProperties = {
   bottom: 0,
   zIndex: 1000,
   backgroundColor: 'white',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
 };
 
-const items: MenuProps['items'] = [
+const items = [
   {
     key: 'home',
-    label: 'Home',
+    icon: <HomeOutlined />,
+    label: '首页',
+  },
+  {
+    key: 'docs',
+    icon: <FileOutlined />,
+    label: '文档',
   },
   {
     key: 'assets',
-    label: 'Assets',
+    icon: <AppstoreOutlined />,
+    label: '资产',
   },
-  {
-    key: 'doc',
-    label: '文档',
-  }
 ];
 
-const BaseLayout: React.FC = () => {
-  const { token } = theme.useToken();
+export default function AppLayout() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(true);
 
-  const onClick: MenuProps['onClick'] = (e) => {
+  const onClick = (e: any) => {
     navigate(`/${e.key}`);
   };
-  
+
   return (
-    <Layout>
-      <Sider 
-        style={siderStyle}
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider
         collapsible
         collapsed={collapsed}
-        onCollapse={(value) => setCollapsed(value)}
-        trigger={null}
-        width={160}
+        onCollapse={setCollapsed}
+        style={siderStyle}
+        theme="light"
       >
         <div style={{ 
-          height: '64px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          color: '#1677ff',
-          fontSize: collapsed ? '14px' : '18px'
+          height: 32, 
+          margin: 16, 
+          background: '#001529',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: collapsed ? '14px' : '16px',
+          fontWeight: 'bold',
+          overflow: 'hidden'
         }}>
           {collapsed ? 'T' : 'Talisman'}
-          {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
-            className: 'trigger',
-            onClick: () => setCollapsed(!collapsed),
-            style: { 
-              fontSize: '16px', 
-              cursor: 'pointer',
-              padding: '8px',
-              transition: 'all 0.3s'
-            }
-          })}
         </div>
-        <Menu 
-          theme='light' 
-          mode='inline' 
-          defaultSelectedKeys={['home']} 
-          items={items} 
+        <Menu
+          theme="light"
+          defaultSelectedKeys={['home']}
+          mode="inline"
+          items={items}
           onClick={onClick}
         />
       </Sider>
       <Layout style={{ 
-        marginLeft: collapsed ? '80px' : '160px',
+        marginLeft: collapsed ? '80px' : '200px',
         transition: 'margin-left 0.2s'
       }}>
-        <Content style={{ 
-          overflow: 'initial',
-          minHeight: '100vh'
-        }}>
+        <Content>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
+            <Route path="/docs" element={<Doc menuCollapsed={collapsed} />} />
             <Route path="/assets" element={<Assets />} />
-            <Route path="/doc" element={<Doc menuCollapsed={collapsed} />} />
           </Routes>
         </Content>
       </Layout>
     </Layout>
   );
 }
-
-export default BaseLayout
