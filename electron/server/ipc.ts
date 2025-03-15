@@ -46,6 +46,19 @@ interface GitConfig {
   docPath: string;
 }
 
+interface DocJsonConfig {
+  doc?: {
+    files: DocNodeConfig[];
+  };
+  remote_doc?: {
+    files: DocNodeConfig[];
+  };
+  path: {
+    local: string;
+    remote: string;
+  };
+}
+
 // 简单的路径处理函数
 function normalizePathEncoding(filePath: string): string {
   return filePath.split(path.sep).join('/');
@@ -436,6 +449,27 @@ export function setupIpcHandlers(publicPath: string) {
         } catch (error) {
           log.error('Failed to read configuration file:', error);
         }
+      } else {
+        // 尝试从 config/doc.json 读取配置
+        try {
+          const configDir = getConfigDir();
+          const docConfigPath = path.join(configDir, 'doc.json');
+          
+          if (fs.existsSync(docConfigPath)) {
+            const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+            // 根据是否为远程文档选择对应的配置
+            const configField = isRemote ? docConfig.remote_doc : docConfig.doc;
+            
+            if (configField?.files) {
+              config = {
+                files: configField.files
+              };
+              log.info('Using configuration from doc.json');
+            }
+          }
+        } catch (error) {
+          log.error('Failed to read doc.json configuration:', error);
+        }
       }
 
       return buildDocTree(relativeFiles, rootPath, config);
@@ -664,6 +698,37 @@ export function setupIpcHandlers(publicPath: string) {
       }
 
       await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+
+      // 同时更新 doc.json 中的配置
+      try {
+        const configDir = getConfigDir();
+        const docConfigPath = path.join(configDir, 'doc.json');
+        
+        let docConfig: DocJsonConfig = {
+          path: {
+            local: '',
+            remote: ''
+          }
+        };
+        
+        if (fs.existsSync(docConfigPath)) {
+          docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        }
+
+        // 根据是否为远程文档更新对应的配置
+        if (isRemote) {
+          docConfig.remote_doc = docConfig.remote_doc || { files: [] };
+          docConfig.remote_doc.files = config.files;
+        } else {
+          docConfig.doc = docConfig.doc || { files: [] };
+          docConfig.doc.files = config.files;
+        }
+
+        await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
+      } catch (error) {
+        log.error('Failed to update doc.json configuration:', error);
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Failed to update configuration:', error);
