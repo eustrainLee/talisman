@@ -465,12 +465,14 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 </Button>
                             </>
                         )}
-                        <Button
-                            icon={<GithubOutlined />}
-                            onClick={() => setIsGitConfigModalVisible(true)}
-                        >
-                            从 Git 拉取
-                        </Button>
+                        {isRemoteMode && (
+                            <Button
+                                icon={<GithubOutlined />}
+                                onClick={() => setIsGitConfigModalVisible(true)}
+                            >
+                                从Git拉取
+                            </Button>
+                        )}
                         <Dropdown
                             menu={settingsMenu}
                         >
