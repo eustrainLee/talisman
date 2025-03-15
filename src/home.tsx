@@ -1,4 +1,4 @@
-import { Card, Row, Col, Statistic, Tag, Space } from 'antd';
+import { Card, Row, Col, Statistic, Tag, Space, Table } from 'antd';
 import { UserOutlined, ShoppingCartOutlined, DollarOutlined } from '@ant-design/icons';
 
 function Home() {
