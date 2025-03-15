@@ -14,7 +14,7 @@ export interface GitConfig {
     docPath: string;
 }
 
-export interface PathConfig {
+export interface DocConfig {
     localPath: string;
     remotePath: string;
 }
@@ -82,31 +82,31 @@ class DocsAPI {
 
     async getGitConfig(): Promise<GitConfig | null> {
         if (USE_IPC) {
-            return window.electronAPI.getGitConfig();
+            return window.electronAPI.getDocGitConfig();
         }
         return null;
     }
 
     async pullFromGit(config: GitConfig): Promise<void> {
         if (USE_IPC) {
-            return window.electronAPI.pullFromGit(config);
+            return window.electronAPI.pullDocFromGit(config);
         }
         throw new Error('不支持从 Git 拉取');
     }
 
-    async getPathConfig(): Promise<PathConfig> {
+    async getPathConfig(): Promise<DocConfig> {
         if (USE_IPC) {
-            return window.electronAPI.getPathConfig();
+            return window.electronAPI.getDocPathConfig();
         }
         return {
-            localPath: 'docs',
-            remotePath: 'remote_docs'
+            localPath: '',
+            remotePath: ''
         };
     }
 
-    async updatePathConfig(config: PathConfig): Promise<boolean> {
+    async updatePathConfig(config: DocConfig): Promise<boolean> {
         if (USE_IPC) {
-            return window.electronAPI.updatePathConfig(config);
+            return window.electronAPI.updateDocPathConfig(config);
         }
         throw new Error('不支持更新路径配置');
     }

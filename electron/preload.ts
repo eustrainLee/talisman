@@ -13,7 +13,7 @@ interface GitConfig {
   docPath: string;
 }
 
-interface PathConfig {
+interface DocPathConfig {
     localPath: string;
     remotePath: string;
 }
@@ -24,10 +24,10 @@ interface IElectronAPI {
   getDocContent: (path: string) => Promise<string>;
   saveDoc: (path: string, content: string) => Promise<void>;
   updateDocConfig: (path: string, title: string) => Promise<void>;
-  pullFromGit: (config: GitConfig) => Promise<void>;
-  getGitConfig: () => Promise<GitConfig | null>;
-  getPathConfig: () => Promise<PathConfig>;
-  updatePathConfig: (config: PathConfig) => Promise<boolean>;
+  pullDocFromGit: (config: GitConfig) => Promise<void>;
+  getDocGitConfig: () => Promise<GitConfig | null>;
+  getDocPathConfig: () => Promise<DocPathConfig>;
+  updateDocPathConfig: (config: DocPathConfig) => Promise<boolean>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -37,10 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDocContent: (path: string) => ipcRenderer.invoke('doc:get', path),
   saveDoc: (path: string, content: string) => ipcRenderer.invoke('doc:save', path, content),
   updateDocConfig: (path: string, title: string) => ipcRenderer.invoke('doc:config', path, title),
-  pullFromGit: (config: GitConfig) => ipcRenderer.invoke('doc:pull-from-git', config),
-  getGitConfig: () => ipcRenderer.invoke('doc:get-git-config'),
-  getPathConfig: () => ipcRenderer.invoke('doc:get-path-config'),
-  updatePathConfig: (config: PathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
+  pullDocFromGit: (config: GitConfig) => ipcRenderer.invoke('doc:pull-from-git', config),
+  getDocGitConfig: () => ipcRenderer.invoke('doc:get-git-config'),
+  getDocPathConfig: () => ipcRenderer.invoke('doc:get-path-config'),
+  updateDocPathConfig: (config: DocPathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }

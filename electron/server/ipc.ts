@@ -21,6 +21,13 @@ interface DocNodeConfig {
   children?: DocNodeConfig[];  // 改为数组
 }
 
+interface DocPathConfig {
+    path: {
+        local: string;
+        remote: string;
+    }
+}
+
 interface DocConfig {
   files: DocNodeConfig[];  // 改为 files
 }
@@ -37,11 +44,6 @@ interface GitConfig {
   repoUrl: string;
   branch: string;
   docPath: string;
-}
-
-interface PathConfig {
-    localPath: string;
-    remotePath: string;
 }
 
 // 简单的路径处理函数
@@ -271,54 +273,60 @@ const getDataDir = () => {
 const getPathConfig = async () => {
     try {
         const configDir = getConfigDir();
-        const pathConfigPath = path.join(configDir, 'path.json');
+        const configPath = path.join(configDir, 'doc.json');
         await fsPromises.mkdir(configDir, { recursive: true });
 
-        const defaultConfig = {
-            localPath: path.join(getDataDir(), 'docs'),
-            remotePath: path.join(getDataDir(), 'remote_docs')
+        const defaultConfig: DocPathConfig = {
+            path: {
+                local: path.join(getDataDir(), 'docs'),
+                remote: path.join(getDataDir(), 'remote_docs')
+            }
         };
 
-        if (!await fileExists(pathConfigPath)) {
-            await fsPromises.writeFile(pathConfigPath, JSON.stringify(defaultConfig, null, 2));
+        if (!await fileExists(configPath)) {
+            await fsPromises.writeFile(configPath, JSON.stringify(defaultConfig, null, 2));
             return defaultConfig;
         }
 
-        const configContent = await fsPromises.readFile(pathConfigPath, 'utf-8');
+        const configContent = await fsPromises.readFile(configPath, 'utf-8');
         const config = JSON.parse(configContent);
         
         // 只有当路径为 undefined 或 null 时才使用默认路径
         return {
-            localPath: config.localPath === undefined || config.localPath === null ? defaultConfig.localPath : config.localPath,
-            remotePath: config.remotePath === undefined || config.remotePath === null ? defaultConfig.remotePath : config.remotePath
+            path: {
+                local: config.path?.local === undefined || config.path?.local === null ? defaultConfig.path.local : config.path.local,
+                remote: config.path?.remote === undefined || config.path?.remote === null ? defaultConfig.path.remote : config.path.remote
+            }
         };
     } catch (error) {
         log.error('获取路径配置失败:', error);
         return {
-            localPath: path.join(getDataDir(), 'docs'),
-            remotePath: path.join(getDataDir(), 'remote_docs')
+            path: {
+                local: path.join(getDataDir(), 'docs'),
+                remote: path.join(getDataDir(), 'remote_docs')
+            }
         };
     }
 };
 
-const updatePathConfig = async (config: { localPath: string; remotePath: string }) => {
+const updatePathConfig = async (config: DocPathConfig) => {
     try {
         const configDir = getConfigDir();
-        const pathConfigPath = path.join(configDir, 'path.json');
+        const configPath = path.join(configDir, 'doc.json');
         await fsPromises.mkdir(configDir, { recursive: true });
 
         // 保存原始配置，允许空字符串
-        await fsPromises.writeFile(pathConfigPath, JSON.stringify(config, null, 2));
+        await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
 
         // 获取实际使用的路径（只有 undefined 或 null 会被替换为默认路径）
         const effectiveConfig = await getPathConfig();
 
         // 确保文档目录存在（如果路径不为空）
-        if (effectiveConfig.localPath) {
-            await fsPromises.mkdir(effectiveConfig.localPath, { recursive: true });
+        if (effectiveConfig.path.local) {
+            await fsPromises.mkdir(effectiveConfig.path.local, { recursive: true });
         }
-        if (effectiveConfig.remotePath) {
-            await fsPromises.mkdir(effectiveConfig.remotePath, { recursive: true });
+        if (effectiveConfig.path.remote) {
+            await fsPromises.mkdir(effectiveConfig.path.remote, { recursive: true });
         }
         return true;
     } catch (error) {
@@ -341,17 +349,19 @@ export function setupIpcHandlers(publicPath: string) {
       
       // 根据模式选择路径
       const isRemote = basePath === '/remote_docs';
-      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const configuredPath = isRemote ? pathConfig.path.remote : pathConfig.path.local;
       log.debug('Using configured path:', configuredPath);
       
       // 如果配置的路径为空字符串，使用默认路径
       const defaultConfig = {
-        localPath: path.join(getDataDir(), 'docs'),
-        remotePath: path.join(getDataDir(), 'remote_docs')
+        path: {
+          local: path.join(getDataDir(), 'docs'),
+          remote: path.join(getDataDir(), 'remote_docs')
+        }
       };
       
       const effectivePath = configuredPath === '' ? 
-        (isRemote ? defaultConfig.remotePath : defaultConfig.localPath) : 
+        (isRemote ? defaultConfig.path.remote : defaultConfig.path.local) : 
         configuredPath;
       
       // 获取完整路径
@@ -443,16 +453,18 @@ export function setupIpcHandlers(publicPath: string) {
       
       // 根据路径选择配置
       const isRemote = docPath.startsWith('/remote_docs/');
-      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const configuredPath = isRemote ? pathConfig.path.remote : pathConfig.path.local;
       
       // 如果配置的路径为空字符串，使用默认路径
       const defaultConfig = {
-        localPath: path.join(getDataDir(), 'docs'),
-        remotePath: path.join(getDataDir(), 'remote_docs')
+        path: {
+          local: path.join(getDataDir(), 'docs'),
+          remote: path.join(getDataDir(), 'remote_docs')
+        }
       };
       
       const effectivePath = configuredPath === '' ? 
-        (isRemote ? defaultConfig.remotePath : defaultConfig.localPath) : 
+        (isRemote ? defaultConfig.path.remote : defaultConfig.path.local) : 
         configuredPath;
       
       const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
@@ -504,9 +516,11 @@ export function setupIpcHandlers(publicPath: string) {
   ipcMain.handle('doc:save', async (_event, docPath: string, content: string) => {
     try {
       // 读取路径配置
-      let pathConfig: PathConfig = {
-        localPath: path.join(publicPath, 'docs'),
-        remotePath: path.join(publicPath, 'remote_docs')
+      let pathConfig: DocPathConfig = {
+        path: {
+          local: path.join(publicPath, 'docs'),
+          remote: path.join(publicPath, 'remote_docs')
+        }
       };
       
       try {
@@ -519,7 +533,7 @@ export function setupIpcHandlers(publicPath: string) {
 
       // 根据路径选择配置
       const isRemote = docPath.startsWith('/remote_docs/');
-      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const configuredPath = isRemote ? pathConfig.path.remote : pathConfig.path.local;
       const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
                           docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
                           docPath;
@@ -551,9 +565,11 @@ export function setupIpcHandlers(publicPath: string) {
   ipcMain.handle('doc:config', async (_event, docPath: string, title: string) => {
     try {
       // 读取路径配置
-      let pathConfig: PathConfig = {
-        localPath: 'public/docs',
-        remotePath: 'public/remote_docs'
+      let pathConfig: DocPathConfig = {
+        path: {
+          local: 'public/docs',
+          remote: 'public/remote_docs'
+        }
       };
       
       try {
@@ -566,7 +582,7 @@ export function setupIpcHandlers(publicPath: string) {
 
       // 根据路径选择配置
       const isRemote = docPath.startsWith('/remote_docs/');
-      const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      const configuredPath = isRemote ? pathConfig.path.remote : pathConfig.path.local;
       
       // 处理路径
       let basePath: string;
@@ -723,38 +739,44 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取路径配置
   ipcMain.handle('doc:get-path-config', async () => {
     try {
-      log.info('Getting path configuration');
-      const configDir = getConfigDir();
-      const pathConfigPath = path.join(configDir, 'path.json');
-      
-      if (fs.existsSync(pathConfigPath)) {
-        const config = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
-        log.debug('Read path configuration:', config);
-        return config;
-      }
-      const defaultConfig = {
-        localPath: '',
-        remotePath: ''
-      };
-      log.debug('Using default configuration:', defaultConfig);
-      return defaultConfig;
+        log.info('Getting path configuration');
+        const configDir = getConfigDir();
+        const configPath = path.join(configDir, 'doc.json');
+        
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            log.debug('Read path configuration:', config);
+            return {
+                localPath: config.path?.local || '',
+                remotePath: config.path?.remote || ''
+            };
+        }
+        return {
+            localPath: '',
+            remotePath: ''
+        };
     } catch (error) {
-      log.error('Failed to read path configuration:', error);
-      return {
-        localPath: '',
-        remotePath: ''
-      };
+        log.error('Failed to read path configuration:', error);
+        return {
+            localPath: '',
+            remotePath: ''
+        };
     }
   });
 
   // 更新路径配置
-  ipcMain.handle('doc:update-path-config', async (_event, config: PathConfig) => {
+  ipcMain.handle('doc:update-path-config', async (_event, config: { localPath: string; remotePath: string }) => {
     try {
-      log.info('Updating path configuration:', config);
-      return await updatePathConfig(config);
+        log.info('Updating path configuration:', config);
+        return await updatePathConfig({
+            path: {
+                local: config.localPath,
+                remote: config.remotePath
+            }
+        });
     } catch (error) {
-      log.error('Failed to update path configuration:', error);
-      throw error;
+        log.error('Failed to update path configuration:', error);
+        throw error;
     }
   });
 } 

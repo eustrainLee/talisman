@@ -53,12 +53,14 @@ function copyConfigFiles() {
       fs.mkdirSync(configDir, { recursive: true })
       
       const defaultConfig = {
-        localPath: path.join('data', 'docs'),
-        remotePath: path.join('data', 'remote_docs')
+        path: {
+          local: path.join('data', 'docs'),
+          remote: path.join('data', 'remote_docs')
+        }
       }
       
       fs.writeFileSync(
-        path.join(configDir, 'path.json'),
+        path.join(configDir, 'doc.json'),
         JSON.stringify(defaultConfig, null, 2)
       )
     }

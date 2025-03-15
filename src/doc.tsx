@@ -264,7 +264,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const loadGitConfig = async () => {
         try {
             if (USE_IPC) {
-                const config = await window.electronAPI.getGitConfig();
+                const config = await window.electronAPI.getDocGitConfig();
                 if (config) {
                     gitConfigForm.setFieldsValue(config);
                 }
@@ -277,7 +277,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const handlePullFromGit = async (values: GitConfig) => {
         try {
             if (USE_IPC) {
-                await window.electronAPI.pullFromGit(values);
+                await window.electronAPI.pullDocFromGit(values);
                 message.success('从Git仓库拉取文档成功');
                 setIsGitConfigModalVisible(false);
                 handleModeChange();
@@ -338,7 +338,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const handlePathModalOk = async () => {
         try {
             const values = await pathForm.validateFields();
-            const success = await window.electronAPI.updatePathConfig(values);
+            const success = await window.electronAPI.updateDocPathConfig(values);
             if (success) {
                 message.success('路径配置已更新');
                 setPathModalVisible(false);
