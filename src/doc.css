@@ -45,7 +45,8 @@
     background-color: #d9d9d9;
 }
 
-.ant-tree .ant-tree-switcher::after {
+.ant-tree .ant-tree-switcher.ant-tree-switcher_open::after,
+.ant-tree .ant-tree-switcher.ant-tree-switcher_close::after {
     content: '';
     position: absolute;
     height: 1px;
@@ -55,7 +56,7 @@
     top: 50%;
 }
 
-.ant-tree .ant-tree-treenode:last-child > .ant-tree-indent > .ant-tree-indent-unit::before {
+.ant-tree .ant-tree-treenode:last-child > .ant-tree-indent > .ant-tree-indent-unit:last-child::before {
     height: 50%;
 }
 
