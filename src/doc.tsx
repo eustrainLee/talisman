@@ -276,15 +276,17 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     const handlePullFromGit = async (values: GitConfig) => {
         try {
+            setIsGitConfigModalVisible(false);  // 立即关闭弹窗
+            message.loading({ content: '正在从 Git 仓库拉取文档...', key: 'gitPull', duration: 0 });
+            
             if (USE_IPC) {
                 await window.electronAPI.pullDocFromGit(values);
-                message.success('从Git仓库拉取文档成功');
-                setIsGitConfigModalVisible(false);
+                message.success({ content: '从 Git 仓库拉取文档成功', key: 'gitPull' });
                 handleModeChange();
             }
         } catch (error) {
             console.error('从Git拉取文档失败:', error);
-            message.error('从Git拉取文档失败');
+            message.error({ content: '从 Git 拉取文档失败', key: 'gitPull' });
         }
     };
 

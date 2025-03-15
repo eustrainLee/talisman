@@ -52,6 +52,11 @@ interface DocJsonConfig {
   };
   remote_doc?: {
     files: DocNodeConfig[];
+    git?: {
+      repoUrl: string;
+      branch: string;
+      docPath: string;
+    };
   };
   path: {
     local: string;
@@ -738,12 +743,38 @@ export function setupIpcHandlers(publicPath: string) {
 
   // 从远程仓库拉取文档
   ipcMain.handle('doc:pull-from-git', async (_event, config: GitConfig) => {
-    const tempDir = path.join(publicPath, 'temp_git');
-    const gitConfigPath = path.join(publicPath, 'docs', 'git-config.json');
+    const tempDir = path.join(getDataDir(), 'temp_git');
+    const remoteDocsPath = path.join(getDataDir(), 'remote_docs');
 
     try {
-      // 保存配置
-      await fsPromises.writeFile(gitConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+      // 更新 doc.json 中的 Git 配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let docConfig: DocJsonConfig = {
+        path: {
+          local: '',
+          remote: ''
+        }
+      };
+      
+      if (fs.existsSync(docConfigPath)) {
+        docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+      }
+
+      // 更新 Git 配置
+      docConfig.remote_doc = docConfig.remote_doc || { files: [] };
+      docConfig.remote_doc.git = {
+        repoUrl: config.repoUrl,
+        branch: config.branch,
+        docPath: config.docPath
+      };
+
+      await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
+
+      // 清理旧的临时目录（如果存在）
+      if (await fileExists(tempDir)) {
+        await fsPromises.rm(tempDir, { recursive: true, force: true });
+      }
 
       // 确保临时目录存在
       await fsPromises.mkdir(tempDir, { recursive: true });
@@ -755,9 +786,13 @@ export function setupIpcHandlers(publicPath: string) {
       const tempGit = simpleGit(tempDir);
       await tempGit.checkout(config.branch);
 
-      // 复制文档到与 docs 平级的 remote_docs 目录
+      // 复制文档到 remote_docs 目录
       const docSourcePath = path.join(tempDir, config.docPath);
-      const remoteDocsPath = path.join(publicPath, 'remote_docs');
+      
+      // 清理旧的远程文档目录（如果存在）
+      if (await fileExists(remoteDocsPath)) {
+        await fsPromises.rm(remoteDocsPath, { recursive: true, force: true });
+      }
       
       // 确保 remote_docs 目录存在
       await fsPromises.mkdir(remoteDocsPath, { recursive: true });
@@ -776,12 +811,14 @@ export function setupIpcHandlers(publicPath: string) {
 
       return { success: true };
     } catch (error) {
-      console.error('Git pull failed:', error);
+      log.error('Git pull failed:', error);
       // 清理临时目录
       try {
-        await fsPromises.rm(tempDir, { recursive: true, force: true });
+        if (await fileExists(tempDir)) {
+          await fsPromises.rm(tempDir, { recursive: true, force: true });
+        }
       } catch (e) {
-        console.error('Failed to clean up temp directory:', e);
+        log.error('Failed to clean up temp directory:', e);
       }
       throw error;
     }
@@ -790,9 +827,12 @@ export function setupIpcHandlers(publicPath: string) {
   // 获取 Git 配置
   ipcMain.handle('doc:get-git-config', async () => {
     try {
-      if (fs.existsSync(gitConfigPath)) {
-        const configContent = await fsPromises.readFile(gitConfigPath, 'utf-8');
-        return JSON.parse(configContent);
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        return docConfig.remote_doc?.git || null;
       }
       return null;
     } catch (error) {
