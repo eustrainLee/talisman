@@ -11,6 +11,8 @@ interface GitConfig {
   repoUrl: string;
   branch: string;
   docPath: string;
+  useSSH?: boolean;
+  sshKeyPath?: string;
 }
 
 interface DocPathConfig {
@@ -28,6 +30,7 @@ interface IElectronAPI {
   getDocGitConfig: () => Promise<GitConfig | null>;
   getDocPathConfig: () => Promise<DocPathConfig>;
   updateDocPathConfig: (config: DocPathConfig) => Promise<boolean>;
+  getDefaultSSHKeyPath: () => Promise<string>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -41,6 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDocGitConfig: () => ipcRenderer.invoke('doc:get-git-config'),
   getDocPathConfig: () => ipcRenderer.invoke('doc:get-path-config'),
   updateDocPathConfig: (config: DocPathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
+  getDefaultSSHKeyPath: () => ipcRenderer.invoke('doc:get-default-ssh-key-path'),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }

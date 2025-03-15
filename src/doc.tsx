@@ -267,10 +267,38 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 const config = await window.electronAPI.getDocGitConfig();
                 if (config) {
                     gitConfigForm.setFieldsValue(config);
+                    
+                    // 只有当 useSSH 为 true 但 sshKeyPath 为空或不存在时才自动查找
+                    if (config.useSSH && (!config.sshKeyPath || config.sshKeyPath === '')) {
+                        const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
+                        if (sshKeyPath) {
+                            gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                        }
+                    }
+                } else {
+                    // 如果没有保存的配置，获取默认 SSH 密钥路径
+                    const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
+                    if (sshKeyPath) {
+                        gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                    }
                 }
             }
         } catch (error) {
             console.error('加载Git配置失败:', error);
+        }
+    };
+
+    // 当 useSSH 切换时自动获取默认 SSH 密钥路径
+    const handleSSHToggle = async (checked: boolean) => {
+        if (checked) {
+            try {
+                const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
+                if (sshKeyPath) {
+                    gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                }
+            } catch (error) {
+                console.error('获取默认 SSH 密钥路径失败:', error);
+            }
         }
     };
 
@@ -786,7 +814,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         label="仓库地址"
                         rules={[{ required: true, message: '请输入仓库地址' }]}
                     >
-                        <Input placeholder="例如：https://github.com/user/repo.git" />
+                        <Input placeholder="例如：https://github.com/user/repo.git 或 git@github.com:user/repo.git" />
                     </Form.Item>
                     <Form.Item
                         name="branch"
@@ -803,6 +831,28 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         initialValue="docs"
                     >
                         <Input placeholder="例如：docs" />
+                    </Form.Item>
+                    <Form.Item
+                        name="useSSH"
+                        valuePropName="checked"
+                    >
+                        <Checkbox onChange={(e) => handleSSHToggle(e.target.checked)}>使用 SSH 密钥</Checkbox>
+                    </Form.Item>
+                    <Form.Item
+                        noStyle
+                        shouldUpdate={(prevValues, currentValues) => prevValues.useSSH !== currentValues.useSSH}
+                    >
+                        {({ getFieldValue }) => 
+                            getFieldValue('useSSH') ? (
+                                <Form.Item
+                                    name="sshKeyPath"
+                                    label="SSH 密钥路径"
+                                    rules={[{ required: true, message: '请输入 SSH 密钥路径' }]}
+                                >
+                                    <Input placeholder="例如：C:\Users\username\.ssh\id_rsa" />
+                                </Form.Item>
+                            ) : null
+                        }
                     </Form.Item>
                 </Form>
             </Modal>

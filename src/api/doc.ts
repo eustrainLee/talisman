@@ -12,6 +12,8 @@ export interface GitConfig {
     repoUrl: string;
     branch: string;
     docPath: string;
+    useSSH?: boolean;
+    sshKeyPath?: string;
 }
 
 export interface DocConfig {
@@ -109,6 +111,13 @@ class DocAPI {
             return window.electronAPI.updateDocPathConfig(config);
         }
         throw new Error('不支持更新路径配置');
+    }
+
+    async getDefaultSSHKeyPath(): Promise<string> {
+        if (USE_IPC) {
+            return window.electronAPI.getDefaultSSHKeyPath();
+        }
+        return '';
     }
 }
 

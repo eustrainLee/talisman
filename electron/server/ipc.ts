@@ -7,6 +7,7 @@ import simpleGit from 'simple-git'
 import { promisify } from 'util'
 import log from 'electron-log'
 import { app } from 'electron'
+import * as os from 'os'
 
 // 配置日志
 log.transports.file.level = 'debug';
@@ -44,6 +45,8 @@ interface GitConfig {
   repoUrl: string;
   branch: string;
   docPath: string;
+  useSSH?: boolean;
+  sshKeyPath?: string;
 }
 
 interface DocJsonConfig {
@@ -56,6 +59,8 @@ interface DocJsonConfig {
       repoUrl: string;
       branch: string;
       docPath: string;
+      useSSH?: boolean;
+      sshKeyPath?: string;
     };
   };
   path: {
@@ -352,6 +357,30 @@ const updatePathConfig = async (config: DocPathConfig) => {
         return false;
     }
 };
+
+// 获取默认 SSH 密钥路径
+function getDefaultSSHKeyPath(): string {
+  try {
+    const homeDir = os.homedir();
+    const sshDir = path.join(homeDir, '.ssh');
+    
+    // 检查常见的 SSH 密钥文件
+    const commonKeyFiles = ['id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'];
+    
+    for (const keyFile of commonKeyFiles) {
+      const keyPath = path.join(sshDir, keyFile);
+      if (fs.existsSync(keyPath)) {
+        return keyPath;
+      }
+    }
+    
+    // 如果没有找到密钥文件，返回默认路径
+    return path.join(sshDir, 'id_rsa');
+  } catch (error) {
+    log.error('获取默认 SSH 密钥路径失败:', error);
+    return '';
+  }
+}
 
 export function setupIpcHandlers(publicPath: string) {
   const git = simpleGit();
@@ -766,7 +795,9 @@ export function setupIpcHandlers(publicPath: string) {
       docConfig.remote_doc.git = {
         repoUrl: config.repoUrl,
         branch: config.branch,
-        docPath: config.docPath
+        docPath: config.docPath,
+        useSSH: config.useSSH,
+        sshKeyPath: config.sshKeyPath
       };
 
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
@@ -779,11 +810,21 @@ export function setupIpcHandlers(publicPath: string) {
       // 确保临时目录存在
       await fsPromises.mkdir(tempDir, { recursive: true });
 
+      // 配置 Git
+      const gitOptions: any = {};
+      if (config.useSSH && config.sshKeyPath) {
+        gitOptions.env = {
+          ...process.env,
+          GIT_SSH_COMMAND: `ssh -i "${config.sshKeyPath}" -o StrictHostKeyChecking=no`
+        };
+      }
+
       // 克隆仓库到临时目录
+      const git = simpleGit(gitOptions);
       await git.clone(config.repoUrl, tempDir);
       
       // 切换到指定分支
-      const tempGit = simpleGit(tempDir);
+      const tempGit = simpleGit(tempDir, gitOptions);
       await tempGit.checkout(config.branch);
 
       // 复制文档到 remote_docs 目录
@@ -882,6 +923,16 @@ export function setupIpcHandlers(publicPath: string) {
     } catch (error) {
         log.error('Failed to update path configuration:', error);
         throw error;
+    }
+  });
+
+  // 获取默认 SSH 密钥路径
+  ipcMain.handle('doc:get-default-ssh-key-path', async () => {
+    try {
+      return getDefaultSSHKeyPath();
+    } catch (error) {
+      log.error('获取默认 SSH 密钥路径失败:', error);
+      return '';
     }
   });
 } 
