@@ -815,14 +815,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     <Form.Item
                         name="localPath"
                         label="本地文档目录"
-                        rules={[{ required: true, message: '请输入本地文档目录路径' }]}
                     >
                         <Input placeholder="请输入本地文档目录路径" />
                     </Form.Item>
                     <Form.Item
                         name="remotePath"
                         label="远程文档目录"
-                        rules={[{ required: true, message: '请输入远程文档目录路径' }]}
                     >
                         <Input placeholder="请输入远程文档目录路径" />
                     </Form.Item>

@@ -29,26 +29,7 @@ export default defineConfig({
         : {},
     }),
     renderer(),
-    {
-      name: 'copy-config-files',
-      closeBundle() {
-        const defaultConfig = {
-          localPath: 'docs',
-          remotePath: 'remote_docs'
-        };
-
-        // 确保目标目录存在
-        if (!fs.existsSync('dist')) {
-          fs.mkdirSync('dist', { recursive: true });
-        }
-
-        // 写入默认配置文件
-        fs.writeFileSync(
-          path.join('dist', 'path-config.json'),
-          JSON.stringify(defaultConfig, null, 2)
-        );
-      }
-    }
+    copyConfigFiles()
   ],
   server: {
     proxy: {
@@ -63,3 +44,23 @@ export default defineConfig({
     }
   }
 })
+
+function copyConfigFiles() {
+  return {
+    name: 'copy-config-files',
+    closeBundle() {
+      const configDir = path.join('dist', 'config')
+      fs.mkdirSync(configDir, { recursive: true })
+      
+      const defaultConfig = {
+        localPath: path.join('data', 'docs'),
+        remotePath: path.join('data', 'remote_docs')
+      }
+      
+      fs.writeFileSync(
+        path.join(configDir, 'path.json'),
+        JSON.stringify(defaultConfig, null, 2)
+      )
+    }
+  }
+}

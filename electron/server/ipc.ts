@@ -249,54 +249,88 @@ function buildDocTree(files: string[], docsPath: string, config: DocConfig): Doc
   return tree;
 }
 
+const fileExists = async (filePath: string): Promise<boolean> => {
+    try {
+        await fsPromises.access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+const getConfigDir = () => {
+    const userDataPath = app.getPath('userData');
+    return path.join(userDataPath, 'config');
+};
+
+const getDataDir = () => {
+    const userDataPath = app.getPath('userData');
+    return path.join(userDataPath, 'data');
+};
+
+const getPathConfig = async () => {
+    try {
+        const configDir = getConfigDir();
+        const pathConfigPath = path.join(configDir, 'path.json');
+        await fsPromises.mkdir(configDir, { recursive: true });
+
+        const defaultConfig = {
+            localPath: path.join(getDataDir(), 'docs'),
+            remotePath: path.join(getDataDir(), 'remote_docs')
+        };
+
+        if (!await fileExists(pathConfigPath)) {
+            await fsPromises.writeFile(pathConfigPath, JSON.stringify(defaultConfig, null, 2));
+            return defaultConfig;
+        }
+
+        const configContent = await fsPromises.readFile(pathConfigPath, 'utf-8');
+        const config = JSON.parse(configContent);
+        
+        // 只有当路径为 undefined 或 null 时才使用默认路径
+        return {
+            localPath: config.localPath === undefined || config.localPath === null ? defaultConfig.localPath : config.localPath,
+            remotePath: config.remotePath === undefined || config.remotePath === null ? defaultConfig.remotePath : config.remotePath
+        };
+    } catch (error) {
+        log.error('获取路径配置失败:', error);
+        return {
+            localPath: path.join(getDataDir(), 'docs'),
+            remotePath: path.join(getDataDir(), 'remote_docs')
+        };
+    }
+};
+
+const updatePathConfig = async (config: { localPath: string; remotePath: string }) => {
+    try {
+        const configDir = getConfigDir();
+        const pathConfigPath = path.join(configDir, 'path.json');
+        await fsPromises.mkdir(configDir, { recursive: true });
+
+        // 保存原始配置，允许空字符串
+        await fsPromises.writeFile(pathConfigPath, JSON.stringify(config, null, 2));
+
+        // 获取实际使用的路径（只有 undefined 或 null 会被替换为默认路径）
+        const effectiveConfig = await getPathConfig();
+
+        // 确保文档目录存在（如果路径不为空）
+        if (effectiveConfig.localPath) {
+            await fsPromises.mkdir(effectiveConfig.localPath, { recursive: true });
+        }
+        if (effectiveConfig.remotePath) {
+            await fsPromises.mkdir(effectiveConfig.remotePath, { recursive: true });
+        }
+        return true;
+    } catch (error) {
+        log.error('更新路径配置失败:', error);
+        return false;
+    }
+};
+
 export function setupIpcHandlers(publicPath: string) {
   const git = simpleGit();
   const gitConfigPath = path.join(publicPath, 'docs', 'git-config.json');
   const pathConfigPath = path.join(publicPath, 'path-config.json');
-
-  // 获取路径配置的辅助函数
-  async function getPathConfig(): Promise<PathConfig> {
-    try {
-      // 获取用户数据目录
-      const userDataPath = app.getPath('userData');
-      const configFilePath = path.join(userDataPath, 'path-config.json');
-      
-      log.info('Config file path:', configFilePath);
-      
-      // 尝试读取配置文件
-      if (fs.existsSync(configFilePath)) {
-        const config = JSON.parse(fs.readFileSync(configFilePath, 'utf-8'));
-        log.info('Successfully read path configuration:', config);
-        return config;
-      }
-
-      // 如果配置文件不存在，创建默认配置
-      const defaultConfig: PathConfig = {
-        localPath: path.join(userDataPath, 'docs'),
-        remotePath: path.join(userDataPath, 'remote_docs')
-      };
-
-      // 确保目录存在
-      const configDir = path.dirname(configFilePath);
-      if (!fs.existsSync(configDir)) {
-        await fsPromises.mkdir(configDir, { recursive: true });
-        log.info('Created config directory:', configDir);
-      }
-
-      // 写入默认配置
-      await fsPromises.writeFile(configFilePath, JSON.stringify(defaultConfig, null, 2));
-      log.info('Created default path configuration:', defaultConfig);
-      return defaultConfig;
-    } catch (error) {
-      log.error('Failed to handle path configuration:', error);
-      // 返回默认配置作为后备
-      const userDataPath = app.getPath('userData');
-      return {
-        localPath: path.join(userDataPath, 'docs'),
-        remotePath: path.join(userDataPath, 'remote_docs')
-      };
-    }
-  }
 
   // 获取文档列表
   ipcMain.handle('doc:list', async (_event, basePath = '/docs') => {
@@ -310,18 +344,28 @@ export function setupIpcHandlers(publicPath: string) {
       const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
       log.debug('Using configured path:', configuredPath);
       
+      // 如果配置的路径为空字符串，使用默认路径
+      const defaultConfig = {
+        localPath: path.join(getDataDir(), 'docs'),
+        remotePath: path.join(getDataDir(), 'remote_docs')
+      };
+      
+      const effectivePath = configuredPath === '' ? 
+        (isRemote ? defaultConfig.remotePath : defaultConfig.localPath) : 
+        configuredPath;
+      
       // 获取完整路径
       let rootPath: string;
-      if (path.isAbsolute(configuredPath)) {
-        rootPath = configuredPath;
+      if (path.isAbsolute(effectivePath)) {
+        rootPath = effectivePath;
       } else {
         // 统一处理相对路径：优先相对于 publicPath 的父目录
-        rootPath = path.resolve(publicPath, '..', configuredPath);
+        rootPath = path.resolve(publicPath, '..', effectivePath);
         log.debug('Resolved root path:', rootPath);
         
         // 如果路径不存在，尝试相对于当前工作目录
         if (!fs.existsSync(rootPath)) {
-          rootPath = path.resolve(process.cwd(), configuredPath);
+          rootPath = path.resolve(process.cwd(), effectivePath);
           log.debug('Using CWD-relative path:', rootPath);
         }
       }
@@ -400,6 +444,17 @@ export function setupIpcHandlers(publicPath: string) {
       // 根据路径选择配置
       const isRemote = docPath.startsWith('/remote_docs/');
       const configuredPath = isRemote ? pathConfig.remotePath : pathConfig.localPath;
+      
+      // 如果配置的路径为空字符串，使用默认路径
+      const defaultConfig = {
+        localPath: path.join(getDataDir(), 'docs'),
+        remotePath: path.join(getDataDir(), 'remote_docs')
+      };
+      
+      const effectivePath = configuredPath === '' ? 
+        (isRemote ? defaultConfig.remotePath : defaultConfig.localPath) : 
+        configuredPath;
+      
       const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
                           docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
                           docPath;
@@ -411,16 +466,16 @@ export function setupIpcHandlers(publicPath: string) {
       
       // 获取完整路径
       let fullPath: string;
-      if (path.isAbsolute(configuredPath)) {
-        fullPath = path.join(configuredPath, normalizedRelativePath);
+      if (path.isAbsolute(effectivePath)) {
+        fullPath = path.join(effectivePath, normalizedRelativePath);
       } else {
         // 统一处理相对路径：优先相对于 publicPath 的父目录
-        const rootPath = path.resolve(publicPath, '..', configuredPath);
+        const rootPath = path.resolve(publicPath, '..', effectivePath);
         fullPath = path.join(rootPath, normalizedRelativePath);
         
         // 如果路径不存在，尝试相对于当前工作目录
         if (!fs.existsSync(fullPath)) {
-          const cwdPath = path.resolve(process.cwd(), configuredPath, normalizedRelativePath);
+          const cwdPath = path.resolve(process.cwd(), effectivePath, normalizedRelativePath);
           if (fs.existsSync(cwdPath)) {
             fullPath = cwdPath;
           }
@@ -669,22 +724,25 @@ export function setupIpcHandlers(publicPath: string) {
   ipcMain.handle('doc:get-path-config', async () => {
     try {
       log.info('Getting path configuration');
+      const configDir = getConfigDir();
+      const pathConfigPath = path.join(configDir, 'path.json');
+      
       if (fs.existsSync(pathConfigPath)) {
         const config = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
         log.debug('Read path configuration:', config);
         return config;
       }
       const defaultConfig = {
-        localPath: 'docs',
-        remotePath: 'remote_docs'
+        localPath: '',
+        remotePath: ''
       };
       log.debug('Using default configuration:', defaultConfig);
       return defaultConfig;
     } catch (error) {
       log.error('Failed to read path configuration:', error);
       return {
-        localPath: 'docs',
-        remotePath: 'remote_docs'
+        localPath: '',
+        remotePath: ''
       };
     }
   });
@@ -693,54 +751,7 @@ export function setupIpcHandlers(publicPath: string) {
   ipcMain.handle('doc:update-path-config', async (_event, config: PathConfig) => {
     try {
       log.info('Updating path configuration:', config);
-      
-      // 获取用户数据目录
-      const userDataPath = app.getPath('userData');
-      const configFilePath = path.join(userDataPath, 'path-config.json');
-      
-      // 确保配置目录存在
-      const configDir = path.dirname(configFilePath);
-      if (!fs.existsSync(configDir)) {
-        await fsPromises.mkdir(configDir, { recursive: true });
-        log.debug('Created config directory:', configDir);
-      }
-
-      // 验证并规范化路径
-      const normalizedConfig = {
-        localPath: path.isAbsolute(config.localPath) 
-          ? config.localPath 
-          : path.join(userDataPath, config.localPath),
-        remotePath: path.isAbsolute(config.remotePath)
-          ? config.remotePath
-          : path.join(userDataPath, config.remotePath)
-      };
-      log.debug('Normalized config:', normalizedConfig);
-
-      // 写入配置文件
-      await fsPromises.writeFile(
-        configFilePath,
-        JSON.stringify(normalizedConfig, null, 2),
-        'utf-8'
-      );
-
-      // 确保文档目录存在
-      const createDirIfNeeded = async (dirPath: string) => {
-        try {
-          if (!fs.existsSync(dirPath)) {
-            await fsPromises.mkdir(dirPath, { recursive: true });
-            log.debug('Created directory:', dirPath);
-          }
-        } catch (error) {
-          log.error(`Failed to create directory ${dirPath}:`, error);
-          throw error;
-        }
-      };
-
-      await createDirIfNeeded(normalizedConfig.localPath);
-      await createDirIfNeeded(normalizedConfig.remotePath);
-
-      log.info('Successfully updated path configuration');
-      return true;
+      return await updatePathConfig(config);
     } catch (error) {
       log.error('Failed to update path configuration:', error);
       throw error;
