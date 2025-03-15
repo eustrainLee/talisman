@@ -310,7 +310,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             if (USE_IPC) {
                 await window.electronAPI.pullDocFromGit(values);
                 message.success({ content: '从 Git 仓库拉取文档成功', key: 'gitPull' });
-                handleModeChange();
+                // 刷新当前远程文档列表，而不是切换模式
+                loadDocList();
             }
         } catch (error) {
             console.error('从Git拉取文档失败:', error);
