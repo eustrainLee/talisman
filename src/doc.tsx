@@ -13,8 +13,8 @@ import { MdEditor } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
-import { docsAPI } from './api/docs';
-import type { DocFile, GitConfig } from './api/docs';
+import { docAPI } from './api/doc';
+import type { DocFile, GitConfig } from './api/doc';
 
 const { Sider, Content } = Layout;
 
@@ -290,7 +290,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     const handlePathConfig = async () => {
         try {
-            const config = await docsAPI.getPathConfig();
+            const config = await docAPI.getDocPathConfig();
             pathForm.setFieldsValue(config);
             setPathModalVisible(true);
         } catch (error) {

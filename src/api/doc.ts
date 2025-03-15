@@ -19,7 +19,7 @@ export interface DocConfig {
     remotePath: string;
 }
 
-class DocsAPI {
+class DocAPI {
     async getDocList(basePath: string = '/docs'): Promise<DocFile[]> {
         if (USE_IPC) {
             return window.electronAPI.getDocList(basePath);
@@ -80,21 +80,21 @@ class DocsAPI {
         }
     }
 
-    async getGitConfig(): Promise<GitConfig | null> {
+    async getDocGitConfig(): Promise<GitConfig | null> {
         if (USE_IPC) {
             return window.electronAPI.getDocGitConfig();
         }
         return null;
     }
 
-    async pullFromGit(config: GitConfig): Promise<void> {
+    async pullDocFromGit(config: GitConfig): Promise<void> {
         if (USE_IPC) {
             return window.electronAPI.pullDocFromGit(config);
         }
         throw new Error('不支持从 Git 拉取');
     }
 
-    async getPathConfig(): Promise<DocConfig> {
+    async getDocPathConfig(): Promise<DocConfig> {
         if (USE_IPC) {
             return window.electronAPI.getDocPathConfig();
         }
@@ -104,7 +104,7 @@ class DocsAPI {
         };
     }
 
-    async updatePathConfig(config: DocConfig): Promise<boolean> {
+    async updateDocPathConfig(config: DocConfig): Promise<boolean> {
         if (USE_IPC) {
             return window.electronAPI.updateDocPathConfig(config);
         }
@@ -112,4 +112,4 @@ class DocsAPI {
     }
 }
 
-export const docsAPI = new DocsAPI(); 
+export const docAPI = new DocAPI(); 
