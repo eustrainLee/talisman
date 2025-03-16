@@ -46,7 +46,6 @@ interface DocPathItem {
   id: string;
   name: string;
   path: string;
-  use_git?: boolean;
   git?: GitConfig;
 }
 
@@ -388,7 +387,6 @@ export function setupIpcHandlers() {
       }
       
       // 更新 Git 配置
-      pathItem.use_git = true;
       pathItem.git = config.git;
       
       // 保存配置
@@ -472,7 +470,7 @@ export function setupIpcHandlers() {
         
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
-        if (pathItem && pathItem.use_git && pathItem.git) {
+        if (pathItem && pathItem.git) {
           return pathItem.git;
         }
       }
