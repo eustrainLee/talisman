@@ -6,7 +6,7 @@ import { glob } from 'glob'
 import simpleGit from 'simple-git'
 import { promisify } from 'util'
 import log from 'electron-log'
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import * as os from 'os'
 
 // 配置日志
@@ -425,8 +425,8 @@ export function setupIpcHandlers(publicPath: string) {
         return [];
       }
       
-      // 获取文档列表
-      const files = await globPromise('**/*.md', { cwd: docPath });
+      // 获取文档列表，支持 md 和 txt 文件
+      const files = await globPromise('**/*.{md,txt}', { cwd: docPath });
       const docFiles: DocNode[] = [];
       
       // 构建文档树
@@ -445,7 +445,7 @@ export function setupIpcHandlers(publicPath: string) {
           if (i === parts.length - 1) {
             // 文件节点
             currentLevel.push({
-              title: path.basename(part, '.md'),
+              title: path.basename(part, path.extname(part)),
               key: `${docId}/${relativePath}`,
               isDirectory: false,
               exists: fs.existsSync(filePath)
@@ -789,7 +789,7 @@ export function setupIpcHandlers(publicPath: string) {
       
       // 复制文档
       const sourceDir = config.git.doc_path ? path.join(tempDir, config.git.doc_path) : tempDir;
-      const files = await globPromise('**/*.{md,json}', { cwd: sourceDir });
+      const files = await globPromise('**/*.{md,json,txt}', { cwd: sourceDir });
       for (const file of files) {
         const sourcePath = path.join(sourceDir, file);
         const targetPath = path.join(pathItem.path, file);
@@ -937,6 +937,32 @@ export function setupIpcHandlers(publicPath: string) {
     } catch (error) {
       log.error('检查路径是否存在失败:', error);
       return false;
+    }
+  });
+
+  // 选择目录
+  ipcMain.handle('doc:select-directory', async (event, initialPath?: string) => {
+    try {
+      const options: Electron.OpenDialogOptions = {
+        properties: ['openDirectory'],
+        title: '选择文档目录'
+      };
+      
+      // 如果提供了初始路径且该路径存在，则设置为默认路径
+      if (initialPath && fs.existsSync(initialPath)) {
+        options.defaultPath = initialPath;
+      }
+      
+      const result = await dialog.showOpenDialog(options);
+      
+      if (result.canceled) {
+        return '';
+      }
+      
+      return result.filePaths[0];
+    } catch (error) {
+      log.error('选择目录失败:', error);
+      return '';
     }
   });
 } 

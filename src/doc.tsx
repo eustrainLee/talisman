@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu, Tooltip } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -177,6 +177,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         } catch (error) {
             console.error('加载文档失败:', error);
         }
+    };
+
+    // 判断文件是否为 TXT 格式
+    const isTxtFile = (filePath: string): boolean => {
+        return filePath.toLowerCase().endsWith('.txt');
     };
 
     const saveMarkdown = async (exitEdit: boolean = true) => {
@@ -745,73 +750,88 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     {currentFile ? (
                         isPreview ? (
                             <div style={{ height: '100%', overflow: 'auto' }}>
-                                <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    rehypePlugins={[rehypeRaw]}
-                                    components={{
-                                        code: ({ inline, className, children, node, ...props }: CodeProps) => {
-                                            const content = String(children).replace(/\n$/, '');
-                                            const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
-                                            if (!isCodeBlock) {
+                                {isTxtFile(currentFile) ? (
+                                    // TXT 文件直接显示为纯文本，保留换行
+                                    <pre style={{ 
+                                        whiteSpace: 'pre-wrap', 
+                                        wordWrap: 'break-word',
+                                        fontFamily: 'inherit',
+                                        fontSize: 'inherit',
+                                        margin: 0,
+                                        padding: 0
+                                    }}>
+                                        {markdown}
+                                    </pre>
+                                ) : (
+                                    // Markdown 文件使用 ReactMarkdown 渲染
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        rehypePlugins={[rehypeRaw]}
+                                        components={{
+                                            code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                                const content = String(children).replace(/\n$/, '');
+                                                const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+                                                if (!isCodeBlock) {
+                                                    return (
+                                                        <code
+                                                            style={{
+                                                                backgroundColor: '#f5f5f5',
+                                                                color: '#d63200',
+                                                                padding: '2px 4px',
+                                                                borderRadius: '3px',
+                                                                fontSize: '0.9em',
+                                                                fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
+                                                            }}
+                                                            {...props}
+                                                        >
+                                                            {content}
+                                                        </code>
+                                                    );
+                                                }
                                                 return (
-                                                    <code
-                                                        style={{
-                                                            backgroundColor: '#f5f5f5',
-                                                            color: '#d63200',
-                                                            padding: '2px 4px',
-                                                            borderRadius: '3px',
-                                                            fontSize: '0.9em',
-                                                            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                                                        }}
-                                                        {...props}
-                                                    >
-                                                        {content}
-                                                    </code>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <SyntaxHighlighter
+                                                            style={oneLight as any}
+                                                            language={className ? className.replace(/language-/, '') : ''}
+                                                            PreTag="div"
+                                                            customStyle={{
+                                                                margin: '1em 0',
+                                                                padding: '1em',
+                                                                borderRadius: '6px',
+                                                                fontSize: '85%',
+                                                                backgroundColor: '#f6f8fa',
+                                                                border: '1px solid #eaecef'
+                                                            }}
+                                                            {...props}
+                                                        >
+                                                            {content}
+                                                        </SyntaxHighlighter>
+                                                        {className && (
+                                                            <div
+                                                                style={{
+                                                                    position: 'absolute',
+                                                                    top: '0',
+                                                                    right: '0',
+                                                                    padding: '0.2em 0.6em',
+                                                                    fontSize: '85%',
+                                                                    color: '#57606a',
+                                                                    backgroundColor: '#f6f8fa',
+                                                                    borderLeft: '1px solid #eaecef',
+                                                                    borderBottom: '1px solid #eaecef',
+                                                                    borderRadius: '0 6px 0 6px'
+                                                                }}
+                                                            >
+                                                                {className.replace(/language-/, '')}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 );
                                             }
-                                            return (
-                                                <div style={{ position: 'relative' }}>
-                                                    <SyntaxHighlighter
-                                                        style={oneLight as any}
-                                                        language={className ? className.replace(/language-/, '') : ''}
-                                                        PreTag="div"
-                                                        customStyle={{
-                                                            margin: '1em 0',
-                                                            padding: '1em',
-                                                            borderRadius: '6px',
-                                                            fontSize: '85%',
-                                                            backgroundColor: '#f6f8fa',
-                                                            border: '1px solid #eaecef'
-                                                        }}
-                                                        {...props}
-                                                    >
-                                                        {content}
-                                                    </SyntaxHighlighter>
-                                                    {className && (
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                top: '0',
-                                                                right: '0',
-                                                                padding: '0.2em 0.6em',
-                                                                fontSize: '85%',
-                                                                color: '#57606a',
-                                                                backgroundColor: '#f6f8fa',
-                                                                borderLeft: '1px solid #eaecef',
-                                                                borderBottom: '1px solid #eaecef',
-                                                                borderRadius: '0 6px 0 6px'
-                                                            }}
-                                                        >
-                                                            {className.replace(/language-/, '')}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        }
-                                    }}
-                                >
-                                    {markdown}
-                                </ReactMarkdown>
+                                        }}
+                                    >
+                                        {markdown}
+                                    </ReactMarkdown>
+                                )}
                             </div>
                         ) : (
                             <MdEditor
@@ -826,14 +846,21 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 previewTheme="github"
                                 codeTheme="github"
                                 showCodeRowNumber={false}
-                                preview={true}
+                                preview={isTxtFile(currentFile) ? false : true}
                                 noPrettier={true}
-                                noMermaid={false}
+                                noMermaid={isTxtFile(currentFile)}
                                 noKatex={true}
                                 onSave={() => saveMarkdown(false)}
                                 sanitize={(html) => html}
                                 formatCopiedText={(text) => text}
-                                toolbars={[
+                                toolbars={isTxtFile(currentFile) ? [
+                                    'revoke',
+                                    'next',
+                                    'save',
+                                    '=',
+                                    'pageFullscreen',
+                                    'fullscreen'
+                                ] as any[] : [
                                     'bold',
                                     'underline',
                                     'italic',
@@ -982,7 +1009,46 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                             rules={[{ required: true, message: '请输入路径' }]}
                                             style={{ width: '60%' }}
                                         >
-                                            <Input placeholder="路径" />
+                                            <Input 
+                                                placeholder="路径" 
+                                                addonAfter={
+                                                    <Button 
+                                                        type="text" 
+                                                        icon={<FolderOpenOutlined />} 
+                                                        onClick={async () => {
+                                                            if (USE_IPC) {
+                                                                try {
+                                                                    // 获取当前输入框的值
+                                                                    const currentPath = pathForm.getFieldValue(['docs', name, 'path']);
+                                                                    
+                                                                    // 检查当前路径是否有效
+                                                                    let initialPath = '';
+                                                                    if (currentPath) {
+                                                                        const exists = await window.electronAPI.checkPathExists(currentPath);
+                                                                        if (exists) {
+                                                                            initialPath = currentPath;
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    const selectedPath = await window.electronAPI.selectDirectory(initialPath);
+                                                                    if (selectedPath) {
+                                                                        pathForm.setFields([
+                                                                            {
+                                                                                name: ['docs', name, 'path'],
+                                                                                value: selectedPath
+                                                                            }
+                                                                        ]);
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error('选择目录失败:', error);
+                                                                    message.error('选择目录失败');
+                                                                }
+                                                            }
+                                                        }}
+                                                        style={{ border: 'none' }}
+                                                    />
+                                                }
+                                            />
                                         </Form.Item>
                                         <Button onClick={() => remove(name)} type="text" danger>删除</Button>
                                         <Form.Item
@@ -1026,7 +1092,41 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         label="路径"
                         rules={[{ required: true, message: '请输入文档目录路径' }]}
                     >
-                        <Input placeholder="例如：D:\Documents\Projects" />
+                        <Input 
+                            placeholder="例如：D:\Documents\Projects" 
+                            addonAfter={
+                                <Button 
+                                    type="text" 
+                                    icon={<FolderOpenOutlined />} 
+                                    onClick={async () => {
+                                        if (USE_IPC) {
+                                            try {
+                                                // 获取当前输入框的值
+                                                const currentPath = addDocPathForm.getFieldValue('path');
+                                                
+                                                // 检查当前路径是否有效
+                                                let initialPath = '';
+                                                if (currentPath) {
+                                                    const exists = await window.electronAPI.checkPathExists(currentPath);
+                                                    if (exists) {
+                                                        initialPath = currentPath;
+                                                    }
+                                                }
+                                                
+                                                const selectedPath = await window.electronAPI.selectDirectory(initialPath);
+                                                if (selectedPath) {
+                                                    addDocPathForm.setFieldValue('path', selectedPath);
+                                                }
+                                            } catch (error) {
+                                                console.error('选择目录失败:', error);
+                                                message.error('选择目录失败');
+                                            }
+                                        }
+                                    }}
+                                    style={{ border: 'none' }}
+                                />
+                            }
+                        />
                     </Form.Item>
                 </Form>
             </Modal>

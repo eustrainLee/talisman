@@ -41,6 +41,7 @@ interface IElectronAPI {
   updateDocPathConfig: (config: DocPathConfig) => Promise<boolean>;
   getDefaultSSHKeyPath: () => Promise<string>;
   checkPathExists: (path: string) => Promise<boolean>;
+  selectDirectory: (initialPath?: string) => Promise<string>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -56,6 +57,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateDocPathConfig: (config: DocPathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
   getDefaultSSHKeyPath: () => ipcRenderer.invoke('doc:get-default-ssh-key-path'),
   checkPathExists: (path: string) => ipcRenderer.invoke('doc:check-path-exists', path),
+  selectDirectory: (initialPath?: string) => ipcRenderer.invoke('doc:select-directory', initialPath),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }
