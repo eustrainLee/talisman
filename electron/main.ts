@@ -73,7 +73,7 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
-  setupIpcHandlers(process.env.VITE_PUBLIC!)
+  setupIpcHandlers()
   createWindow()
   const {Menu} = require('electron')
   Menu.setApplicationMenu(null)

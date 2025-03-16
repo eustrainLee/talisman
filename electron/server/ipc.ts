@@ -22,13 +22,6 @@ interface DocNodeConfig {
   children?: DocNodeConfig[];  // 改为数组
 }
 
-interface DocPathConfig {
-    path: {
-        local: string;
-        remote: string;
-    }
-}
-
 interface DocConfig {
   files: DocNodeConfig[];  // 改为 files
 }
@@ -59,24 +52,6 @@ interface DocPathItem {
 
 interface DocJsonConfig {
   docs?: DocPathItem[];
-  // 保留旧配置字段以兼容旧版本
-  doc?: {
-    files: DocNodeConfig[];
-  };
-  remote_doc?: {
-    files: DocNodeConfig[];
-    git?: {
-      repo_url: string;
-      branch: string;
-      doc_path: string;
-      use_ssh?: boolean;
-      ssh_key_path?: boolean;
-    };
-  };
-  path?: {
-    local: string;
-    remote: string;
-  };
 }
 
 const fileExists = async (filePath: string): Promise<boolean> => {
@@ -122,9 +97,7 @@ function getDefaultSSHKeyPath(): string {
   }
 }
 
-export function setupIpcHandlers(publicPath: string) {
-  const pathConfigPath = path.join(publicPath, 'path-config.json');
-
+export function setupIpcHandlers() {
   // 获取文档列表
   ipcMain.handle('doc:list', async (_event, docId: string) => {
     try {
@@ -304,32 +277,28 @@ export function setupIpcHandlers(publicPath: string) {
   // 更新文档配置
   ipcMain.handle('doc:config', async (_event, docPath: string, title: string) => {
     try {
-      // 读取路径配置
-      let pathConfig: DocPathConfig = {
-        path: {
-          local: 'public/docs',
-          remote: 'public/remote_docs'
-        }
-      };
+      // 解析路径 ID 和相对路径
+      const [docId, ...relativeParts] = docPath.split('/');
+      const relativePath = relativeParts.join('/');
       
-      try {
-        if (fs.existsSync(pathConfigPath)) {
-          pathConfig = JSON.parse(fs.readFileSync(pathConfigPath, 'utf-8'));
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let basePath = '';
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        
+        // 查找指定 ID 的路径配置
+        const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
+        if (pathItem && pathItem.path) {
+          basePath = pathItem.path;
         }
-      } catch (error) {
-        console.error('Failed to read path configuration:', error);
       }
-
-      // 根据路径选择配置
-      const isRemote = docPath.startsWith('/remote_docs/');
-      const configuredPath = isRemote ? pathConfig.path.remote : pathConfig.path.local;
       
-      // 处理路径
-      let basePath: string;
-      if (path.isAbsolute(configuredPath)) {
-        basePath = configuredPath;
-      } else {
-        basePath = path.resolve(publicPath, '..', configuredPath);
+      // 如果找不到指定路径，返回失败
+      if (!basePath) {
+        return { success: false, error: '找不到指定的文档目录' };
       }
       
       const configPath = path.join(basePath, 'config.json');
@@ -338,37 +307,16 @@ export function setupIpcHandlers(publicPath: string) {
       if (fs.existsSync(configPath)) {
         try {
           const configContent = await fsPromises.readFile(configPath, 'utf-8');
-          const rawConfig = JSON.parse(configContent);
+          config = JSON.parse(configContent);
           
-          // 如果是旧格式，转换为新格式
-          if (!rawConfig.files && !rawConfig.nodes) {
-            const newConfig: DocConfig = { files: [] };
-            function convertOldConfig(oldConfig: any) {
-              Object.entries(oldConfig).forEach(([key, value]: [string, any]) => {
-                const isFile = key.endsWith('.md');
-                newConfig.files.push({
-                  title: value.title || key,
-                  name: key,
-                  type: isFile ? 'file' : 'directory',
-                  ...(isFile ? {} : { children: [] })
-                });
-              });
-            }
-            convertOldConfig(rawConfig);
-            config = newConfig;
-          } else {
-            config = {
-              files: rawConfig.files || rawConfig.nodes || []
-            };
+          // 确保 files 字段存在
+          if (!config.files) {
+            config.files = [];
           }
         } catch (error) {
           console.error('Failed to read configuration file:', error);
         }
       }
-
-      const relativePath = docPath.startsWith('/docs/') ? docPath.slice(6) : 
-                          docPath.startsWith('/remote_docs/') ? docPath.slice(12) : 
-                          docPath;
 
       const isFile = relativePath.endsWith('.md');
       const pathParts = relativePath.split('/');
@@ -404,37 +352,6 @@ export function setupIpcHandlers(publicPath: string) {
       }
 
       await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-
-      // 同时更新 doc.json 中的配置
-      try {
-        const configDir = getConfigDir();
-        const docConfigPath = path.join(configDir, 'doc.json');
-        
-        let docConfig: DocJsonConfig = {
-          path: {
-            local: '',
-            remote: ''
-          }
-        };
-        
-        if (fs.existsSync(docConfigPath)) {
-          docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        }
-
-        // 根据是否为远程文档更新对应的配置
-        if (isRemote) {
-          docConfig.remote_doc = docConfig.remote_doc || { files: [] };
-          docConfig.remote_doc.files = config.files;
-        } else {
-          docConfig.doc = docConfig.doc || { files: [] };
-          docConfig.doc.files = config.files;
-        }
-
-        await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
-      } catch (error) {
-        log.error('Failed to update doc.json configuration:', error);
-      }
-
       return { success: true };
     } catch (error) {
       console.error('Failed to update configuration:', error);
@@ -575,40 +492,13 @@ export function setupIpcHandlers(publicPath: string) {
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
         
-        // 如果已经有新格式的配置，直接返回
+        // 直接返回新格式的配置
         if (docConfig.docs) {
           return { docs: docConfig.docs };
         }
         
-        // 兼容旧版配置，转换为新格式
-        const docs: DocPathItem[] = [];
-        
-        // 如果有旧的本地路径配置，转换为新格式
-        if (docConfig.path?.local) {
-          docs.push({
-            id: 'local',
-            name: '本地文档',
-            path: docConfig.path.local,
-            use_git: false
-          });
-        }
-        
-        // 如果有旧的远程路径配置，转换为新格式
-        if (docConfig.path?.remote) {
-          docs.push({
-            id: 'remote',
-            name: '远程文档',
-            path: docConfig.path.remote,
-            use_git: docConfig.remote_doc?.git ? true : false,
-            git: docConfig.remote_doc?.git
-          });
-        }
-        
-        // 保存新格式配置
-        docConfig.docs = docs;
-        fs.writeFileSync(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
-        
-        return { docs };
+        // 如果没有 docs 字段，返回空数组
+        return { docs: [] };
       }
       
       // 如果配置文件不存在，返回空数组
