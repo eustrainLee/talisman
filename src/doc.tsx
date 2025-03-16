@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -51,6 +51,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [pathModalVisible, setPathModalVisible] = useState(false);
     const [siderWidth, setSiderWidth] = useState(240);
     const [isAddDocPathModalVisible, setIsAddDocPathModalVisible] = useState(false);
+    const [isRemoveDocPathModalVisible, setIsRemoveDocPathModalVisible] = useState(false);
+    const [docPathToRemove, setDocPathToRemove] = useState<DocPathItem | null>(null);
 
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
@@ -354,6 +356,50 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
+    const handleRemoveDocPath = (docPath: DocPathItem) => {
+        setDocPathToRemove(docPath);
+        setIsRemoveDocPathModalVisible(true);
+    };
+
+    const confirmRemoveDocPath = async () => {
+        if (!docPathToRemove) return;
+
+        try {
+            // 获取当前配置
+            const config = await docAPI.getDocPathConfig();
+            
+            // 过滤掉要删除的目录
+            const newConfig: DocPathConfig = {
+                docs: config.docs.filter(doc => doc.id !== docPathToRemove.id)
+            };
+            
+            const success = await docAPI.updateDocPathConfig(newConfig);
+            if (success) {
+                message.success('移除文档目录成功');
+                
+                // 如果删除的是当前选中的目录，重置当前选中的目录
+                if (currentDocId === docPathToRemove.id) {
+                    setCurrentDocId('');
+                    setCurrentFile('');
+                    setMarkdown('');
+                    setDocFiles([]);
+                }
+                
+                // 重新加载文档目录列表
+                await loadDocPaths();
+                
+                // 关闭确认弹窗
+                setIsRemoveDocPathModalVisible(false);
+                setDocPathToRemove(null);
+            } else {
+                message.error('移除文档目录失败');
+            }
+        } catch (error) {
+            console.error('移除文档目录失败:', error);
+            message.error('移除文档目录失败');
+        }
+    };
+
     const settingsMenu = {
         items: [
             {
@@ -370,6 +416,58 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             }
         ]
     };
+
+    // 生成下拉菜单选项
+    const generateOptions = () => {
+        const options = docPaths.map(doc => (
+            <Option key={doc.id} value={doc.id}>
+                <div 
+                    style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        position: 'relative'
+                    }}
+                    className="doc-option"
+                >
+                    <span>{doc.name}</span>
+                    <CloseOutlined 
+                        className="doc-remove-icon"
+                        style={{ 
+                            color: '#999',
+                            position: 'absolute',
+                            right: 0,
+                            opacity: 0,
+                            transition: 'opacity 0.2s'
+                        }} 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveDocPath(doc);
+                        }}
+                    />
+                </div>
+            </Option>
+        ));
+        
+        return options;
+    };
+    
+    // 自定义下拉菜单渲染
+    const dropdownRender = (menu: React.ReactElement) => (
+        <>
+            {docPaths.length > 0 ? menu : null}
+            <div style={{ padding: '8px', borderTop: docPaths.length > 0 ? '1px solid #f0f0f0' : 'none' }}>
+                <Button 
+                    type="text" 
+                    icon={<PlusOutlined />} 
+                    block 
+                    onClick={() => setIsAddDocPathModalVisible(true)}
+                >
+                    添加文档目录
+                </Button>
+            </div>
+        </>
+    );
 
     return (
         <Layout style={{ 
@@ -419,13 +517,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         value={currentDocId}
                         onChange={handleDocIdChange}
                         disabled={!isPreview}
+                        dropdownRender={dropdownRender}
                     >
-                        {docPaths.map(doc => (
-                            <Option key={doc.id} value={doc.id}>{doc.name}</Option>
-                        ))}
-                        <Option key="add" value="add">
-                            <PlusOutlined /> 添加文档目录
-                        </Option>
+                        {generateOptions()}
                     </Select>
                     <div style={{ flex: 1 }} />
                     <Space style={{ marginBottom: 16 }}>
@@ -901,6 +995,21 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         <Input placeholder="例如：D:\Documents\Projects" />
                     </Form.Item>
                 </Form>
+            </Modal>
+            <Modal
+                title="确认移除"
+                open={isRemoveDocPathModalVisible}
+                onOk={confirmRemoveDocPath}
+                onCancel={() => {
+                    setIsRemoveDocPathModalVisible(false);
+                    setDocPathToRemove(null);
+                }}
+                okText="确认移除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+            >
+                <p>确定要移除文档目录 "{docPathToRemove?.name}" 吗？</p>
+                <p style={{ color: '#ff4d4f' }}>注意：这将从配置中移除该目录，但不会删除磁盘上的文件。</p>
             </Modal>
         </Layout>
     );

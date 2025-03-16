@@ -213,4 +213,8 @@ td code {
     font-size: 85%;
     margin: 0;
     padding: 0.2em 0.4em;
+}
+
+.doc-option:hover .doc-remove-icon {
+  opacity: 1 !important;
 } 
