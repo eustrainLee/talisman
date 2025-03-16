@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu } from 'antd';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu, Tooltip } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, CloseOutlined } from '@ant-design/icons';
@@ -451,33 +451,35 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 value={doc.id}
                 disabled={!doc.exists}
             >
-                <div 
-                    style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        position: 'relative',
-                        textDecoration: doc.exists ? 'none' : 'line-through',
-                        color: doc.exists ? 'inherit' : '#999'
-                    }}
-                    className="doc-option"
-                >
-                    <span>{doc.name}</span>
-                    <CloseOutlined 
-                        className="doc-remove-icon"
+                <Tooltip title={doc.path} placement="right">
+                    <div 
                         style={{ 
-                            color: '#999',
-                            position: 'absolute',
-                            right: 0,
-                            opacity: 0,
-                            transition: 'opacity 0.2s'
-                        }} 
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveDocPath(doc);
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            position: 'relative',
+                            textDecoration: doc.exists ? 'none' : 'line-through',
+                            color: doc.exists ? 'inherit' : '#999'
                         }}
-                    />
-                </div>
+                        className="doc-option"
+                    >
+                        <span>{doc.name}</span>
+                        <CloseOutlined 
+                            className="doc-remove-icon"
+                            style={{ 
+                                color: '#999',
+                                position: 'absolute',
+                                right: 0,
+                                opacity: 0,
+                                transition: 'opacity 0.2s'
+                            }} 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveDocPath(doc);
+                            }}
+                        />
+                    </div>
+                </Tooltip>
             </Option>
         ));
         
