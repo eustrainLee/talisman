@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu, Tooltip } from 'antd';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined, DeleteOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
