@@ -420,9 +420,9 @@ export function setupIpcHandlers(publicPath: string) {
         return [];
       }
       
-      // 确保目录存在
+      // 检查目录是否存在，不存在则返回空数组
       if (!fs.existsSync(docPath)) {
-        await fsPromises.mkdir(docPath, { recursive: true });
+        return [];
       }
       
       // 获取文档列表
@@ -553,10 +553,15 @@ export function setupIpcHandlers(publicPath: string) {
         return false;
       }
       
+      // 检查基础目录是否存在
+      if (!fs.existsSync(basePath)) {
+        return false;
+      }
+      
       // 获取完整文件路径
       const filePath = path.join(basePath, relativePath);
       
-      // 确保目录存在
+      // 确保文件所在的目录存在（这是保存文件所必需的）
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
       
       // 保存文件内容
@@ -742,14 +747,20 @@ export function setupIpcHandlers(publicPath: string) {
       pathItem.git = config.git;
       
       // 保存配置
+      await fsPromises.mkdir(configDir, { recursive: true });
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
+      
+      // 检查目标目录是否存在
+      if (!fs.existsSync(pathItem.path)) {
+        return { success: false, error: '目标目录不存在，请先创建目录' };
+      }
       
       // 清理旧的临时目录（如果存在）
       if (await fileExists(tempDir)) {
         await fsPromises.rm(tempDir, { recursive: true, force: true });
       }
       
-      // 确保临时目录存在
+      // 确保临时目录存在（这是临时操作目录，需要创建）
       await fsPromises.mkdir(tempDir, { recursive: true });
       
       // 配置 Git
@@ -769,13 +780,12 @@ export function setupIpcHandlers(publicPath: string) {
       const tempGit = simpleGit(tempDir, gitOptions);
       await tempGit.checkout(config.git.branch);
       
-      // 清理旧的文档目录（如果存在）
-      if (await fileExists(pathItem.path)) {
-        await fsPromises.rm(pathItem.path, { recursive: true, force: true });
+      // 清理目标目录中的内容（保留目录本身）
+      const entries = await fsPromises.readdir(pathItem.path);
+      for (const entry of entries) {
+        const entryPath = path.join(pathItem.path, entry);
+        await fsPromises.rm(entryPath, { recursive: true, force: true });
       }
-      
-      // 确保文档目录存在
-      await fsPromises.mkdir(pathItem.path, { recursive: true });
       
       // 复制文档
       const sourceDir = config.git.doc_path ? path.join(tempDir, config.git.doc_path) : tempDir;
@@ -783,6 +793,7 @@ export function setupIpcHandlers(publicPath: string) {
       for (const file of files) {
         const sourcePath = path.join(sourceDir, file);
         const targetPath = path.join(pathItem.path, file);
+        // 确保文件所在的目录存在（这是复制文件所必需的）
         await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
         await fsPromises.copyFile(sourcePath, targetPath);
       }
@@ -897,12 +908,9 @@ export function setupIpcHandlers(publicPath: string) {
       // 更新路径配置
       docConfig.docs = config.docs;
       
-      // 确保所有路径目录存在
-      for (const pathItem of config.docs) {
-        if (pathItem.path && pathItem.path.trim() !== '') {
-          await fsPromises.mkdir(pathItem.path, { recursive: true });
-        }
-      }
+      // 不再自动创建目录
+      // 只确保配置目录存在
+      await fsPromises.mkdir(configDir, { recursive: true });
       
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
       return true;
@@ -919,6 +927,16 @@ export function setupIpcHandlers(publicPath: string) {
     } catch (error) {
       log.error('获取默认 SSH 密钥路径失败:', error);
       return '';
+    }
+  });
+
+  // 检查路径是否存在
+  ipcMain.handle('doc:check-path-exists', async (_event, pathToCheck: string) => {
+    try {
+      return fs.existsSync(pathToCheck);
+    } catch (error) {
+      log.error('检查路径是否存在失败:', error);
+      return false;
     }
   });
 } 

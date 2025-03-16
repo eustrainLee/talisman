@@ -98,12 +98,32 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const loadDocPaths = async () => {
         try {
             const config = await docAPI.getDocPathConfig();
-            setDocPaths(config.docs || []);
             
-            // 如果有文档目录，选择第一个
+            // 检查每个目录是否存在
             if (config.docs && config.docs.length > 0) {
-                setCurrentDocId(config.docs[0].id);
-                loadDocList(config.docs[0].id);
+                const checkedDocs = await Promise.all(config.docs.map(async (doc) => {
+                    if (USE_IPC) {
+                        try {
+                            // 检查目录是否存在
+                            const exists = await window.electronAPI.checkPathExists(doc.path);
+                            return { ...doc, exists };
+                        } catch (error) {
+                            return { ...doc, exists: false };
+                        }
+                    }
+                    return { ...doc, exists: true }; // 非 IPC 模式默认存在
+                }));
+                
+                setDocPaths(checkedDocs);
+                
+                // 如果有文档目录，选择第一个存在的目录
+                const firstExistingDoc = checkedDocs.find(doc => doc.exists);
+                if (firstExistingDoc) {
+                    setCurrentDocId(firstExistingDoc.id);
+                    loadDocList(firstExistingDoc.id);
+                }
+            } else {
+                setDocPaths([]);
             }
         } catch (error) {
             console.error('加载文档目录配置失败:', error);
@@ -349,10 +369,16 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             // 显示添加文档目录的弹窗
             setIsAddDocPathModalVisible(true);
         } else {
-            setCurrentDocId(docId);
-            loadDocList(docId);
-            setCurrentFile('');
-            setMarkdown('');
+            // 查找选中的目录
+            const selectedDoc = docPaths.find(doc => doc.id === docId);
+            
+            // 只有当目录存在时才加载
+            if (selectedDoc && selectedDoc.exists) {
+                setCurrentDocId(docId);
+                loadDocList(docId);
+                setCurrentFile('');
+                setMarkdown('');
+            }
         }
     };
 
@@ -420,13 +446,19 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     // 生成下拉菜单选项
     const generateOptions = () => {
         const options = docPaths.map(doc => (
-            <Option key={doc.id} value={doc.id}>
+            <Option 
+                key={doc.id} 
+                value={doc.id}
+                disabled={!doc.exists}
+            >
                 <div 
                     style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center',
-                        position: 'relative'
+                        position: 'relative',
+                        textDecoration: doc.exists ? 'none' : 'line-through',
+                        color: doc.exists ? 'inherit' : '#999'
                     }}
                     className="doc-option"
                 >

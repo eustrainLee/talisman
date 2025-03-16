@@ -18,6 +18,7 @@ export interface DocPathItem {
     path: string;
     use_git?: boolean;
     git?: GitConfig;
+    exists?: boolean;
 }
 
 export interface GitConfig {
@@ -133,6 +134,13 @@ class DocAPI {
             return window.electronAPI.getDefaultSSHKeyPath();
         }
         return '';
+    }
+
+    async checkPathExists(path: string): Promise<boolean> {
+        if (USE_IPC) {
+            return window.electronAPI.checkPathExists(path);
+        }
+        return true; // 非 IPC 模式默认返回 true
     }
 }
 
