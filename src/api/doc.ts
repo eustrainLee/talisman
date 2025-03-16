@@ -8,12 +8,24 @@ export interface DocFile {
     exists?: boolean;
 }
 
+export interface DocPathConfig {
+    docs: DocPathItem[];
+}
+
+export interface DocPathItem {
+    id: string;
+    name: string;
+    path: string;
+    use_git?: boolean;
+    git?: GitConfig;
+}
+
 export interface GitConfig {
-    repoUrl: string;
+    repo_url: string;
     branch: string;
-    docPath: string;
-    useSSH?: boolean;
-    sshKeyPath?: string;
+    doc_path?: string;
+    use_ssh?: boolean;
+    ssh_key_path?: string;
 }
 
 export interface DocConfig {
@@ -46,7 +58,7 @@ class DocAPI {
         return response.text();
     }
 
-    async saveDoc(path: string, content: string): Promise<void> {
+    async saveDoc(path: string, content: string): Promise<boolean> {
         if (USE_IPC) {
             return window.electronAPI.saveDoc(path, content);
         }
@@ -62,9 +74,11 @@ class DocAPI {
         if (!response.ok) {
             throw new Error('保存失败');
         }
+        
+        return true;
     }
 
-    async updateDocConfig(path: string, title: string): Promise<void> {
+    async updateDocConfig(path: string, title: string): Promise<boolean> {
         if (USE_IPC) {
             return window.electronAPI.updateDocConfig(path, title);
         }
@@ -80,37 +94,38 @@ class DocAPI {
         if (!response.ok) {
             throw new Error('更新配置失败');
         }
+        
+        return true;
     }
 
-    async getDocGitConfig(): Promise<GitConfig | null> {
-        if (USE_IPC) {
-            return window.electronAPI.getDocGitConfig();
-        }
-        return null;
-    }
-
-    async pullDocFromGit(config: GitConfig): Promise<void> {
-        if (USE_IPC) {
-            return window.electronAPI.pullDocFromGit(config);
-        }
-        throw new Error('不支持从 Git 拉取');
-    }
-
-    async getDocPathConfig(): Promise<DocConfig> {
+    async getDocPathConfig(): Promise<DocPathConfig> {
         if (USE_IPC) {
             return window.electronAPI.getDocPathConfig();
         }
         return {
-            localPath: '',
-            remotePath: ''
+            docs: []
         };
     }
 
-    async updateDocPathConfig(config: DocConfig): Promise<boolean> {
+    async updateDocPathConfig(config: DocPathConfig): Promise<boolean> {
         if (USE_IPC) {
             return window.electronAPI.updateDocPathConfig(config);
         }
         throw new Error('不支持更新路径配置');
+    }
+
+    async getDocGitConfig(docId: string): Promise<GitConfig | null> {
+        if (USE_IPC) {
+            return window.electronAPI.getDocGitConfig(docId);
+        }
+        return null;
+    }
+
+    async pullDocFromGit(docId: string, config: GitConfig): Promise<{ success: boolean, error?: string }> {
+        if (USE_IPC) {
+            return window.electronAPI.pullDocFromGit({ docId, git: config });
+        }
+        throw new Error('不支持从 Git 拉取');
     }
 
     async getDefaultSSHKeyPath(): Promise<string> {

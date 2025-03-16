@@ -5,29 +5,37 @@ interface DocFile {
   key: string;
   children?: DocFile[];
   isDirectory?: boolean;
-}
-
-interface GitConfig {
-  repoUrl: string;
-  branch: string;
-  docPath: string;
-  useSSH?: boolean;
-  sshKeyPath?: string;
+  exists?: boolean;
 }
 
 interface DocPathConfig {
-    localPath: string;
-    remotePath: string;
+  docs: DocPathItem[];
+}
+
+interface DocPathItem {
+  id: string;
+  name: string;
+  path: string;
+  use_git?: boolean;
+  git?: GitConfig;
+}
+
+interface GitConfig {
+  repo_url: string;
+  branch: string;
+  doc_path?: string;
+  use_ssh?: boolean;
+  ssh_key_path?: string;
 }
 
 // 自定义的 API 接口
 interface IElectronAPI {
-  getDocList: (basePath?: string) => Promise<DocFile[]>;
+  getDocList: (docId: string) => Promise<DocFile[]>;
   getDocContent: (path: string) => Promise<string>;
-  saveDoc: (path: string, content: string) => Promise<void>;
-  updateDocConfig: (path: string, title: string) => Promise<void>;
-  pullDocFromGit: (config: GitConfig) => Promise<void>;
-  getDocGitConfig: () => Promise<GitConfig | null>;
+  saveDoc: (path: string, content: string) => Promise<boolean>;
+  updateDocConfig: (path: string, title: string) => Promise<boolean>;
+  pullDocFromGit: (config: { docId: string, git: GitConfig }) => Promise<{ success: boolean, error?: string }>;
+  getDocGitConfig: (docId: string) => Promise<GitConfig | null>;
   getDocPathConfig: () => Promise<DocPathConfig>;
   updateDocPathConfig: (config: DocPathConfig) => Promise<boolean>;
   getDefaultSSHKeyPath: () => Promise<string>;
@@ -36,12 +44,12 @@ interface IElectronAPI {
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('electronAPI', {
-  getDocList: (basePath: string) => ipcRenderer.invoke('doc:list', basePath),
+  getDocList: (docId: string) => ipcRenderer.invoke('doc:list', docId),
   getDocContent: (path: string) => ipcRenderer.invoke('doc:get', path),
   saveDoc: (path: string, content: string) => ipcRenderer.invoke('doc:save', path, content),
   updateDocConfig: (path: string, title: string) => ipcRenderer.invoke('doc:config', path, title),
-  pullDocFromGit: (config: GitConfig) => ipcRenderer.invoke('doc:pull-from-git', config),
-  getDocGitConfig: () => ipcRenderer.invoke('doc:get-git-config'),
+  pullDocFromGit: (config: { docId: string, git: GitConfig }) => ipcRenderer.invoke('doc:pull-from-git', config),
+  getDocGitConfig: (docId: string) => ipcRenderer.invoke('doc:get-git-config', docId),
   getDocPathConfig: () => ipcRenderer.invoke('doc:get-path-config'),
   updateDocPathConfig: (config: DocPathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
   getDefaultSSHKeyPath: () => ipcRenderer.invoke('doc:get-default-ssh-key-path'),

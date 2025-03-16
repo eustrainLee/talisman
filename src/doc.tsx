@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown } from 'antd';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SwapOutlined, SettingOutlined, PlusOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -14,9 +14,10 @@ import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
 import { docAPI } from './api/doc';
-import type { DocFile, GitConfig } from './api/doc';
+import type { DocFile, GitConfig, DocPathConfig, DocPathItem } from './api/doc';
 
 const { Sider, Content } = Layout;
+const { Option } = Select;
 
 interface CodeProps extends React.HTMLAttributes<HTMLElement> {
     inline?: boolean;
@@ -43,57 +44,21 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [docListCollapsed, setDocListCollapsed] = useState(false);
     const [previousDocListState, setPreviousDocListState] = useState(false);
     const [isGitConfigModalVisible, setIsGitConfigModalVisible] = useState(false);
-    const [isRemoteMode, setIsRemoteMode] = useState(false);
+    const [currentDocId, setCurrentDocId] = useState<string>('');
+    const [docPaths, setDocPaths] = useState<DocPathItem[]>([]);
     const [autoSave, setAutoSave] = useState(false);
     const [prevMarkdown, setPrevMarkdown] = useState('');
     const [pathModalVisible, setPathModalVisible] = useState(false);
     const [siderWidth, setSiderWidth] = useState(240);
+    const [isAddDocPathModalVisible, setIsAddDocPathModalVisible] = useState(false);
 
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
     const [pathForm] = Form.useForm();
-
-    const handleModeChange = async (mode?: boolean) => {
-        const newMode = mode !== undefined ? mode : !isRemoteMode;
-        setIsRemoteMode(newMode);
-        try {
-            const basePath = newMode ? '/remote_docs' : '/docs';
-            if (USE_IPC) {
-                const files = await window.electronAPI.getDocList(basePath);
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-            } else {
-                const response = await fetch(`${API_BASE_URL}/api/docs/list?noCreate=true`);
-                if (!response.ok) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                const files = await response.json();
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-            }
-        } catch (error) {
-            console.error('获取文档列表失败:', error);
-            setDocFiles([]);
-            setCurrentFile('');
-            setMarkdown('');
-        }
-    };
+    const [addDocPathForm] = Form.useForm();
 
     useEffect(() => {
-        handleModeChange(false);
+        loadDocPaths();
     }, []);
 
     useEffect(() => {
@@ -123,38 +88,52 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     }, [markdown, autoSave]);
 
     useEffect(() => {
-        const removeDecorations = () => {
-            const decorations = document.querySelectorAll('.md-editor-code-flag');
-            decorations.forEach(el => {
-                if (el.parentNode) {
-                    el.parentNode.removeChild(el);
-                }
-            });
-        };
-
-        removeDecorations();
-
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach(() => {
-                removeDecorations();
-            });
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (isGitConfigModalVisible) {
+        if (isGitConfigModalVisible && currentDocId) {
             loadGitConfig();
         }
-    }, [isGitConfigModalVisible]);
+    }, [isGitConfigModalVisible, currentDocId]);
+
+    const loadDocPaths = async () => {
+        try {
+            const config = await docAPI.getDocPathConfig();
+            setDocPaths(config.docs || []);
+            
+            // 如果有文档目录，选择第一个
+            if (config.docs && config.docs.length > 0) {
+                setCurrentDocId(config.docs[0].id);
+                loadDocList(config.docs[0].id);
+            }
+        } catch (error) {
+            console.error('加载文档目录配置失败:', error);
+            message.error('加载文档目录配置失败');
+        }
+    };
+
+    const loadDocList = async (docId: string = currentDocId) => {
+        if (!docId) return;
+        
+        try {
+            if (USE_IPC) {
+                const files = await window.electronAPI.getDocList(docId);
+                if (!files || files.length === 0) {
+                    setDocFiles([]);
+                    setCurrentFile('');
+                    setMarkdown('');
+                    return;
+                }
+                setDocFiles(files);
+            } else {
+                setDocFiles([]);
+                setCurrentFile('');
+                setMarkdown('');
+            }
+        } catch (error) {
+            console.error('获取文档列表失败:', error);
+            setDocFiles([]);
+            setCurrentFile('');
+            setMarkdown('');
+        }
+    };
 
     const loadMarkdownFile = async (path: string) => {
         if (!path) return;
@@ -181,31 +160,17 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const saveMarkdown = async (exitEdit: boolean = true) => {
         try {
             if (USE_IPC) {
-                await window.electronAPI.saveDoc(currentFile, markdown);
-                message.success('保存成功');
-                if (exitEdit) {
-                    setIsPreview(true);
+                const success = await window.electronAPI.saveDoc(currentFile, markdown);
+                if (success) {
+                    message.success('保存成功');
+                    if (exitEdit) {
+                        setIsPreview(true);
+                    }
+                } else {
+                    message.error('保存失败');
                 }
             } else {
-                const response = await fetch(`${API_BASE_URL}/api/docs/save`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        path: currentFile,
-                        content: markdown,
-                    }),
-                });
-
-                if (!response.ok) {
-                    throw new Error('保存失败');
-                }
-
-                message.success('保存成功');
-                if (exitEdit) {
-                    setIsPreview(true);
-                }
+                message.error('保存失败');
             }
         } catch (error) {
             console.error('保存失败:', error);
@@ -216,29 +181,16 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const updateDocConfig = async (values: { title: string }) => {
         try {
             if (USE_IPC) {
-                await window.electronAPI.updateDocConfig(currentFile, values.title);
-                message.success('更新成功');
-                handleModeChange();
-                setIsEditTitleModalVisible(false);
-            } else {
-                const response = await fetch(`${API_BASE_URL}/api/docs/config`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        path: currentFile,
-                        title: values.title,
-                    }),
-                });
-
-                if (!response.ok) {
-                    throw new Error('更新配置失败');
+                const success = await window.electronAPI.updateDocConfig(currentFile, values.title);
+                if (success) {
+                    message.success('更新成功');
+                    loadDocList();
+                    setIsEditTitleModalVisible(false);
+                } else {
+                    message.error('更新配置失败');
                 }
-
-                message.success('更新成功');
-                handleModeChange();
-                setIsEditTitleModalVisible(false);
+            } else {
+                message.error('更新配置失败');
             }
         } catch (error) {
             console.error('更新配置失败:', error);
@@ -263,23 +215,23 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     const loadGitConfig = async () => {
         try {
-            if (USE_IPC) {
-                const config = await window.electronAPI.getDocGitConfig();
+            if (USE_IPC && currentDocId) {
+                const config = await docAPI.getDocGitConfig(currentDocId);
                 if (config) {
                     gitConfigForm.setFieldsValue(config);
                     
-                    // 只有当 useSSH 为 true 但 sshKeyPath 为空或不存在时才自动查找
-                    if (config.useSSH && (!config.sshKeyPath || config.sshKeyPath === '')) {
+                    // 只有当 use_ssh 为 true 但 ssh_key_path 为空或不存在时才自动查找
+                    if (config.use_ssh && (!config.ssh_key_path || config.ssh_key_path === '')) {
                         const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
                         if (sshKeyPath) {
-                            gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                            gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
                         }
                     }
                 } else {
                     // 如果没有保存的配置，获取默认 SSH 密钥路径
                     const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
                     if (sshKeyPath) {
-                        gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                        gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
                     }
                 }
             }
@@ -288,13 +240,13 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    // 当 useSSH 切换时自动获取默认 SSH 密钥路径
+    // 当 use_ssh 切换时自动获取默认 SSH 密钥路径
     const handleSSHToggle = async (checked: boolean) => {
         if (checked) {
             try {
                 const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
                 if (sshKeyPath) {
-                    gitConfigForm.setFieldValue('sshKeyPath', sshKeyPath);
+                    gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
                 }
             } catch (error) {
                 console.error('获取默认 SSH 密钥路径失败:', error);
@@ -307,10 +259,10 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             setIsGitConfigModalVisible(false);  // 立即关闭弹窗
             message.loading({ content: '正在从 Git 仓库拉取文档...', key: 'gitPull', duration: 0 });
             
-            if (USE_IPC) {
-                await window.electronAPI.pullDocFromGit(values);
+            if (USE_IPC && currentDocId) {
+                await docAPI.pullDocFromGit(currentDocId, values);
                 message.success({ content: '从 Git 仓库拉取文档成功', key: 'gitPull' });
-                // 刷新当前远程文档列表，而不是切换模式
+                // 刷新当前文档列表
                 loadDocList();
             }
         } catch (error) {
@@ -329,51 +281,17 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    const loadDocList = async () => {
-        try {
-            const basePath = isRemoteMode ? '/remote_docs' : '/docs';
-            if (USE_IPC) {
-                const files = await window.electronAPI.getDocList(basePath);
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-            } else {
-                const response = await fetch(`${API_BASE_URL}/api/docs/list?noCreate=true`);
-                if (!response.ok) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                const files = await response.json();
-                if (!files || files.length === 0) {
-                    setDocFiles([]);
-                    setCurrentFile('');
-                    setMarkdown('');
-                    return;
-                }
-                setDocFiles(files);
-            }
-        } catch (error) {
-            console.error('获取文档列表失败:', error);
-            setDocFiles([]);
-            setCurrentFile('');
-            setMarkdown('');
-        }
-    };
-
     const handlePathModalOk = async () => {
         try {
             const values = await pathForm.validateFields();
-            const success = await window.electronAPI.updateDocPathConfig(values);
+            const success = await docAPI.updateDocPathConfig(values);
             if (success) {
                 message.success('路径配置已更新');
                 setPathModalVisible(false);
-                loadDocList();
+                await loadDocPaths();
+                if (currentDocId) {
+                    loadDocList(currentDocId);
+                }
                 if (currentFile) {
                     loadMarkdownFile(currentFile);
                 }
@@ -382,6 +300,57 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             }
         } catch (error) {
             message.error('表单验证失败');
+        }
+    };
+
+    const handleAddDocPath = async () => {
+        try {
+            const values = await addDocPathForm.validateFields();
+            
+            // 生成唯一ID
+            const id = `doc_${Date.now()}`;
+            
+            // 添加新的文档目录
+            const newDocPath: DocPathItem = {
+                id,
+                name: values.name,
+                path: values.path,
+                use_git: false
+            };
+            
+            // 更新配置
+            const config = await docAPI.getDocPathConfig();
+            const newConfig: DocPathConfig = {
+                docs: [...(config.docs || []), newDocPath]
+            };
+            
+            const success = await docAPI.updateDocPathConfig(newConfig);
+            if (success) {
+                message.success('添加文档目录成功');
+                setIsAddDocPathModalVisible(false);
+                addDocPathForm.resetFields();
+                await loadDocPaths();
+                
+                // 切换到新添加的文档目录
+                setCurrentDocId(id);
+                loadDocList(id);
+            } else {
+                message.error('添加文档目录失败');
+            }
+        } catch (error) {
+            message.error('表单验证失败');
+        }
+    };
+
+    const handleDocIdChange = (docId: string) => {
+        if (docId === 'add') {
+            // 显示添加文档目录的弹窗
+            setIsAddDocPathModalVisible(true);
+        } else {
+            setCurrentDocId(docId);
+            loadDocList(docId);
+            setCurrentFile('');
+            setMarkdown('');
         }
     };
 
@@ -397,7 +366,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 label: '从 Git 拉取文档',
                 icon: <GithubOutlined />,
                 onClick: () => setIsGitConfigModalVisible(true),
-                disabled: !isRemoteMode
+                disabled: !currentDocId
             }
         ]
     };
@@ -443,21 +412,21 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                             <MenuFoldOutlined style={{ transition: 'transform 0.2s' }} />
                         )}
                         <span>目录</span>
-                        <Button
-                            icon={<SwapOutlined />}
-                            type={isRemoteMode ? "primary" : "default"}
-                            size="small"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleModeChange();
-                            }}
-                            style={{ marginLeft: '8px' }}
-                            disabled={!isPreview}
-                        >
-                            {isRemoteMode ? '远程文档' : '本地文档'}
-                        </Button>
                     </div>
                     <div style={{ width: '1px', height: '12px', background: '#f0f0f0' }} />
+                    <Select
+                        style={{ width: 200 }}
+                        value={currentDocId}
+                        onChange={handleDocIdChange}
+                        disabled={!isPreview}
+                    >
+                        {docPaths.map(doc => (
+                            <Option key={doc.id} value={doc.id}>{doc.name}</Option>
+                        ))}
+                        <Option key="add" value="add">
+                            <PlusOutlined /> 添加文档目录
+                        </Option>
+                    </Select>
                     <div style={{ flex: 1 }} />
                     <Space style={{ marginBottom: 16 }}>
                         {isPreview ? (
@@ -630,7 +599,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         textAlign: 'center',
                                         padding: '20px 0'
                                     }}>
-                                        {isRemoteMode ? '暂无远程文档' : '暂无本地文档'}
+                                        {currentDocId ? '暂无文档' : '请选择文档目录'}
                                     </div>
                                 )}
                             </div>
@@ -810,7 +779,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     layout="vertical"
                 >
                     <Form.Item
-                        name="repoUrl"
+                        name="repo_url"
                         label="仓库地址"
                         rules={[{ required: true, message: '请输入仓库地址' }]}
                     >
@@ -825,27 +794,26 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         <Input placeholder="例如：main" />
                     </Form.Item>
                     <Form.Item
-                        name="docPath"
+                        name="doc_path"
                         label="文档目录"
-                        rules={[{ required: true, message: '请输入文档目录' }]}
-                        initialValue="docs"
+                        initialValue=""
                     >
-                        <Input placeholder="例如：docs" />
+                        <Input placeholder="留空表示使用仓库根目录" />
                     </Form.Item>
                     <Form.Item
-                        name="useSSH"
+                        name="use_ssh"
                         valuePropName="checked"
                     >
                         <Checkbox onChange={(e) => handleSSHToggle(e.target.checked)}>使用 SSH 密钥</Checkbox>
                     </Form.Item>
                     <Form.Item
                         noStyle
-                        shouldUpdate={(prevValues, currentValues) => prevValues.useSSH !== currentValues.useSSH}
+                        shouldUpdate={(prevValues, currentValues) => prevValues.use_ssh !== currentValues.use_ssh}
                     >
                         {({ getFieldValue }) => 
-                            getFieldValue('useSSH') ? (
+                            getFieldValue('use_ssh') ? (
                                 <Form.Item
-                                    name="sshKeyPath"
+                                    name="ssh_key_path"
                                     label="SSH 密钥路径"
                                     rules={[{ required: true, message: '请输入 SSH 密钥路径' }]}
                                 >
@@ -861,22 +829,76 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 open={pathModalVisible}
                 onOk={handlePathModalOk}
                 onCancel={() => setPathModalVisible(false)}
+                width={700}
             >
                 <Form
                     form={pathForm}
                     layout="vertical"
                 >
+                    <Form.List name="docs">
+                        {(fields, { add, remove }) => (
+                            <>
+                                {fields.map(({ key, name, ...restField }) => (
+                                    <div key={key} style={{ display: 'flex', marginBottom: 8, gap: 8, alignItems: 'baseline' }}>
+                                        <Form.Item
+                                            {...restField}
+                                            name={[name, 'name']}
+                                            rules={[{ required: true, message: '请输入名称' }]}
+                                            style={{ width: '30%' }}
+                                        >
+                                            <Input placeholder="名称" />
+                                        </Form.Item>
+                                        <Form.Item
+                                            {...restField}
+                                            name={[name, 'path']}
+                                            rules={[{ required: true, message: '请输入路径' }]}
+                                            style={{ width: '60%' }}
+                                        >
+                                            <Input placeholder="路径" />
+                                        </Form.Item>
+                                        <Button onClick={() => remove(name)} type="text" danger>删除</Button>
+                                        <Form.Item
+                                            {...restField}
+                                            name={[name, 'id']}
+                                            hidden
+                                        >
+                                            <Input />
+                                        </Form.Item>
+                                    </div>
+                                ))}
+                                <Form.Item>
+                                    <Button type="dashed" onClick={() => add({ id: `doc_${Date.now()}`, name: '', path: '' })} block icon={<PlusOutlined />}>
+                                        添加文档目录
+                                    </Button>
+                                </Form.Item>
+                            </>
+                        )}
+                    </Form.List>
+                </Form>
+            </Modal>
+            <Modal
+                title="添加文档目录"
+                open={isAddDocPathModalVisible}
+                onOk={handleAddDocPath}
+                onCancel={() => setIsAddDocPathModalVisible(false)}
+            >
+                <Form
+                    form={addDocPathForm}
+                    layout="vertical"
+                >
                     <Form.Item
-                        name="localPath"
-                        label="本地文档目录"
+                        name="name"
+                        label="名称"
+                        rules={[{ required: true, message: '请输入文档目录名称' }]}
                     >
-                        <Input placeholder="请输入本地文档目录路径" />
+                        <Input placeholder="例如：项目文档" />
                     </Form.Item>
                     <Form.Item
-                        name="remotePath"
-                        label="远程文档目录"
+                        name="path"
+                        label="路径"
+                        rules={[{ required: true, message: '请输入文档目录路径' }]}
                     >
-                        <Input placeholder="请输入远程文档目录路径" />
+                        <Input placeholder="例如：D:\Documents\Projects" />
                     </Form.Item>
                 </Form>
             </Modal>
