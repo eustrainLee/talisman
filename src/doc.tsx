@@ -391,6 +391,13 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 key: 'pathConfig',
                 label: '文档目录设置',
                 onClick: () => handlePathConfig()
+            },
+            {
+                key: 'gitPull',
+                label: '从 Git 拉取文档',
+                icon: <GithubOutlined />,
+                onClick: () => setIsGitConfigModalVisible(true),
+                disabled: !isRemoteMode
             }
         ]
     };
@@ -495,14 +502,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                     保存
                                 </Button>
                             </>
-                        )}
-                        {isRemoteMode && (
-                            <Button
-                                icon={<GithubOutlined />}
-                                onClick={() => setIsGitConfigModalVisible(true)}
-                            >
-                                从Git拉取
-                            </Button>
                         )}
                         <Dropdown
                             menu={settingsMenu}
