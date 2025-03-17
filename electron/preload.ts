@@ -29,6 +29,13 @@ interface GitConfig {
   ssh_key_path?: string;
 }
 
+interface PullRequestConfig {
+  title: string;
+  description: string;
+  branch: string;
+  targetBranch: string;
+}
+
 // 自定义的 API 接口
 interface IElectronAPI {
   getDocList: (docId: string) => Promise<DocFile[]>;
@@ -36,12 +43,15 @@ interface IElectronAPI {
   saveDoc: (path: string, content: string) => Promise<boolean>;
   updateDocConfig: (path: string, title: string) => Promise<boolean>;
   pullDocFromGit: (config: { docId: string, git: GitConfig }) => Promise<{ success: boolean, error?: string }>;
+  createPullRequest: (config: { docId: string, pr: PullRequestConfig }) => Promise<{ success: boolean, prUrl?: string, error?: string }>;
   getDocGitConfig: (docId: string) => Promise<GitConfig | null>;
   getDocPathConfig: () => Promise<DocPathConfig>;
   updateDocPathConfig: (config: DocPathConfig) => Promise<boolean>;
   getDefaultSSHKeyPath: () => Promise<string>;
   checkPathExists: (path: string) => Promise<boolean>;
   selectDirectory: (initialPath?: string) => Promise<string>;
+  saveToken: (platform: string, token: string) => Promise<boolean>;
+  openExternal: (url: string) => Promise<boolean>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -52,12 +62,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveDoc: (path: string, content: string) => ipcRenderer.invoke('doc:save', path, content),
   updateDocConfig: (path: string, title: string) => ipcRenderer.invoke('doc:config', path, title),
   pullDocFromGit: (config: { docId: string, git: GitConfig }) => ipcRenderer.invoke('doc:pull-from-git', config),
+  createPullRequest: (config: { docId: string, pr: PullRequestConfig }) => ipcRenderer.invoke('doc:create-pull-request', config),
   getDocGitConfig: (docId: string) => ipcRenderer.invoke('doc:get-git-config', docId),
   getDocPathConfig: () => ipcRenderer.invoke('doc:get-path-config'),
   updateDocPathConfig: (config: DocPathConfig) => ipcRenderer.invoke('doc:update-path-config', config),
   getDefaultSSHKeyPath: () => ipcRenderer.invoke('doc:get-default-ssh-key-path'),
   checkPathExists: (path: string) => ipcRenderer.invoke('doc:check-path-exists', path),
   selectDirectory: (initialPath?: string) => ipcRenderer.invoke('doc:select-directory', initialPath),
+  saveToken: (platform: string, token: string) => ipcRenderer.invoke('doc:save-token', platform, token),
+  openExternal: (url: string) => ipcRenderer.invoke('doc:open-external', url),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }

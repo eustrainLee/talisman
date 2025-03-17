@@ -53,11 +53,15 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [isAddDocPathModalVisible, setIsAddDocPathModalVisible] = useState(false);
     const [isRemoveDocPathModalVisible, setIsRemoveDocPathModalVisible] = useState(false);
     const [docPathToRemove, setDocPathToRemove] = useState<DocPathItem | null>(null);
+    const [isPullRequestModalVisible, setIsPullRequestModalVisible] = useState(false);
+    const [isTokenSettingModalVisible, setIsTokenSettingModalVisible] = useState(false);
+    const [pullRequestForm] = Form.useForm();
 
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
     const [pathForm] = Form.useForm();
     const [addDocPathForm] = Form.useForm();
+    const [tokenSettingForm] = Form.useForm();
 
     useEffect(() => {
         loadDocPaths();
@@ -431,6 +435,101 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
+    const handleCreatePullRequest = async (values: any) => {
+        if (USE_IPC && currentDocId) {
+            try {
+                setIsPullRequestModalVisible(false);
+                message.loading({ content: '正在创建 Pull Request...', key: 'createPR', duration: 0 });
+                
+                const result = await window.electronAPI.createPullRequest({
+                    docId: currentDocId,
+                    pr: {
+                        title: values.title,
+                        description: values.description,
+                        branch: values.branch,
+                        targetBranch: values.targetBranch
+                    }
+                });
+                
+                if (result.success) {
+                    if (result.prUrl) {
+                        // 使用消息提示，包含可点击的链接
+                        message.success({
+                            content: (
+                                <span>
+                                    Pull Request 创建成功！ <a href="#" onClick={(e) => {
+                                        e.preventDefault();
+                                        // 使用 Electron 的 shell.openExternal 在默认浏览器中打开链接
+                                        if (window.electronAPI.openExternal && result.prUrl) {
+                                            window.electronAPI.openExternal(result.prUrl);
+                                        } else {
+                                            // 如果 openExternal 不可用，回退到 window.open
+                                            window.open(result.prUrl, '_blank', 'noopener,noreferrer');
+                                        }
+                                    }}>点击此处</a> 在浏览器中查看
+                                </span>
+                            ),
+                            key: 'createPR',
+                            duration: 10 // 延长显示时间，给用户足够时间点击
+                        });
+                    } else {
+                        message.success({ content: 'Pull Request 创建成功!', key: 'createPR' });
+                    }
+                } else {
+                    message.error({ content: `创建 Pull Request 失败: ${result.error}`, key: 'createPR' });
+                }
+            } catch (error) {
+                console.error('创建 Pull Request 失败:', error);
+                message.error({ content: '创建 Pull Request 失败', key: 'createPR' });
+            }
+        }
+    };
+
+    const showPullRequestModal = (docId: string) => {
+        setCurrentDocId(docId);
+        
+        // 获取 Git 配置以预填充目标分支
+        if (USE_IPC) {
+            window.electronAPI.getDocGitConfig(docId).then(gitConfig => {
+                if (gitConfig) {
+                    pullRequestForm.setFieldsValue({
+                        targetBranch: gitConfig.branch || 'main'
+                    });
+                } else {
+                    pullRequestForm.setFieldsValue({
+                        targetBranch: 'main'
+                    });
+                }
+            });
+        }
+        
+        setIsPullRequestModalVisible(true);
+    };
+
+    const showTokenSettingModal = () => {
+        setIsTokenSettingModalVisible(true);
+    };
+
+    const handleSaveTokens = async (values: any) => {
+        try {
+            // 保存 GitHub 令牌
+            if (values.githubToken) {
+                await window.electronAPI.saveToken('github', values.githubToken);
+            }
+            
+            // 保存 GitLab 令牌
+            if (values.gitlabToken) {
+                await window.electronAPI.saveToken('gitlab', values.gitlabToken);
+            }
+            
+            message.success('令牌保存成功');
+            setIsTokenSettingModalVisible(false);
+        } catch (error) {
+            console.error('保存令牌失败:', error);
+            message.error('保存令牌失败');
+        }
+    };
+
     const settingsMenu = {
         items: [
             {
@@ -444,6 +543,23 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 icon: <GithubOutlined />,
                 onClick: () => setIsGitConfigModalVisible(true),
                 disabled: !currentDocId
+            },
+            {
+                key: 'createPR',
+                label: '创建 Pull Request',
+                icon: <GithubOutlined />,
+                onClick: () => {
+                    if (currentDocId) {
+                        showPullRequestModal(currentDocId);
+                    }
+                },
+                disabled: !currentDocId
+            },
+            {
+                key: 'tokenSetting',
+                label: 'Git 令牌设置',
+                icon: <SettingOutlined />,
+                onClick: () => showTokenSettingModal()
             }
         ]
     };
@@ -1144,6 +1260,93 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             >
                 <p>确定要移除文档目录 "{docPathToRemove?.name}" 吗？</p>
                 <p style={{ color: '#ff4d4f' }}>注意：这将从配置中移除该目录，但不会删除磁盘上的文件。</p>
+            </Modal>
+            <Modal
+                title="创建 Pull Request"
+                open={isPullRequestModalVisible}
+                onCancel={() => setIsPullRequestModalVisible(false)}
+                footer={null}
+            >
+                <Form
+                    form={pullRequestForm}
+                    layout="vertical"
+                    onFinish={handleCreatePullRequest}
+                    initialValues={{
+                        branch: `pr-${new Date().getTime()}`,
+                        targetBranch: 'main'
+                    }}
+                >
+                    <Form.Item
+                        name="title"
+                        label="PR 标题"
+                        rules={[{ required: true, message: '请输入 PR 标题' }]}
+                    >
+                        <Input placeholder="请输入 PR 标题" />
+                    </Form.Item>
+                    
+                    <Form.Item
+                        name="description"
+                        label="PR 描述"
+                    >
+                        <Input.TextArea rows={4} placeholder="请输入 PR 描述" />
+                    </Form.Item>
+                    
+                    <Form.Item
+                        name="branch"
+                        label="新分支名称"
+                        rules={[{ required: true, message: '请输入新分支名称' }]}
+                    >
+                        <Input placeholder="请输入新分支名称" />
+                    </Form.Item>
+                    
+                    <Form.Item
+                        name="targetBranch"
+                        label="目标分支"
+                        rules={[{ required: true, message: '请输入目标分支' }]}
+                    >
+                        <Input placeholder="请输入目标分支" />
+                    </Form.Item>
+                    
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            创建 Pull Request
+                        </Button>
+                    </Form.Item>
+                </Form>
+            </Modal>
+            <Modal
+                title="Git 令牌设置"
+                open={isTokenSettingModalVisible}
+                onCancel={() => setIsTokenSettingModalVisible(false)}
+                footer={null}
+            >
+                <Form
+                    form={tokenSettingForm}
+                    layout="vertical"
+                    onFinish={handleSaveTokens}
+                >
+                    <Form.Item
+                        name="githubToken"
+                        label="GitHub 个人访问令牌"
+                        extra="用于直接创建 GitHub Pull Request"
+                    >
+                        <Input.Password placeholder="请输入 GitHub 个人访问令牌" />
+                    </Form.Item>
+                    
+                    <Form.Item
+                        name="gitlabToken"
+                        label="GitLab 个人访问令牌"
+                        extra="用于直接创建 GitLab Merge Request"
+                    >
+                        <Input.Password placeholder="请输入 GitLab 个人访问令牌" />
+                    </Form.Item>
+                    
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            保存
+                        </Button>
+                    </Form.Item>
+                </Form>
             </Modal>
         </Layout>
     );

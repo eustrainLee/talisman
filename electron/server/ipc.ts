@@ -3,11 +3,10 @@ import * as fs from 'fs'
 import * as fsPromises from 'fs/promises'
 import * as path from 'path'
 import { glob } from 'glob'
-import simpleGit from 'simple-git'
 import { promisify } from 'util'
 import log from 'electron-log'
-import { app, dialog } from 'electron'
-import * as os from 'os'
+import { app, dialog, shell } from 'electron'
+import * as gitModule from './git'
 
 // 配置日志
 log.transports.file.level = 'debug';
@@ -34,33 +33,16 @@ interface DocNode {
   exists?: boolean;  // 添加文件存在性标记
 }
 
-interface GitConfig {
-  repo_url: string;
-  branch: string;
-  doc_path?: string;
-  use_ssh?: boolean;
-  ssh_key_path?: string;
-}
-
 interface DocPathItem {
   id: string;
   name: string;
   path: string;
-  git?: GitConfig;
+  git?: gitModule.GitConfig;
 }
 
 interface DocJsonConfig {
   docs?: DocPathItem[];
 }
-
-const fileExists = async (filePath: string): Promise<boolean> => {
-    try {
-        await fsPromises.access(filePath);
-        return true;
-    } catch {
-        return false;
-    }
-};
 
 const getConfigDir = () => {
     const userDataPath = app.getPath('userData');
@@ -71,30 +53,6 @@ const getDataDir = () => {
     const userDataPath = app.getPath('userData');
     return path.join(userDataPath, 'data');
 };
-
-// 获取默认 SSH 密钥路径
-function getDefaultSSHKeyPath(): string {
-  try {
-    const homeDir = os.homedir();
-    const sshDir = path.join(homeDir, '.ssh');
-    
-    // 检查常见的 SSH 密钥文件
-    const commonKeyFiles = ['id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'];
-    
-    for (const keyFile of commonKeyFiles) {
-      const keyPath = path.join(sshDir, keyFile);
-      if (fs.existsSync(keyPath)) {
-        return keyPath;
-      }
-    }
-    
-    // 如果没有找到密钥文件，返回默认路径
-    return path.join(sshDir, 'id_rsa');
-  } catch (error) {
-    log.error('获取默认 SSH 密钥路径失败:', error);
-    return '';
-  }
-}
 
 export function setupIpcHandlers() {
   // 获取文档列表
@@ -177,7 +135,7 @@ export function setupIpcHandlers() {
       
       return docFiles;
     } catch (error) {
-      log.error('获取文档列表失败:', error);
+      log.error('Failed to get document list:', error);
       return [];
     }
   });
@@ -221,7 +179,7 @@ export function setupIpcHandlers() {
       const content = await fsPromises.readFile(filePath, 'utf-8');
       return content;
     } catch (error) {
-      log.error('获取文档内容失败:', error);
+      log.error('Failed to get document content:', error);
       return '';
     }
   });
@@ -268,7 +226,7 @@ export function setupIpcHandlers() {
       await fsPromises.writeFile(filePath, content, 'utf-8');
       return true;
     } catch (error) {
-      log.error('保存文档失败:', error);
+      log.error('Failed to save document:', error);
       return false;
     }
   });
@@ -297,7 +255,7 @@ export function setupIpcHandlers() {
       
       // 如果找不到指定路径，返回失败
       if (!basePath) {
-        return { success: false, error: '找不到指定的文档目录' };
+        return { success: false, error: 'Document directory not found' };
       }
       
       const configPath = path.join(basePath, 'config.json');
@@ -359,7 +317,7 @@ export function setupIpcHandlers() {
   });
 
   // 从远程仓库拉取文档
-  ipcMain.handle('doc:pull-from-git', async (_event, config: { docId: string, git: GitConfig }) => {
+  ipcMain.handle('doc:pull-from-git', async (_event, config: { docId: string, git: gitModule.GitConfig }) => {
     const tempDir = path.join(getDataDir(), 'temp_git');
     
     try {
@@ -383,7 +341,7 @@ export function setupIpcHandlers() {
       let pathItem = docConfig.docs.find(p => p.id === config.docId);
       if (!pathItem) {
         // 如果找不到指定 ID 的配置，返回失败
-        return { success: false, error: '找不到指定的文档目录配置' };
+        return { success: false, error: 'Document directory configuration not found' };
       }
       
       // 更新 Git 配置
@@ -395,66 +353,49 @@ export function setupIpcHandlers() {
       
       // 检查目标目录是否存在
       if (!fs.existsSync(pathItem.path)) {
-        return { success: false, error: '目标目录不存在，请先创建目录' };
+        return { success: false, error: 'Target directory does not exist, please create it first' };
       }
       
-      // 清理旧的临时目录（如果存在）
-      if (await fileExists(tempDir)) {
-        await fsPromises.rm(tempDir, { recursive: true, force: true });
-      }
-      
-      // 确保临时目录存在（这是临时操作目录，需要创建）
-      await fsPromises.mkdir(tempDir, { recursive: true });
-      
-      // 配置 Git
-      const gitOptions: any = {};
-      if (config.git.use_ssh && config.git.ssh_key_path) {
-        gitOptions.env = {
-          ...process.env,
-          GIT_SSH_COMMAND: `ssh -i "${config.git.ssh_key_path}" -o StrictHostKeyChecking=no`
-        };
-      }
-      
-      // 克隆仓库到临时目录
-      const git = simpleGit(gitOptions);
-      await git.clone(config.git.repo_url, tempDir);
-      
-      // 切换到指定分支
-      const tempGit = simpleGit(tempDir, gitOptions);
-      await tempGit.checkout(config.git.branch);
-      
-      // 清理目标目录中的内容（保留目录本身）
-      const entries = await fsPromises.readdir(pathItem.path);
-      for (const entry of entries) {
-        const entryPath = path.join(pathItem.path, entry);
-        await fsPromises.rm(entryPath, { recursive: true, force: true });
-      }
-      
-      // 复制文档
-      const sourceDir = config.git.doc_path ? path.join(tempDir, config.git.doc_path) : tempDir;
-      const files = await globPromise('**/*.{md,json,txt}', { cwd: sourceDir });
-      for (const file of files) {
-        const sourcePath = path.join(sourceDir, file);
-        const targetPath = path.join(pathItem.path, file);
-        // 确保文件所在的目录存在（这是复制文件所必需的）
-        await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
-        await fsPromises.copyFile(sourcePath, targetPath);
-      }
-      
-      // 清理临时克隆目录
-      await fsPromises.rm(tempDir, { recursive: true, force: true });
-      
-      return { success: true };
+      // 使用 git 模块的 pullFromGit 函数
+      return await gitModule.pullFromGit(tempDir, pathItem.path, config.git);
     } catch (error) {
-      log.error('Git 拉取失败:', error);
-      // 清理临时目录
-      try {
-        if (await fileExists(tempDir)) {
-          await fsPromises.rm(tempDir, { recursive: true, force: true });
-        }
-      } catch (e) {
-        log.error('清理临时目录失败:', e);
+      log.error('Git pull failed:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 创建 Pull Request
+  ipcMain.handle('doc:create-pull-request', async (_event, config: { docId: string, pr: gitModule.PullRequestConfig }) => {
+    const tempDir = path.join(getDataDir(), 'temp_git');
+    
+    try {
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let docConfig: DocJsonConfig = {
+        docs: []
+      };
+      
+      if (fs.existsSync(docConfigPath)) {
+        docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
       }
+      
+      // 查找指定 ID 的路径配置
+      const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === config.docId);
+      if (!pathItem || !pathItem.git) {
+        return { success: false, error: 'Git configuration for document directory not found' };
+      }
+      
+      // 使用 git 模块的 createPullRequest 函数
+      return await gitModule.createPullRequest(
+        configDir,
+        tempDir,
+        pathItem.path,
+        pathItem.git,
+        config.pr
+      );
+    } catch (error) {
+      log.error('Failed to create Pull Request:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -476,7 +417,7 @@ export function setupIpcHandlers() {
       }
       return null;
     } catch (error) {
-      log.error('获取 Git 配置失败:', error);
+      log.error('Failed to get Git configuration:', error);
       return null;
     }
   });
@@ -502,7 +443,7 @@ export function setupIpcHandlers() {
       // 如果配置文件不存在，返回空数组
       return { docs: [] };
     } catch (error) {
-      log.error('获取文档路径配置失败:', error);
+      log.error('Failed to get document path configuration:', error);
       return { docs: [] };
     }
   });
@@ -531,7 +472,7 @@ export function setupIpcHandlers() {
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
       return true;
     } catch (error) {
-      log.error('更新文档路径配置失败:', error);
+      log.error('Failed to update document path configuration:', error);
       return false;
     }
   });
@@ -539,9 +480,9 @@ export function setupIpcHandlers() {
   // 获取默认 SSH 密钥路径
   ipcMain.handle('doc:get-default-ssh-key-path', async () => {
     try {
-      return getDefaultSSHKeyPath();
+      return gitModule.getDefaultSSHKeyPath();
     } catch (error) {
-      log.error('获取默认 SSH 密钥路径失败:', error);
+      log.error('Failed to get default SSH key path:', error);
       return '';
     }
   });
@@ -551,7 +492,7 @@ export function setupIpcHandlers() {
     try {
       return fs.existsSync(pathToCheck);
     } catch (error) {
-      log.error('检查路径是否存在失败:', error);
+      log.error('Failed to check if path exists:', error);
       return false;
     }
   });
@@ -561,7 +502,7 @@ export function setupIpcHandlers() {
     try {
       const options: Electron.OpenDialogOptions = {
         properties: ['openDirectory'],
-        title: '选择文档目录'
+        title: 'Select Document Directory'
       };
       
       // 如果提供了初始路径且该路径存在，则设置为默认路径
@@ -577,8 +518,25 @@ export function setupIpcHandlers() {
       
       return result.filePaths[0];
     } catch (error) {
-      log.error('选择目录失败:', error);
+      log.error('Failed to select directory:', error);
       return '';
+    }
+  });
+
+  // 保存 Git 令牌
+  ipcMain.handle('doc:save-token', async (_event, platform: string, token: string) => {
+    const configDir = getConfigDir();
+    return gitModule.saveToken(configDir, platform, token);
+  });
+
+  // 在默认浏览器中打开链接
+  ipcMain.handle('doc:open-external', async (_event, url: string) => {
+    try {
+      log.debug('Opening external URL:', url);
+      return await shell.openExternal(url);
+    } catch (error) {
+      log.error('Failed to open external URL:', error);
+      return false;
     }
   });
 } 
