@@ -539,4 +539,79 @@ export function setupIpcHandlers() {
       return false;
     }
   });
+
+  // 创建文件
+  ipcMain.handle('doc:create-file', async (_event, docId: string, relativePath: string, content: string = '') => {
+    try {
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let basePath = '';
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        
+        // 查找指定 ID 的路径配置
+        const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
+        if (pathItem && pathItem.path) {
+          basePath = pathItem.path;
+        }
+      }
+      
+      // 如果找不到指定路径，返回失败
+      if (!basePath) {
+        return { success: false, error: 'Document directory not found' };
+      }
+      
+      // 获取完整文件路径
+      const filePath = path.join(basePath, relativePath);
+      
+      // 确保文件所在的目录存在
+      await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+      
+      // 创建文件
+      await fsPromises.writeFile(filePath, content, 'utf-8');
+      
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to create file:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 创建文件夹
+  ipcMain.handle('doc:create-directory', async (_event, docId: string, relativePath: string) => {
+    try {
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let basePath = '';
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        
+        // 查找指定 ID 的路径配置
+        const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
+        if (pathItem && pathItem.path) {
+          basePath = pathItem.path;
+        }
+      }
+      
+      // 如果找不到指定路径，返回失败
+      if (!basePath) {
+        return { success: false, error: 'Document directory not found' };
+      }
+      
+      // 获取完整目录路径
+      const dirPath = path.join(basePath, relativePath);
+      
+      // 创建目录
+      await fsPromises.mkdir(dirPath, { recursive: true });
+      
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to create directory:', error);
+      return { success: false, error: String(error) };
+    }
+  });
 } 
