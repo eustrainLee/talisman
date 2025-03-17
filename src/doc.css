@@ -217,4 +217,15 @@ td code {
 
 .doc-option:hover .doc-remove-icon {
   opacity: 1 !important;
+}
+
+/* 移除右键菜单按钮边框 */
+.context-menu .ant-menu-item {
+  border: none !important;
+}
+
+.ant-message .ant-message-notice-content {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
 } 

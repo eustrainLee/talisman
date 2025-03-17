@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip } from 'antd';
+import React, { useState, useEffect, createContext } from 'react';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu, App } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined, FileTextOutlined, FileUnknownOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -15,6 +15,7 @@ import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
 import { docAPI } from './api/doc';
 import type { DocFile, GitConfig, DocPathConfig, DocPathItem } from './api/doc';
+import ReactDOM from 'react-dom/client';
 
 const { Sider, Content } = Layout;
 const { Option } = Select;
@@ -62,6 +63,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [pathForm] = Form.useForm();
     const [addDocPathForm] = Form.useForm();
     const [tokenSettingForm] = Form.useForm();
+    const [isCreateFileModalVisible, setIsCreateFileModalVisible] = useState(false);
+    const [isCreateDirModalVisible, setIsCreateDirModalVisible] = useState(false);
+    const [createItemPath, setCreateItemPath] = useState<string>('');
+    const [createItemForm] = Form.useForm();
+
+    const { message: messageApi } = App.useApp();
 
     useEffect(() => {
         loadDocPaths();
@@ -624,6 +631,212 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         </>
     );
 
+    // 添加自定义的路径处理函数
+    const pathJoin = (...parts: string[]): string => {
+        // 过滤空字符串
+        const filtered = parts.filter(part => part !== '');
+        // 使用正斜杠作为分隔符，并处理多余的斜杠
+        return filtered.join('/').replace(/\/+/g, '/');
+    };
+
+    const pathDirname = (filePath: string): string => {
+        // 处理空路径
+        if (!filePath) return '';
+        // 标准化路径分隔符
+        const normalizedPath = filePath.replace(/\\/g, '/');
+        // 查找最后一个斜杠
+        const lastSlashIndex = normalizedPath.lastIndexOf('/');
+        // 如果没有斜杠，返回空字符串
+        if (lastSlashIndex === -1) return '';
+        // 返回最后一个斜杠之前的部分
+        return normalizedPath.substring(0, lastSlashIndex);
+    };
+
+    // 处理创建文件
+    const handleCreateFile = async (values: { name: string }) => {
+        if (!values.name || !currentDocId) return;
+        
+        try {
+            // 构建相对路径
+            let relativePath = values.name;
+            if (!relativePath.endsWith('.md')) {
+                relativePath += '.md';
+            }
+            
+            // 如果有父路径，则拼接
+            if (createItemPath) {
+                relativePath = pathJoin(createItemPath, relativePath);
+            }
+            
+            // 创建文件
+            const result = await window.electronAPI.createFile(currentDocId, relativePath, '');
+            
+            if (result.success) {
+                message.success('文件创建成功');
+                // 刷新文档列表
+                refreshDocList();
+            } else {
+                message.error(`文件创建失败: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('创建文件失败:', error);
+            message.error('创建文件失败');
+        } finally {
+            setIsCreateFileModalVisible(false);
+            createItemForm.resetFields();
+        }
+    };
+
+    // 处理创建文件夹
+    const handleCreateDirectory = async (values: { name: string }) => {
+        if (!values.name || !currentDocId) return;
+        
+        try {
+            // 构建相对路径
+            let relativePath = values.name;
+            
+            // 如果有父路径，则拼接
+            if (createItemPath) {
+                relativePath = pathJoin(createItemPath, relativePath);
+            }
+            
+            // 创建文件夹
+            const result = await window.electronAPI.createDirectory(currentDocId, relativePath);
+            
+            if (result.success) {
+                message.success('文件夹创建成功');
+                // 刷新文档列表
+                refreshDocList();
+            } else {
+                message.error(`文件夹创建失败: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('创建文件夹失败:', error);
+            message.error('创建文件夹失败');
+        } finally {
+            setIsCreateDirModalVisible(false);
+            createItemForm.resetFields();
+        }
+    };
+
+    // 显示创建文件对话框
+    const showCreateFileModal = (nodePath: string = '') => {
+        setCreateItemPath(nodePath);
+        setIsCreateFileModalVisible(true);
+    };
+
+    // 显示创建文件夹对话框
+    const showCreateDirModal = (nodePath: string = '') => {
+        setCreateItemPath(nodePath);
+        setIsCreateDirModalVisible(true);
+    };
+
+    // 刷新文档列表
+    const refreshDocList = () => {
+        if (currentDocId) {
+            // 使用已有的 getDocList 函数获取文档列表
+            if (USE_IPC) {
+                window.electronAPI.getDocList(currentDocId).then(files => {
+                    setDocFiles(files);
+                }).catch(error => {
+                    console.error('获取文档列表失败:', error);
+                    setDocFiles([]);
+                });
+            } else {
+                docAPI.getDocList(currentDocId).then(files => {
+                    setDocFiles(files);
+                }).catch(error => {
+                    console.error('获取文档列表失败:', error);
+                    setDocFiles([]);
+                });
+            }
+        }
+    };
+
+    // 添加右键菜单
+    const onRightClick = ({ event, node }: any) => {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // 获取节点路径和文档ID
+        let nodePath = '';
+        let docId = currentDocId;
+        let isDirectory = true;
+        
+        // 如果有节点信息，则使用节点信息
+        if (node) {
+            nodePath = node.key.split('/').slice(1).join('/');
+            isDirectory = !node.isLeaf;
+            docId = node.key.split('/')[0];
+            // 设置当前文档 ID
+            setCurrentDocId(docId);
+        }
+        
+        // 创建右键菜单项
+        const items = [
+            {
+                key: 'create-file',
+                icon: <FileAddOutlined />,
+                label: '创建文件',
+                onClick: () => showCreateFileModal(isDirectory ? nodePath : pathDirname(nodePath)),
+                disabled: !docId
+            },
+            {
+                key: 'create-dir',
+                icon: <FolderAddOutlined />,
+                label: '创建文件夹',
+                onClick: () => showCreateDirModal(isDirectory ? nodePath : pathDirname(nodePath)),
+                disabled: !docId
+            }
+        ];
+        
+        // 使用 message.open 显示菜单
+        message.open({
+            content: (
+                <Menu
+                    items={items}
+                    style={{ 
+                        border: '1px solid #f0f0f0',
+                        borderRadius: '2px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                    }}
+                    className="context-menu"
+                />
+            ),
+            duration: 0,
+            style: {
+                position: 'absolute',
+                left: `${event.clientX}px`,
+                top: `${event.clientY}px`,
+                pointerEvents: 'auto',
+                padding: 0,
+                margin: 0,
+                background: 'transparent',
+                boxShadow: 'none'
+            },
+            key: 'context-menu'
+        });
+        
+        // 添加点击外部关闭菜单
+        const handleClickOutside = () => {
+            message.destroy('context-menu');
+            document.removeEventListener('click', handleClickOutside);
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', handleClickOutside);
+        }, 100);
+    };
+
+    // 添加顶部工具栏按钮
+    const renderToolbar = () => {
+        return (
+            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                {/* 工具栏按钮已移除，改为右键菜单 */}
+            </div>
+        );
+    };
+
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -782,75 +995,112 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 overflow: 'hidden'
                             }}
                         >
-                            <div style={{
-                                padding: '12px',
-                                width: siderWidth,
-                                height: '100%',
-                                opacity: docListCollapsed ? 0 : 1,
-                                transform: `translateX(${docListCollapsed ? '-100%' : '0'})`,
-                                transition: 'all 0.3s ease-in-out',
-                                overflow: 'auto'
-                            }}>
-                                {docFiles.length > 0 ? (
-                                    <Tree
-                                        defaultSelectedKeys={[]}
-                                        defaultExpandAll
-                                        blockNode={false}
-                                        showLine={true}
-                                        expandAction="click"
-                                        fieldNames={{
-                                            title: 'title',
-                                            key: 'key',
-                                            children: 'children'
-                                        }}
-                                        titleRender={(nodeData: any) => (
-                                            <span style={{ 
-                                                textDecoration: nodeData.exists === false ? 'line-through' : 'none',
-                                                color: nodeData.exists === false ? '#999' : 'inherit'
-                                            }}>
-                                                {nodeData.title}
-                                            </span>
-                                        )}
-                                        onSelect={(selectedKeys) => {
-                                            if (selectedKeys.length > 0) {
-                                                const key = selectedKeys[0] as string;
-                                                const node = findNode(docFiles, key);
-                                                if (node && !node.isDirectory) {
-                                                    if (node.exists === false) {
-                                                        message.error('该文档不存在，无法打开');
-                                                        return;
+                            <div style={{ padding: '16px 16px 0' }}>
+                                {renderToolbar()}
+                            </div>
+                            
+                            <div 
+                                style={{ height: 'calc(100% - 16px)', overflow: 'auto' }}
+                                onContextMenu={(event) => {
+                                    // 在空白区域右击时显示菜单
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    
+                                    // 使用 message.open 显示菜单
+                                    message.open({
+                                        content: (
+                                            <Menu
+                                                items={[
+                                                    {
+                                                        key: 'create-file',
+                                                        icon: <FileAddOutlined />,
+                                                        label: '创建文件',
+                                                        onClick: () => showCreateFileModal(''),
+                                                        disabled: !currentDocId
+                                                    },
+                                                    {
+                                                        key: 'create-dir',
+                                                        icon: <FolderAddOutlined />,
+                                                        label: '创建文件夹',
+                                                        onClick: () => showCreateDirModal(''),
+                                                        disabled: !currentDocId
                                                     }
-                                                    if (!isPreview && markdown) {
-                                                        saveMarkdown().then(() => {
-                                                            setCurrentFile(key);
-                                                        });
-                                                    } else {
+                                                ]}
+                                                style={{ 
+                                                    border: '1px solid #f0f0f0',
+                                                    borderRadius: '2px',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                                                }}
+                                                className="context-menu"
+                                            />
+                                        ),
+                                        duration: 0,
+                                        style: {
+                                            position: 'absolute',
+                                            left: `${event.clientX}px`,
+                                            top: `${event.clientY}px`,
+                                            pointerEvents: 'auto',
+                                            padding: 0,
+                                            margin: 0,
+                                            background: 'transparent',
+                                            boxShadow: 'none'
+                                        },
+                                        key: 'context-menu'
+                                    });
+                                    
+                                    // 添加点击外部关闭菜单
+                                    const handleClickOutside = () => {
+                                        message.destroy('context-menu');
+                                        document.removeEventListener('click', handleClickOutside);
+                                    };
+                                    
+                                    setTimeout(() => {
+                                        document.addEventListener('click', handleClickOutside);
+                                    }, 100);
+                                }}
+                            >
+                                <Tree
+                                    showLine={{ showLeafIcon: false }}
+                                    showIcon
+                                    defaultExpandAll
+                                    onSelect={(selectedKeys) => {
+                                        if (selectedKeys.length > 0) {
+                                            const key = selectedKeys[0] as string;
+                                            const node = findNode(docFiles, key);
+                                            if (node && !node.isDirectory) {
+                                                if (node.exists === false) {
+                                                    message.error('该文档不存在，无法打开');
+                                                    return;
+                                                }
+                                                if (!isPreview && markdown) {
+                                                    saveMarkdown().then(() => {
                                                         setCurrentFile(key);
-                                                    }
+                                                    });
+                                                } else {
+                                                    setCurrentFile(key);
                                                 }
                                             }
-                                        }}
-                                        treeData={docFiles}
-                                        style={{ 
-                                            fontSize: '12px',
-                                            padding: '0 4px'
-                                        }}
-                                        icon={(nodeProps: any) => {
-                                            if (nodeProps.data?.isDirectory) {
-                                                return <FolderOutlined style={{ color: '#1677ff' }} />;
+                                        }
+                                    }}
+                                    onRightClick={onRightClick}
+                                    treeData={docFiles}
+                                    icon={(props: any) => {
+                                        const isDirectory = props.isLeaf === false;
+                                        if (isDirectory) {
+                                            return <FolderOutlined />;
+                                        } else {
+                                            // 获取文件扩展名
+                                            const key = String(props.data?.key || '');
+                                            if (key.endsWith('.md')) {
+                                                return <FileTextOutlined />;
+                                            } else if (key.endsWith('.txt')) {
+                                                return <FileOutlined />;
+                                            } else {
+                                                return <FileUnknownOutlined />;
                                             }
-                                            return <FileOutlined style={{ color: nodeProps.data?.exists === false ? '#999' : '#666' }} />;
-                                        }}
-                                    />
-                                ) : (
-                                    <div style={{
-                                        color: '#999',
-                                        textAlign: 'center',
-                                        padding: '20px 0'
-                                    }}>
-                                        {currentDocId ? '暂无文档' : '请选择文档目录'}
-                                    </div>
-                                )}
+                                        }
+                                    }}
+                                />
                             </div>
                         </Sider>
                     </div>
@@ -1344,6 +1594,58 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     <Form.Item>
                         <Button type="primary" htmlType="submit">
                             保存
+                        </Button>
+                    </Form.Item>
+                </Form>
+            </Modal>
+            <Modal
+                title="创建文件"
+                open={isCreateFileModalVisible}
+                onCancel={() => setIsCreateFileModalVisible(false)}
+                footer={null}
+            >
+                <Form
+                    form={createItemForm}
+                    layout="vertical"
+                    onFinish={handleCreateFile}
+                >
+                    <Form.Item
+                        name="name"
+                        label="文件名"
+                        rules={[{ required: true, message: '请输入文件名' }]}
+                    >
+                        <Input placeholder="请输入文件名，如：document.md" />
+                    </Form.Item>
+                    
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            创建
+                        </Button>
+                    </Form.Item>
+                </Form>
+            </Modal>
+            <Modal
+                title="创建文件夹"
+                open={isCreateDirModalVisible}
+                onCancel={() => setIsCreateDirModalVisible(false)}
+                footer={null}
+            >
+                <Form
+                    form={createItemForm}
+                    layout="vertical"
+                    onFinish={handleCreateDirectory}
+                >
+                    <Form.Item
+                        name="name"
+                        label="文件夹名"
+                        rules={[{ required: true, message: '请输入文件夹名' }]}
+                    >
+                        <Input placeholder="请输入文件夹名，如：documents" />
+                    </Form.Item>
+                    
+                    <Form.Item>
+                        <Button type="primary" htmlType="submit">
+                            创建
                         </Button>
                     </Form.Item>
                 </Form>

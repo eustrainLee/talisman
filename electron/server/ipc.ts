@@ -83,57 +83,44 @@ export function setupIpcHandlers() {
         return [];
       }
       
-      // 获取文档列表，支持 md 和 txt 文件
-      const files = await globPromise('**/*.{md,txt}', { cwd: docPath });
+      // 获取所有目录结构
       const docFiles: DocNode[] = [];
       
-      // 构建文档树
-      for (const file of files) {
-        const filePath = path.join(docPath, file);
-        const relativePath = file;
-        const parts = relativePath.split('/');
+      // 递归扫描目录函数
+      const scanDirectory = (dirPath: string, parentKey: string): DocNode[] => {
+        const result: DocNode[] = [];
+        const items = fs.readdirSync(dirPath, { withFileTypes: true });
         
-        let currentLevel = docFiles;
-        let currentPath = '';
-        
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i];
-          currentPath = currentPath ? path.join(currentPath, part) : part;
+        for (const item of items) {
+          const itemPath = path.join(dirPath, item.name);
+          const relativePath = path.relative(docPath, itemPath).replace(/\\/g, '/');
+          const itemKey = `${docId}/${relativePath}`;
           
-          if (i === parts.length - 1) {
-            // 文件节点
-            currentLevel.push({
-              title: path.basename(part, path.extname(part)),
-              key: `${docId}/${relativePath}`,
-              isDirectory: false,
-              exists: fs.existsSync(filePath)
-            });
-          } else {
+          if (item.isDirectory()) {
             // 目录节点
-            let found = false;
-            for (const item of currentLevel) {
-              if (item.isDirectory && item.title === part) {
-                found = true;
-                currentLevel = item.children || [];
-                break;
-              }
-            }
-            
-            if (!found) {
-              const newDir: DocNode = {
-                title: part,
-                key: `${docId}/${currentPath}`,
-                isDirectory: true,
-                children: []
-              };
-              currentLevel.push(newDir);
-              currentLevel = newDir.children || [];
-            }
+            const children = scanDirectory(itemPath, itemKey);
+            result.push({
+              title: item.name,
+              key: itemKey,
+              isDirectory: true,
+              children: children
+            });
+          } else if (item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.txt'))) {
+            // 文件节点 (仅包含 md 和 txt 文件)
+            result.push({
+              title: path.basename(item.name, path.extname(item.name)),
+              key: itemKey,
+              isDirectory: false,
+              exists: true
+            });
           }
         }
-      }
+        
+        return result;
+      };
       
-      return docFiles;
+      // 开始扫描根目录
+      return scanDirectory(docPath, docId);
     } catch (error) {
       log.error('Failed to get document list:', error);
       return [];
@@ -537,6 +524,81 @@ export function setupIpcHandlers() {
     } catch (error) {
       log.error('Failed to open external URL:', error);
       return false;
+    }
+  });
+
+  // 创建文件
+  ipcMain.handle('doc:create-file', async (_event, docId: string, relativePath: string, content: string = '') => {
+    try {
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let basePath = '';
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        
+        // 查找指定 ID 的路径配置
+        const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
+        if (pathItem && pathItem.path) {
+          basePath = pathItem.path;
+        }
+      }
+      
+      // 如果找不到指定路径，返回失败
+      if (!basePath) {
+        return { success: false, error: 'Document directory not found' };
+      }
+      
+      // 获取完整文件路径
+      const filePath = path.join(basePath, relativePath);
+      
+      // 确保文件所在的目录存在
+      await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
+      
+      // 创建文件
+      await fsPromises.writeFile(filePath, content, 'utf-8');
+      
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to create file:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 创建文件夹
+  ipcMain.handle('doc:create-directory', async (_event, docId: string, relativePath: string) => {
+    try {
+      // 获取文档路径配置
+      const configDir = getConfigDir();
+      const docConfigPath = path.join(configDir, 'doc.json');
+      let basePath = '';
+      
+      if (fs.existsSync(docConfigPath)) {
+        const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
+        
+        // 查找指定 ID 的路径配置
+        const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
+        if (pathItem && pathItem.path) {
+          basePath = pathItem.path;
+        }
+      }
+      
+      // 如果找不到指定路径，返回失败
+      if (!basePath) {
+        return { success: false, error: 'Document directory not found' };
+      }
+      
+      // 获取完整目录路径
+      const dirPath = path.join(basePath, relativePath);
+      
+      // 创建目录
+      await fsPromises.mkdir(dirPath, { recursive: true });
+      
+      return { success: true };
+    } catch (error) {
+      log.error('Failed to create directory:', error);
+      return { success: false, error: String(error) };
     }
   });
 } 

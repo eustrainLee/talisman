@@ -52,6 +52,8 @@ interface IElectronAPI {
   selectDirectory: (initialPath?: string) => Promise<string>;
   saveToken: (platform: string, token: string) => Promise<boolean>;
   openExternal: (url: string) => Promise<boolean>;
+  createFile: (docId: string, relativePath: string, content?: string) => Promise<{ success: boolean, error?: string }>;
+  createDirectory: (docId: string, relativePath: string) => Promise<{ success: boolean, error?: string }>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -71,6 +73,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectDirectory: (initialPath?: string) => ipcRenderer.invoke('doc:select-directory', initialPath),
   saveToken: (platform: string, token: string) => ipcRenderer.invoke('doc:save-token', platform, token),
   openExternal: (url: string) => ipcRenderer.invoke('doc:open-external', url),
+  createFile: (docId: string, relativePath: string, content?: string) => ipcRenderer.invoke('doc:create-file', docId, relativePath, content),
+  createDirectory: (docId: string, relativePath: string) => ipcRenderer.invoke('doc:create-directory', docId, relativePath),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }
