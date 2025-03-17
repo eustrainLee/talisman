@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu, App } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
-import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined } from '@ant-design/icons';
+import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined, FileTextOutlined, FileUnknownOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -1084,9 +1084,21 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                     }}
                                     onRightClick={onRightClick}
                                     treeData={docFiles}
-                                    icon={(props) => {
+                                    icon={(props: any) => {
                                         const isDirectory = props.isLeaf === false;
-                                        return isDirectory ? <FolderOutlined /> : <FileOutlined />;
+                                        if (isDirectory) {
+                                            return <FolderOutlined />;
+                                        } else {
+                                            // 获取文件扩展名
+                                            const key = String(props.data?.key || '');
+                                            if (key.endsWith('.md')) {
+                                                return <FileTextOutlined />;
+                                            } else if (key.endsWith('.txt')) {
+                                                return <FileOutlined />;
+                                            } else {
+                                                return <FileUnknownOutlined />;
+                                            }
+                                        }
                                     }}
                                 />
                             </div>
