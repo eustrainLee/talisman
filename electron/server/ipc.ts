@@ -83,57 +83,44 @@ export function setupIpcHandlers() {
         return [];
       }
       
-      // 获取文档列表，支持 md 和 txt 文件
-      const files = await globPromise('**/*.{md,txt}', { cwd: docPath });
+      // 获取所有目录结构
       const docFiles: DocNode[] = [];
       
-      // 构建文档树
-      for (const file of files) {
-        const filePath = path.join(docPath, file);
-        const relativePath = file;
-        const parts = relativePath.split('/');
+      // 递归扫描目录函数
+      const scanDirectory = (dirPath: string, parentKey: string): DocNode[] => {
+        const result: DocNode[] = [];
+        const items = fs.readdirSync(dirPath, { withFileTypes: true });
         
-        let currentLevel = docFiles;
-        let currentPath = '';
-        
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i];
-          currentPath = currentPath ? path.join(currentPath, part) : part;
+        for (const item of items) {
+          const itemPath = path.join(dirPath, item.name);
+          const relativePath = path.relative(docPath, itemPath).replace(/\\/g, '/');
+          const itemKey = `${docId}/${relativePath}`;
           
-          if (i === parts.length - 1) {
-            // 文件节点
-            currentLevel.push({
-              title: path.basename(part, path.extname(part)),
-              key: `${docId}/${relativePath}`,
-              isDirectory: false,
-              exists: fs.existsSync(filePath)
-            });
-          } else {
+          if (item.isDirectory()) {
             // 目录节点
-            let found = false;
-            for (const item of currentLevel) {
-              if (item.isDirectory && item.title === part) {
-                found = true;
-                currentLevel = item.children || [];
-                break;
-              }
-            }
-            
-            if (!found) {
-              const newDir: DocNode = {
-                title: part,
-                key: `${docId}/${currentPath}`,
-                isDirectory: true,
-                children: []
-              };
-              currentLevel.push(newDir);
-              currentLevel = newDir.children || [];
-            }
+            const children = scanDirectory(itemPath, itemKey);
+            result.push({
+              title: item.name,
+              key: itemKey,
+              isDirectory: true,
+              children: children
+            });
+          } else if (item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.txt'))) {
+            // 文件节点 (仅包含 md 和 txt 文件)
+            result.push({
+              title: path.basename(item.name, path.extname(item.name)),
+              key: itemKey,
+              isDirectory: false,
+              exists: true
+            });
           }
         }
-      }
+        
+        return result;
+      };
       
-      return docFiles;
+      // 开始扫描根目录
+      return scanDirectory(docPath, docId);
     } catch (error) {
       log.error('Failed to get document list:', error);
       return [];
