@@ -36,6 +36,12 @@ interface PullRequestConfig {
   targetBranch: string;
 }
 
+// 用户设置接口
+interface UserSettings {
+  lastDocId?: string;
+  lastFilePath?: string;
+}
+
 // 自定义的 API 接口
 interface IElectronAPI {
   getDocList: (docId: string) => Promise<DocFile[]>;
@@ -54,6 +60,8 @@ interface IElectronAPI {
   openExternal: (url: string) => Promise<boolean>;
   createFile: (docId: string, relativePath: string, content?: string) => Promise<{ success: boolean, error?: string }>;
   createDirectory: (docId: string, relativePath: string) => Promise<{ success: boolean, error?: string }>;
+  getUserSettings: () => Promise<UserSettings>;
+  saveUserSettings: (settings: UserSettings) => Promise<boolean>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -75,6 +83,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('doc:open-external', url),
   createFile: (docId: string, relativePath: string, content?: string) => ipcRenderer.invoke('doc:create-file', docId, relativePath, content),
   createDirectory: (docId: string, relativePath: string) => ipcRenderer.invoke('doc:create-directory', docId, relativePath),
+  getUserSettings: () => ipcRenderer.invoke('settings:get'),
+  saveUserSettings: (settings: UserSettings) => ipcRenderer.invoke('settings:save', settings),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }

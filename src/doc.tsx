@@ -1,5 +1,5 @@
-import React, { useState, useEffect, createContext } from 'react';
-import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu, App } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined, FileTextOutlined, FileUnknownOutlined } from '@ant-design/icons';
@@ -15,7 +15,6 @@ import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
 import { docAPI } from './api/doc';
 import type { DocFile, GitConfig, DocPathConfig, DocPathItem } from './api/doc';
-import ReactDOM from 'react-dom/client';
 
 const { Sider, Content } = Layout;
 const { Option } = Select;
@@ -68,8 +67,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [createItemPath, setCreateItemPath] = useState<string>('');
     const [createItemForm] = Form.useForm();
 
-    const { message: messageApi } = App.useApp();
-
     useEffect(() => {
         loadDocPaths();
     }, []);
@@ -77,8 +74,17 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     useEffect(() => {
         if (currentFile && docFiles.length > 0) {
             loadMarkdownFile(currentFile);
+            // 当选择新文件时保存用户设置
+            saveCurrentSettings();
         }
     }, [currentFile]);
+
+    useEffect(() => {
+        if (currentDocId) {
+            // 当切换到新的文档目录时保存设置
+            saveCurrentSettings();
+        }
+    }, [currentDocId]);
 
     useEffect(() => {
         if (!isPreview) {
@@ -106,6 +112,20 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     }, [isGitConfigModalVisible, currentDocId]);
 
+    // 保存当前设置到用户配置
+    const saveCurrentSettings = async () => {
+        if (USE_IPC && (currentDocId || currentFile)) {
+            try {
+                await window.electronAPI.saveUserSettings({
+                    lastDocId: currentDocId,
+                    lastFilePath: currentFile
+                });
+            } catch (error) {
+                console.error('保存用户设置失败:', error);
+            }
+        }
+    };
+
     const loadDocPaths = async () => {
         try {
             const config = await docAPI.getDocPathConfig();
@@ -127,7 +147,27 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 
                 setDocPaths(checkedDocs);
                 
-                // 如果有文档目录，选择第一个存在的目录
+                // 获取用户上次的设置
+                if (USE_IPC) {
+                    const settings = await window.electronAPI.getUserSettings();
+                    if (settings.lastDocId) {
+                        // 检查该文档目录是否存在
+                        const existingDoc = checkedDocs.find(doc => doc.id === settings.lastDocId && doc.exists);
+                        
+                        if (existingDoc) {
+                            setCurrentDocId(settings.lastDocId);
+                            await loadDocList(settings.lastDocId);
+                            
+                            // 如果有上次打开的文件，则加载该文件
+                            if (settings.lastFilePath) {
+                                setCurrentFile(settings.lastFilePath);
+                            }
+                            return; // 已经加载了上次的文档，不需要继续
+                        }
+                    }
+                }
+                
+                // 如果没有上次的设置或上次的文档不存在，则选择第一个存在的目录
                 const firstExistingDoc = checkedDocs.find(doc => doc.exists);
                 if (firstExistingDoc) {
                     setCurrentDocId(firstExistingDoc.id);
@@ -394,6 +434,16 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 loadDocList(docId);
                 setCurrentFile('');
                 setMarkdown('');
+                
+                // 保存用户设置，但这里只保存目录ID，不保存文件路径
+                if (USE_IPC) {
+                    window.electronAPI.saveUserSettings({
+                        lastDocId: docId,
+                        lastFilePath: ''
+                    }).catch(err => {
+                        console.error('保存用户设置失败:', err);
+                    });
+                }
             }
         }
     };

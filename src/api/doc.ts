@@ -34,6 +34,11 @@ export interface DocConfig {
     remotePath: string;
 }
 
+export interface UserSettings {
+    lastDocId?: string;
+    lastFilePath?: string;
+}
+
 class DocAPI {
     async getDocList(basePath: string = '/docs'): Promise<DocFile[]> {
         if (USE_IPC) {
@@ -141,6 +146,20 @@ class DocAPI {
             return window.electronAPI.checkPathExists(path);
         }
         return true; // 非 IPC 模式默认返回 true
+    }
+
+    async getUserSettings(): Promise<UserSettings> {
+        if (USE_IPC) {
+            return window.electronAPI.getUserSettings();
+        }
+        return {}; // 非 IPC 模式默认返回空对象
+    }
+
+    async saveUserSettings(settings: UserSettings): Promise<boolean> {
+        if (USE_IPC) {
+            return window.electronAPI.saveUserSettings(settings);
+        }
+        return false; // 非 IPC 模式默认返回 false
     }
 }
 

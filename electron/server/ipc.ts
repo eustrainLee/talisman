@@ -44,9 +44,64 @@ interface DocJsonConfig {
   docs?: DocPathItem[];
 }
 
+// 用户设置接口，用于保存上次打开的文档目录和文件
+interface UserSettings {
+  lastDocId?: string;
+  lastFilePath?: string;
+}
+
 const getConfigDir = () => {
     const userDataPath = app.getPath('userData');
     return path.join(userDataPath, 'config');
+};
+
+// 获取用户设置文件路径
+const getUserSettingsPath = () => {
+    return path.join(getConfigDir(), 'user_settings.json');
+};
+
+// 获取用户设置
+const getUserSettings = (): UserSettings => {
+    try {
+        const configDir = getConfigDir();
+        const settingsPath = getUserSettingsPath();
+        
+        // 确保配置目录存在
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+        
+        // 读取设置文件
+        if (fs.existsSync(settingsPath)) {
+            const settingsData = fs.readFileSync(settingsPath, 'utf-8');
+            return JSON.parse(settingsData);
+        }
+    } catch (error) {
+        log.error('读取用户设置失败:', error);
+    }
+    
+    // 默认返回空对象
+    return {};
+};
+
+// 保存用户设置
+const saveUserSettings = (settings: UserSettings): boolean => {
+    try {
+        const configDir = getConfigDir();
+        const settingsPath = getUserSettingsPath();
+        
+        // 确保配置目录存在
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+        
+        // 保存设置
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+        return true;
+    } catch (error) {
+        log.error('保存用户设置失败:', error);
+        return false;
+    }
 };
 
 const getDataDir = () => {
@@ -599,6 +654,26 @@ export function setupIpcHandlers() {
     } catch (error) {
       log.error('Failed to create directory:', error);
       return { success: false, error: String(error) };
+    }
+  });
+
+  // 获取用户设置
+  ipcMain.handle('settings:get', async () => {
+    try {
+      return getUserSettings();
+    } catch (error) {
+      log.error('获取用户设置失败:', error);
+      return {};
+    }
+  });
+
+  // 保存用户设置
+  ipcMain.handle('settings:save', async (_event, settings: UserSettings) => {
+    try {
+      return saveUserSettings(settings);
+    } catch (error) {
+      log.error('保存用户设置失败:', error);
+      return false;
     }
   });
 } 
