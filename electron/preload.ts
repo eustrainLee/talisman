@@ -62,6 +62,7 @@ interface IElectronAPI {
   createDirectory: (docId: string, relativePath: string) => Promise<{ success: boolean, error?: string }>;
   getUserSettings: () => Promise<UserSettings>;
   saveUserSettings: (settings: UserSettings) => Promise<boolean>;
+  setWindowTitle: (title: string) => Promise<void>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
 }
 
@@ -85,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createDirectory: (docId: string, relativePath: string) => ipcRenderer.invoke('doc:create-directory', docId, relativePath),
   getUserSettings: () => ipcRenderer.invoke('settings:get'),
   saveUserSettings: (settings: UserSettings) => ipcRenderer.invoke('settings:save', settings),
+  setWindowTitle: (title: string) => ipcRenderer.invoke('window:set-title', title),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   }

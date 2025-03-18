@@ -161,6 +161,14 @@ class DocAPI {
         }
         return false; // 非 IPC 模式默认返回 false
     }
+
+    async setWindowTitle(title: string): Promise<void> {
+        if (USE_IPC) {
+            return window.electronAPI.setWindowTitle(title);
+        }
+        // 如果不是在Electron环境，则尝试设置浏览器标题
+        document.title = title;
+    }
 }
 
 export const docAPI = new DocAPI(); 

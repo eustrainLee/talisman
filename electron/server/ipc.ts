@@ -5,7 +5,7 @@ import * as path from 'path'
 import { glob } from 'glob'
 import { promisify } from 'util'
 import log from 'electron-log'
-import { app, dialog, shell } from 'electron'
+import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as gitModule from './git'
 
 // 配置日志
@@ -673,6 +673,20 @@ export function setupIpcHandlers() {
       return saveUserSettings(settings);
     } catch (error) {
       log.error('保存用户设置失败:', error);
+      return false;
+    }
+  });
+
+  // 设置窗口标题
+  ipcMain.handle('window:set-title', (_event, title: string) => {
+    try {
+      const mainWindow = BrowserWindow.getFocusedWindow();
+      if (mainWindow) {
+        mainWindow.setTitle(title);
+      }
+      return true;
+    } catch (error) {
+      log.error('设置窗口标题失败:', error);
       return false;
     }
   });

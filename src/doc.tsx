@@ -35,6 +35,9 @@ interface Props {
     menuCollapsed?: boolean;
 }
 
+// 应用名称
+const APP_NAME = 'Talisman';
+
 const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [markdown, setMarkdown] = useState('');
     const [isPreview, setIsPreview] = useState(true);
@@ -55,8 +58,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [docPathToRemove, setDocPathToRemove] = useState<DocPathItem | null>(null);
     const [isPullRequestModalVisible, setIsPullRequestModalVisible] = useState(false);
     const [isTokenSettingModalVisible, setIsTokenSettingModalVisible] = useState(false);
-    const [pullRequestForm] = Form.useForm();
-
+    const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
+    const [autoExpandParent, setAutoExpandParent] = useState(true);
+    
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
     const [pathForm] = Form.useForm();
@@ -67,6 +71,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [createItemPath, setCreateItemPath] = useState<string>('');
     const [createItemForm] = Form.useForm();
 
+    const [pullRequestForm] = Form.useForm();
+
     useEffect(() => {
         loadDocPaths();
     }, []);
@@ -76,6 +82,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             loadMarkdownFile(currentFile);
             // 当选择新文件时保存用户设置
             saveCurrentSettings();
+            
+            // 确保展开包含当前文件的所有父目录
+            ensureExpandedKeys();
+            
+            // 更新窗口标题
+            updateWindowTitle();
         }
     }, [currentFile]);
 
@@ -83,6 +95,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         if (currentDocId) {
             // 当切换到新的文档目录时保存设置
             saveCurrentSettings();
+            
+            // 更新窗口标题
+            updateWindowTitle();
         }
     }, [currentDocId]);
 
@@ -111,6 +126,12 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             loadGitConfig();
         }
     }, [isGitConfigModalVisible, currentDocId]);
+
+    // 监听currentDocId和currentFile的变化，更新窗口标题
+    useEffect(() => {
+        // 当currentDocId或currentFile变化时，都需要更新窗口标题
+        updateWindowTitle();
+    }, [currentDocId, currentFile, docPaths]);
 
     // 保存当前设置到用户配置
     const saveCurrentSettings = async () => {
@@ -172,6 +193,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 if (firstExistingDoc) {
                     setCurrentDocId(firstExistingDoc.id);
                     loadDocList(firstExistingDoc.id);
+                    
+                    // 更新窗口标题
+                    setTimeout(() => updateWindowTitle(), 100);
                 }
             } else {
                 setDocPaths([]);
@@ -195,6 +219,22 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     return;
                 }
                 setDocFiles(files);
+                
+                // 展开所有文件夹节点
+                const keys: React.Key[] = [];
+                const collectFolderKeys = (nodes: DocFile[]) => {
+                    for (const node of nodes) {
+                        if (node.isDirectory) {
+                            keys.push(node.key);
+                            if (node.children) {
+                                collectFolderKeys(node.children);
+                            }
+                        }
+                    }
+                };
+                collectFolderKeys(files);
+                setExpandedKeys(keys);
+                setAutoExpandParent(true);
             } else {
                 setDocFiles([]);
                 setCurrentFile('');
@@ -385,24 +425,44 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         try {
             const values = await addDocPathForm.validateFields();
             
-            // 生成唯一ID
+            // 验证路径是否存在
+            if (USE_IPC) {
+                const exists = await window.electronAPI.checkPathExists(values.path);
+                if (!exists) {
+                    message.error('路径不存在，请确认路径正确性');
+                    return;
+                }
+            }
+            
+            // 生成唯一 ID
             const id = `doc_${Date.now()}`;
             
-            // 添加新的文档目录
-            const newDocPath: DocPathItem = {
+            // 更新文档路径配置
+            const config = await docAPI.getDocPathConfig();
+            
+            // 验证名称和路径是否重复
+            const nameExists = config.docs.some((doc: DocPathItem) => doc.name === values.name);
+            const pathExists = config.docs.some((doc: DocPathItem) => doc.path === values.path);
+            
+            if (nameExists) {
+                message.error('文档名称已存在');
+                return;
+            }
+            
+            if (pathExists) {
+                message.error('文档路径已存在');
+                return;
+            }
+            
+            config.docs.push({
                 id,
                 name: values.name,
                 path: values.path,
-                use_git: false
-            };
+                exists: true
+            });
             
-            // 更新配置
-            const config = await docAPI.getDocPathConfig();
-            const newConfig: DocPathConfig = {
-                docs: [...(config.docs || []), newDocPath]
-            };
+            const success = await docAPI.updateDocPathConfig(config);
             
-            const success = await docAPI.updateDocPathConfig(newConfig);
             if (success) {
                 message.success('添加文档目录成功');
                 setIsAddDocPathModalVisible(false);
@@ -412,6 +472,14 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 // 切换到新添加的文档目录
                 setCurrentDocId(id);
                 loadDocList(id);
+                
+                // 立即更新窗口标题
+                const title = `${values.name} - ${APP_NAME}`;
+                if (USE_IPC) {
+                    window.electronAPI.setWindowTitle(title);
+                } else {
+                    document.title = title;
+                }
             } else {
                 message.error('添加文档目录失败');
             }
@@ -443,6 +511,14 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     }).catch(err => {
                         console.error('保存用户设置失败:', err);
                     });
+                }
+                
+                // 立即更新窗口标题，使用选中的目录对象而不是依赖状态
+                const title = `${selectedDoc.name} - ${APP_NAME}`;
+                if (USE_IPC) {
+                    window.electronAPI.setWindowTitle(title);
+                } else {
+                    document.title = title;
                 }
             }
         }
@@ -887,6 +963,63 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         );
     };
 
+    // 确保展开包含当前文件的所有父级目录
+    const ensureExpandedKeys = () => {
+        if (!currentFile) return;
+        
+        // 从当前文件路径提取所有父级目录路径
+        const parts = currentFile.split('/');
+        const paths: React.Key[] = [];
+        let currentPath = '';
+        
+        // 构建父目录路径
+        for (let i = 0; i < parts.length - 1; i++) {
+            currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+            paths.push(currentPath);
+        }
+        
+        // 设置展开的节点
+        setExpandedKeys(paths);
+        setAutoExpandParent(true);
+    };
+
+    // 更新窗口标题
+    const updateWindowTitle = () => {
+        try {
+            let title = APP_NAME;
+            
+            if (currentDocId) {
+                // 获取当前目录名称
+                const currentDoc = docPaths.find(doc => doc.id === currentDocId);
+                if (currentDoc) {
+                    // 如果有打开的文件
+                    if (currentFile) {
+                        const node = findNode(docFiles, currentFile);
+                        if (node) {
+                            // 格式: 文件名 - 目录名称 - 应用名称
+                            title = `${node.title} - ${currentDoc.name} - ${APP_NAME}`;
+                        } else {
+                            // 格式: 目录名称 - 应用名称
+                            title = `${currentDoc.name} - ${APP_NAME}`;
+                        }
+                    } else {
+                        // 格式: 目录名称 - 应用名称
+                        title = `${currentDoc.name} - ${APP_NAME}`;
+                    }
+                }
+            }
+            
+            // 设置窗口标题
+            if (USE_IPC) {
+                window.electronAPI.setWindowTitle(title);
+            } else {
+                document.title = title;
+            }
+        } catch (error) {
+            console.error('更新窗口标题失败:', error);
+        }
+    };
+
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -1112,7 +1245,13 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 <Tree
                                     showLine={{ showLeafIcon: false }}
                                     showIcon
-                                    defaultExpandAll
+                                    expandedKeys={expandedKeys}
+                                    autoExpandParent={autoExpandParent}
+                                    onExpand={(keys) => {
+                                        setExpandedKeys(keys);
+                                        setAutoExpandParent(false);
+                                    }}
+                                    selectedKeys={currentFile ? [currentFile] : []}
                                     onSelect={(selectedKeys) => {
                                         if (selectedKeys.length > 0) {
                                             const key = selectedKeys[0] as string;

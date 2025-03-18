@@ -7,6 +7,9 @@ import { setupIpcHandlers } from './server/ipc'
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// 应用名称
+export const APP_NAME = 'Talisman'
+
 // The built directory structure
 //
 // ├─┬─┬ dist
@@ -38,6 +41,7 @@ function createWindow() {
     },
     width: 1080,
     height: 720,
+    title: APP_NAME,
   })
 
   // Test active push message to Renderer-process.

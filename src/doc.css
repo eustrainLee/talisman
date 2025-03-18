@@ -10,11 +10,20 @@
 }
 
 .ant-tree .ant-tree-node-content-wrapper:hover {
-    background-color: #f0f5ff !important;
+    background-color: #f5f5f5 !important;
 }
 
 .ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected {
-    background-color: #e6f4ff !important;
+    background-color: #1890ff !important;
+    color: white !important;
+    border-radius: 4px;
+    font-weight: 500;
+    box-shadow: 0 2px 6px rgba(24, 144, 255, 0.2);
+}
+
+/* 选中节点的图标颜色 */
+.ant-tree .ant-tree-node-selected .anticon {
+    color: white !important;
 }
 
 .ant-tree .ant-tree-switcher {
@@ -228,4 +237,10 @@ td code {
   background: transparent !important;
   padding: 0 !important;
   box-shadow: none !important;
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 } 
