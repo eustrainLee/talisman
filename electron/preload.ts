@@ -60,6 +60,7 @@ interface IElectronAPI {
   openExternal: (url: string) => Promise<boolean>;
   createFile: (docId: string, relativePath: string, content?: string) => Promise<{ success: boolean, error?: string }>;
   createDirectory: (docId: string, relativePath: string) => Promise<{ success: boolean, error?: string }>;
+  deleteItem: (docId: string, relativePath: string, isDirectory: boolean) => Promise<{ success: boolean, error?: string }>;
   getUserSettings: () => Promise<UserSettings>;
   saveUserSettings: (settings: UserSettings) => Promise<boolean>;
   setWindowTitle: (title: string) => Promise<void>;
@@ -84,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('doc:open-external', url),
   createFile: (docId: string, relativePath: string, content?: string) => ipcRenderer.invoke('doc:create-file', docId, relativePath, content),
   createDirectory: (docId: string, relativePath: string) => ipcRenderer.invoke('doc:create-directory', docId, relativePath),
+  deleteItem: (docId: string, relativePath: string, isDirectory: boolean) => ipcRenderer.invoke('doc:delete-item', docId, relativePath, isDirectory),
   getUserSettings: () => ipcRenderer.invoke('settings:get'),
   saveUserSettings: (settings: UserSettings) => ipcRenderer.invoke('settings:save', settings),
   setWindowTitle: (title: string) => ipcRenderer.invoke('window:set-title', title),

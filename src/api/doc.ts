@@ -169,6 +169,13 @@ class DocAPI {
         // 如果不是在Electron环境，则尝试设置浏览器标题
         document.title = title;
     }
+
+    async deleteItem(docId: string, relativePath: string, isDirectory: boolean): Promise<{ success: boolean, error?: string }> {
+        if (USE_IPC) {
+            return window.electronAPI.deleteItem(docId, relativePath, isDirectory);
+        }
+        return { success: false, error: '非Electron环境不支持删除操作' };
+    }
 }
 
 export const docAPI = new DocAPI(); 

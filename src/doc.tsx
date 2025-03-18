@@ -879,7 +879,48 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     };
 
-    // 添加右键菜单
+    // 添加一个函数来处理删除文件或文件夹
+    const handleDeleteItem = async (nodePath: string, isDirectory: boolean) => {
+        if (!nodePath || !currentDocId) return;
+        
+        try {
+            // 构建相对路径
+            const relativePath = nodePath.split('/').slice(1).join('/');
+            
+            // 确认删除
+            Modal.confirm({
+                title: `确认删除${isDirectory ? '文件夹' : '文件'}`,
+                content: `确定要删除${isDirectory ? '文件夹' : '文件'} "${relativePath}" 吗？此操作不可恢复。`,
+                okText: '删除',
+                okType: 'danger',
+                cancelText: '取消',
+                onOk: async () => {
+                    // 执行删除操作
+                    const result = await docAPI.deleteItem(currentDocId, relativePath, isDirectory);
+                    
+                    if (result.success) {
+                        message.success(`${isDirectory ? '文件夹' : '文件'}删除成功`);
+                        
+                        // 如果删除的是当前打开的文件，需要清空内容
+                        if (!isDirectory && nodePath === currentFile) {
+                            setCurrentFile('');
+                            setMarkdown('');
+                        }
+                        
+                        // 刷新文档列表
+                        refreshDocList();
+                    } else {
+                        message.error(`删除失败: ${result.error}`);
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('删除失败:', error);
+            message.error('删除失败');
+        }
+    };
+
+    // 更新onRightClick函数，添加删除选项
     const onRightClick = ({ event, node }: any) => {
         event.preventDefault();
         event.stopPropagation();
@@ -891,8 +932,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         
         // 如果有节点信息，则使用节点信息
         if (node) {
-            nodePath = node.key.split('/').slice(1).join('/');
-            isDirectory = !node.isLeaf;
+            nodePath = node.key;
+            isDirectory = node.isDirectory;
             docId = node.key.split('/')[0];
             // 设置当前文档 ID
             setCurrentDocId(docId);
@@ -904,17 +945,28 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 key: 'create-file',
                 icon: <FileAddOutlined />,
                 label: '创建文件',
-                onClick: () => showCreateFileModal(isDirectory ? nodePath : pathDirname(nodePath)),
+                onClick: () => showCreateFileModal(isDirectory ? nodePath.split('/').slice(1).join('/') : pathDirname(nodePath.split('/').slice(1).join('/'))),
                 disabled: !docId
             },
             {
                 key: 'create-dir',
                 icon: <FolderAddOutlined />,
                 label: '创建文件夹',
-                onClick: () => showCreateDirModal(isDirectory ? nodePath : pathDirname(nodePath)),
+                onClick: () => showCreateDirModal(isDirectory ? nodePath.split('/').slice(1).join('/') : pathDirname(nodePath.split('/').slice(1).join('/'))),
                 disabled: !docId
             }
         ];
+        
+        // 如果选中了文件或文件夹，添加删除选项
+        if (nodePath) {
+            items.push({
+                key: 'delete',
+                icon: <CloseOutlined />,
+                label: `删除${isDirectory ? '文件夹' : '文件'}`,
+                onClick: () => handleDeleteItem(nodePath, isDirectory),
+                disabled: false
+            });
+        }
         
         // 使用 message.open 显示菜单
         message.open({
@@ -1274,7 +1326,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                     onRightClick={onRightClick}
                                     treeData={docFiles}
                                     icon={(props: any) => {
-                                        const isDirectory = props.isLeaf === false;
+                                        const isDirectory = props.data?.isDirectory;
                                         if (isDirectory) {
                                             return <FolderOutlined />;
                                         } else {
