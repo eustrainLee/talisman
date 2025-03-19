@@ -1306,10 +1306,27 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         setAutoExpandParent(false);
                                     }}
                                     selectedKeys={currentFile ? [currentFile] : []}
-                                    onSelect={(selectedKeys) => {
+                                    onSelect={(selectedKeys, info) => {
                                         if (selectedKeys.length > 0) {
                                             const key = selectedKeys[0] as string;
                                             const node = findNode(docFiles, key);
+                                            
+                                            // 如果是目录，则切换展开/折叠状态
+                                            if (node && node.isDirectory) {
+                                                const newExpandedKeys = [...expandedKeys];
+                                                const index = newExpandedKeys.indexOf(key);
+                                                if (index > -1) {
+                                                    // 已展开，则折叠
+                                                    newExpandedKeys.splice(index, 1);
+                                                } else {
+                                                    // 未展开，则展开
+                                                    newExpandedKeys.push(key);
+                                                }
+                                                setExpandedKeys(newExpandedKeys);
+                                                return;
+                                            }
+                                            
+                                            // 如果是文件，则打开文件
                                             if (node && !node.isDirectory) {
                                                 if (node.exists === false) {
                                                     message.error('该文档不存在，无法打开');
