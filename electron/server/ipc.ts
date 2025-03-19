@@ -158,7 +158,7 @@ export function setupIpcHandlers() {
           } else if (item.isFile() && (item.name.endsWith('.md') || item.name.endsWith('.txt'))) {
             // 文件节点 (仅包含 md 和 txt 文件)
             result.push({
-              title: path.basename(item.name, path.extname(item.name)),
+              title: item.name,
               key: itemKey,
               isDirectory: false,
               exists: true

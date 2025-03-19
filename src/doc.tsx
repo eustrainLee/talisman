@@ -785,7 +785,9 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         try {
             // 构建相对路径
             let relativePath = values.name;
-            if (!relativePath.endsWith('.md')) {
+            
+            // 检查文件名是否已经包含后缀名
+            if (!relativePath.includes('.')) {
                 relativePath += '.md';
             }
             
