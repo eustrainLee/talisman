@@ -942,22 +942,18 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
         
         // 创建右键菜单项
-        const items = [
-            {
+        const items = [];
+        
+        // 只有点击的是目录时，才添加创建文件选项
+        if (isDirectory) {
+            items.push({
                 key: 'create-file',
                 icon: <FileAddOutlined />,
                 label: '创建文件',
-                onClick: () => showCreateFileModal(isDirectory ? nodePath.split('/').slice(1).join('/') : pathDirname(nodePath.split('/').slice(1).join('/'))),
+                onClick: () => showCreateFileModal(nodePath.split('/').slice(1).join('/')),
                 disabled: !docId
-            },
-            {
-                key: 'create-dir',
-                icon: <FolderAddOutlined />,
-                label: '创建文件夹',
-                onClick: () => showCreateDirModal(isDirectory ? nodePath.split('/').slice(1).join('/') : pathDirname(nodePath.split('/').slice(1).join('/'))),
-                disabled: !docId
-            }
-        ];
+            });
+        }
         
         // 如果选中了文件或文件夹，添加删除选项
         if (nodePath) {
