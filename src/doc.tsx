@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
@@ -73,8 +74,131 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
     const [pullRequestForm] = Form.useForm();
 
+    // 保存当前设置到用户配置
+    const saveCurrentSettings = React.useCallback(async () => {
+        if (USE_IPC && (currentDocId || currentFile)) {
+            try {
+                await window.electronAPI.saveUserSettings({
+                    lastDocId: currentDocId,
+                    lastFilePath: currentFile
+                });
+            } catch (error) {
+                console.error('保存用户设置失败:', error);
+            }
+        }
+    }, [currentDocId, currentFile]);
+
+    // 确保展开包含当前文件的所有父级目录
+    const ensureExpandedKeys = React.useCallback(() => {
+        if (!currentFile) return;
+        
+        // 从当前文件路径提取所有父级目录路径
+        const parts = currentFile.split('/');
+        const paths: React.Key[] = [];
+        let currentPath = '';
+        
+        // 构建父目录路径
+        for (let i = 0; i < parts.length - 1; i++) {
+            currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
+            paths.push(currentPath);
+        }
+        
+        // 设置展开的节点
+        setExpandedKeys(paths);
+        setAutoExpandParent(true);
+    }, [currentFile]);
+
+    // 更新窗口标题
+    const updateWindowTitle = React.useCallback(() => {
+        try {
+            let title = APP_NAME;
+            
+            if (currentDocId) {
+                // 获取当前目录名称
+                const currentDoc = docPaths.find(doc => doc.id === currentDocId);
+                if (currentDoc) {
+                    // 如果有打开的文件
+                    if (currentFile) {
+                        const node = findNode(docFiles, currentFile);
+                        if (node) {
+                            // 格式: 文件名 - 目录名称 - 应用名称
+                            title = `${node.title} - ${currentDoc.name} - ${APP_NAME}`;
+                        } else {
+                            // 格式: 目录名称 - 应用名称
+                            title = `${currentDoc.name} - ${APP_NAME}`;
+                        }
+                    } else {
+                        // 格式: 目录名称 - 应用名称
+                        title = `${currentDoc.name} - ${APP_NAME}`;
+                    }
+                }
+            }
+            
+            // 设置窗口标题
+            if (USE_IPC) {
+                window.electronAPI.setWindowTitle(title);
+            } else {
+                document.title = title;
+            }
+        } catch (error) {
+            console.error('更新窗口标题失败:', error);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentDocId, currentFile, docPaths, docFiles]);
+
+    // 加载 Git 配置
+    const loadGitConfig = React.useCallback(async () => {
+        try {
+            if (USE_IPC && currentDocId) {
+                const config = await docAPI.getDocGitConfig(currentDocId);
+                if (config) {
+                    gitConfigForm.setFieldsValue(config);
+                    
+                    // 只有当 use_ssh 为 true 但 ssh_key_path 为空或不存在时才自动查找
+                    if (config.use_ssh && (!config.ssh_key_path || config.ssh_key_path === '')) {
+                        const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
+                        if (sshKeyPath) {
+                            gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
+                        }
+                    }
+                } else {
+                    // 如果没有保存的配置，获取默认 SSH 密钥路径
+                    const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
+                    if (sshKeyPath) {
+                        gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('加载Git配置失败:', error);
+        }
+    }, [currentDocId, gitConfigForm]);
+
+    // 保存 markdown 内容
+    const saveMarkdown = React.useCallback(async (exitEdit: boolean = true) => {
+        try {
+            if (USE_IPC) {
+                const success = await window.electronAPI.saveDoc(currentFile, markdown);
+                if (success) {
+                    message.success('保存成功');
+                    if (exitEdit) {
+                        setIsPreview(true);
+                    }
+                } else {
+                    message.error('保存失败');
+                }
+            } else {
+                message.error('保存失败');
+            }
+        } catch (error) {
+            console.error('保存失败:', error);
+            message.error('保存失败');
+        }
+    }, [currentFile, markdown]);
+
     useEffect(() => {
         loadDocPaths();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -89,7 +213,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             // 更新窗口标题
             updateWindowTitle();
         }
-    }, [currentFile]);
+    }, [currentFile, docFiles.length, saveCurrentSettings, ensureExpandedKeys, updateWindowTitle]);
 
     useEffect(() => {
         if (currentDocId) {
@@ -99,7 +223,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             // 更新窗口标题
             updateWindowTitle();
         }
-    }, [currentDocId]);
+    }, [currentDocId, saveCurrentSettings, updateWindowTitle]);
 
     useEffect(() => {
         if (!isPreview) {
@@ -108,7 +232,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         } else {
             setDocListCollapsed(previousDocListState);
         }
-    }, [isPreview]);
+    }, [isPreview, docListCollapsed, previousDocListState]);
 
     useEffect(() => {
         if (autoSave && !isPreview && markdown !== prevMarkdown) {
@@ -119,33 +243,19 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
 
             return () => clearTimeout(timer);
         }
-    }, [markdown, autoSave]);
+    }, [markdown, autoSave, isPreview, prevMarkdown, saveMarkdown]);
 
     useEffect(() => {
         if (isGitConfigModalVisible && currentDocId) {
             loadGitConfig();
         }
-    }, [isGitConfigModalVisible, currentDocId]);
+    }, [isGitConfigModalVisible, currentDocId, loadGitConfig]);
 
     // 监听currentDocId和currentFile的变化，更新窗口标题
     useEffect(() => {
         // 当currentDocId或currentFile变化时，都需要更新窗口标题
         updateWindowTitle();
-    }, [currentDocId, currentFile, docPaths]);
-
-    // 保存当前设置到用户配置
-    const saveCurrentSettings = async () => {
-        if (USE_IPC && (currentDocId || currentFile)) {
-            try {
-                await window.electronAPI.saveUserSettings({
-                    lastDocId: currentDocId,
-                    lastFilePath: currentFile
-                });
-            } catch (error) {
-                console.error('保存用户设置失败:', error);
-            }
-        }
-    };
+    }, [currentDocId, currentFile, docPaths, updateWindowTitle]);
 
     const loadDocPaths = async () => {
         try {
@@ -275,27 +385,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         return filePath.toLowerCase().endsWith('.txt');
     };
 
-    const saveMarkdown = async (exitEdit: boolean = true) => {
-        try {
-            if (USE_IPC) {
-                const success = await window.electronAPI.saveDoc(currentFile, markdown);
-                if (success) {
-                    message.success('保存成功');
-                    if (exitEdit) {
-                        setIsPreview(true);
-                    }
-                } else {
-                    message.error('保存失败');
-                }
-            } else {
-                message.error('保存失败');
-            }
-        } catch (error) {
-            console.error('保存失败:', error);
-            message.error('保存失败');
-        }
-    };
-
     const updateDocConfig = async (values: { title: string }) => {
         try {
             if (USE_IPC) {
@@ -329,33 +418,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
             }
         }
         return undefined;
-    };
-
-    const loadGitConfig = async () => {
-        try {
-            if (USE_IPC && currentDocId) {
-                const config = await docAPI.getDocGitConfig(currentDocId);
-                if (config) {
-                    gitConfigForm.setFieldsValue(config);
-                    
-                    // 只有当 use_ssh 为 true 但 ssh_key_path 为空或不存在时才自动查找
-                    if (config.use_ssh && (!config.ssh_key_path || config.ssh_key_path === '')) {
-                        const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
-                        if (sshKeyPath) {
-                            gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
-                        }
-                    }
-                } else {
-                    // 如果没有保存的配置，获取默认 SSH 密钥路径
-                    const sshKeyPath = await docAPI.getDefaultSSHKeyPath();
-                    if (sshKeyPath) {
-                        gitConfigForm.setFieldValue('ssh_key_path', sshKeyPath);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('加载Git配置失败:', error);
-        }
     };
 
     // 当 use_ssh 切换时自动获取默认 SSH 密钥路径
@@ -765,19 +827,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         return filtered.join('/').replace(/\/+/g, '/');
     };
 
-    const pathDirname = (filePath: string): string => {
-        // 处理空路径
-        if (!filePath) return '';
-        // 标准化路径分隔符
-        const normalizedPath = filePath.replace(/\\/g, '/');
-        // 查找最后一个斜杠
-        const lastSlashIndex = normalizedPath.lastIndexOf('/');
-        // 如果没有斜杠，返回空字符串
-        if (lastSlashIndex === -1) return '';
-        // 返回最后一个斜杠之前的部分
-        return normalizedPath.substring(0, lastSlashIndex);
-    };
-
     // 处理创建文件
     const handleCreateFile = async (values: { name: string }) => {
         if (!values.name || !currentDocId) return;
@@ -1013,63 +1062,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         );
     };
 
-    // 确保展开包含当前文件的所有父级目录
-    const ensureExpandedKeys = () => {
-        if (!currentFile) return;
-        
-        // 从当前文件路径提取所有父级目录路径
-        const parts = currentFile.split('/');
-        const paths: React.Key[] = [];
-        let currentPath = '';
-        
-        // 构建父目录路径
-        for (let i = 0; i < parts.length - 1; i++) {
-            currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i];
-            paths.push(currentPath);
-        }
-        
-        // 设置展开的节点
-        setExpandedKeys(paths);
-        setAutoExpandParent(true);
-    };
-
-    // 更新窗口标题
-    const updateWindowTitle = () => {
-        try {
-            let title = APP_NAME;
-            
-            if (currentDocId) {
-                // 获取当前目录名称
-                const currentDoc = docPaths.find(doc => doc.id === currentDocId);
-                if (currentDoc) {
-                    // 如果有打开的文件
-                    if (currentFile) {
-                        const node = findNode(docFiles, currentFile);
-                        if (node) {
-                            // 格式: 文件名 - 目录名称 - 应用名称
-                            title = `${node.title} - ${currentDoc.name} - ${APP_NAME}`;
-                        } else {
-                            // 格式: 目录名称 - 应用名称
-                            title = `${currentDoc.name} - ${APP_NAME}`;
-                        }
-                    } else {
-                        // 格式: 目录名称 - 应用名称
-                        title = `${currentDoc.name} - ${APP_NAME}`;
-                    }
-                }
-            }
-            
-            // 设置窗口标题
-            if (USE_IPC) {
-                window.electronAPI.setWindowTitle(title);
-            } else {
-                document.title = title;
-            }
-        } catch (error) {
-            console.error('更新窗口标题失败:', error);
-        }
-    };
-
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -1302,7 +1294,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         setAutoExpandParent(false);
                                     }}
                                     selectedKeys={currentFile ? [currentFile] : []}
-                                    onSelect={(selectedKeys, info) => {
+                                    onSelect={(selectedKeys) => {
                                         if (selectedKeys.length > 0) {
                                             const key = selectedKeys[0] as string;
                                             const node = findNode(docFiles, key);
@@ -1340,13 +1332,14 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                     }}
                                     onRightClick={onRightClick}
                                     treeData={docFiles}
-                                    icon={(props: any) => {
-                                        const isDirectory = props.data?.isDirectory;
+                                    icon={(props) => {
+                                        const { data } = props as any;
+                                        const isDirectory = data?.isDirectory;
                                         if (isDirectory) {
                                             return <FolderOutlined />;
                                         } else {
                                             // 获取文件扩展名
-                                            const key = String(props.data?.key || '');
+                                            const key = String(data?.key || '');
                                             if (key.endsWith('.md')) {
                                                 return <FileTextOutlined />;
                                             } else if (key.endsWith('.txt')) {
@@ -1390,7 +1383,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         remarkPlugins={[remarkGfm]}
                                         rehypePlugins={[rehypeRaw]}
                                         components={{
-                                            code: ({ inline, className, children, node, ...props }: CodeProps) => {
+                                            code: ({ className, children, node, ...props }: CodeProps) => {
                                                 const content = String(children).replace(/\n$/, '');
                                                 const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
                                                 if (!isCodeBlock) {
