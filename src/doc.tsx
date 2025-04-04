@@ -225,6 +225,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         }
     }, [currentDocId, saveCurrentSettings, updateWindowTitle]);
 
+    // 监听 isPreview 状态变化
     useEffect(() => {
         if (!isPreview) {
             setPreviousDocListState(docListCollapsed);
@@ -232,7 +233,14 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         } else {
             setDocListCollapsed(previousDocListState);
         }
-    }, [isPreview, docListCollapsed, previousDocListState]);
+    }, [isPreview]);
+
+    // 监听 docListCollapsed 状态变化
+    useEffect(() => {
+        if (isPreview) {
+            setPreviousDocListState(docListCollapsed);
+        }
+    }, [docListCollapsed, isPreview]);
 
     useEffect(() => {
         if (autoSave && !isPreview && markdown !== prevMarkdown) {
