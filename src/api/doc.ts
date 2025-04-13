@@ -1,4 +1,5 @@
 import { API_BASE_URL, USE_IPC } from '../config';
+import * as yaml from 'js-yaml';
 
 export interface DocFile {
     title: string;
@@ -37,6 +38,20 @@ export interface DocConfig {
 export interface UserSettings {
     lastDocId?: string;
     lastFilePath?: string;
+}
+
+export interface DocFrontMatter {
+    title?: string;
+    description?: string;
+    tags?: string[];
+    author?: string;
+    date?: string;
+    [key: string]: any;
+}
+
+export interface DocContent {
+    frontMatter: DocFrontMatter;
+    content: string;
 }
 
 class DocAPI {

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
@@ -15,7 +15,20 @@ import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
 import { docAPI } from './api/doc';
-import type { DocFile, GitConfig, DocPathConfig, DocPathItem } from './api/doc';
+import type { DocFile, GitConfig, DocPathConfig, DocPathItem, DocContent, DocFrontMatter } from './api/doc';
+import mermaid from 'mermaid';
+
+// 初始化 mermaid
+mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+    }
+});
 
 const { Sider, Content } = Layout;
 const { Option } = Select;
@@ -61,6 +74,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [isTokenSettingModalVisible, setIsTokenSettingModalVisible] = useState(false);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
     const [autoExpandParent, setAutoExpandParent] = useState(true);
+    const [mermaidSvgs, setMermaidSvgs] = useState<{ [key: string]: string }>({});
     
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
@@ -264,6 +278,20 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         // 当currentDocId或currentFile变化时，都需要更新窗口标题
         updateWindowTitle();
     }, [currentDocId, currentFile, docPaths, updateWindowTitle]);
+
+    // 初始化 Mermaid
+    useEffect(() => {
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    }, []);
 
     const loadDocPaths = async () => {
         try {
@@ -1070,6 +1098,50 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         );
     };
 
+    // 渲染 Mermaid 图表
+    const renderMermaid = (code: string, id: string) => {
+        useEffect(() => {
+            mermaid.render(id, code).then(({ svg }) => {
+                setMermaidSvgs(prev => ({ ...prev, [id]: svg }));
+            }).catch(error => {
+                console.error('Mermaid 渲染失败:', error);
+            });
+        }, [code, id]);
+
+        return mermaidSvgs[id] || `<pre>${code}</pre>`;
+    };
+
+    // Mermaid 图表组件
+    const MermaidChart: React.FC<{ code: string }> = ({ code }) => {
+        const [svg, setSvg] = useState<string>('');
+        const id = useMemo(() => 'mermaid-' + Math.random().toString(36).substring(2, 15), []);
+
+        useEffect(() => {
+            mermaid.render(id, code).then(({ svg }) => {
+                setSvg(svg);
+            }).catch(error => {
+                console.error('Mermaid 渲染失败:', error);
+            });
+        }, [code, id]);
+
+        return (
+            <div
+                style={{
+                    margin: '1em 0',
+                    padding: '1em',
+                    borderRadius: '6px',
+                    backgroundColor: '#f6f8fa',
+                    border: '1px solid #eaecef',
+                    minHeight: '100px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+                dangerouslySetInnerHTML={{ __html: svg || `<pre>${code}</pre>` }}
+            />
+        );
+    };
+
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -1394,6 +1466,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                             code: ({ className, children, node, ...props }: CodeProps) => {
                                                 const content = String(children).replace(/\n$/, '');
                                                 const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
+                                                
+                                                if (className === 'language-mermaid') {
+                                                    return <MermaidChart code={content} />;
+                                                }
+                                                
                                                 if (!isCodeBlock) {
                                                     return (
                                                         <code
@@ -1471,7 +1548,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 showCodeRowNumber={false}
                                 preview={isTxtFile(currentFile) ? false : true}
                                 noPrettier={true}
-                                noMermaid={isTxtFile(currentFile)}
+                                noMermaid={false}
                                 noKatex={true}
                                 onSave={() => saveMarkdown(false)}
                                 sanitize={(html) => html}
