@@ -27,7 +27,8 @@ mermaid.initialize({
         useMaxWidth: true,
         htmlLabels: true,
         curve: 'basis'
-    }
+    },
+    suppressErrorRendering: true,
 });
 
 const { Sider, Content } = Layout;
@@ -288,7 +289,8 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                 useMaxWidth: true,
                 htmlLabels: true,
                 curve: 'basis'
-            }
+            },
+            suppressErrorRendering: true,
         });
     }, []);
 
@@ -1103,15 +1105,67 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     // Mermaid 图表组件
     const MermaidChart: React.FC<{ code: string }> = ({ code }) => {
         const [svg, setSvg] = useState<string>('');
+        const [error, setError] = useState<string>('');
         const id = useMemo(() => 'mermaid-' + Math.random().toString(36).substring(2, 15), []);
 
         useEffect(() => {
-            mermaid.render(id, code).then(({ svg }) => {
-                setSvg(svg);
-            }).catch(error => {
-                console.error('Mermaid 渲染失败:', error);
-            });
+            // 清理之前的错误元素
+            const cleanup = () => {
+                const errorElement = document.getElementById(`dmermaid-${id}`);
+                if (errorElement) {
+                    errorElement.remove();
+                }
+            };
+
+            cleanup();
+
+            mermaid.render(id, code)
+                .then(({ svg }) => {
+                    setSvg(svg);
+                    setError('');
+                })
+                .catch(error => {
+                    console.error('Mermaid 渲染失败:', error);
+                    setError(error.message);
+                    setSvg('');
+                });
+
+            return cleanup;
         }, [code, id]);
+
+        if (error) {
+            return (
+                <div
+                    style={{
+                        margin: '1em 0',
+                        padding: '1em',
+                        borderRadius: '6px',
+                        backgroundColor: '#fff2f0',
+                        border: '1px solid #ffccc7',
+                        color: '#cf1322',
+                        minHeight: '100px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'column',
+                        gap: '8px'
+                    }}
+                >
+                    <div>Mermaid 图表渲染失败</div>
+                    <div style={{ fontSize: '0.9em', opacity: 0.8 }}>{error}</div>
+                    <pre style={{ 
+                        margin: '8px 0 0',
+                        padding: '8px',
+                        backgroundColor: '#fff',
+                        borderRadius: '4px',
+                        fontSize: '0.9em',
+                        overflow: 'auto'
+                    }}>
+                        {code}
+                    </pre>
+                </div>
+            );
+        }
 
         return (
             <div
