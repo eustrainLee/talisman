@@ -15,7 +15,7 @@ import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
 import { docAPI } from './api/doc';
-import type { DocFile, GitConfig, DocPathConfig, DocPathItem, DocContent, DocFrontMatter } from './api/doc';
+import type { DocFile, GitConfig, DocPathConfig, DocPathItem } from './api/doc';
 import mermaid from 'mermaid';
 
 // 初始化 mermaid
@@ -74,7 +74,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [isTokenSettingModalVisible, setIsTokenSettingModalVisible] = useState(false);
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
     const [autoExpandParent, setAutoExpandParent] = useState(true);
-    const [mermaidSvgs, setMermaidSvgs] = useState<{ [key: string]: string }>({});
     
     const [editTitleForm] = Form.useForm();
     const [gitConfigForm] = Form.useForm();
@@ -1099,17 +1098,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     };
 
     // 渲染 Mermaid 图表
-    const renderMermaid = (code: string, id: string) => {
-        useEffect(() => {
-            mermaid.render(id, code).then(({ svg }) => {
-                setMermaidSvgs(prev => ({ ...prev, [id]: svg }));
-            }).catch(error => {
-                console.error('Mermaid 渲染失败:', error);
-            });
-        }, [code, id]);
-
-        return mermaidSvgs[id] || `<pre>${code}</pre>`;
-    };
+    // const renderMermaid = (code: string, id: string) => { ... };
 
     // Mermaid 图表组件
     const MermaidChart: React.FC<{ code: string }> = ({ code }) => {

@@ -1,5 +1,4 @@
 import { API_BASE_URL, USE_IPC } from '../config';
-import * as yaml from 'js-yaml';
 
 export interface DocFile {
     title: string;
