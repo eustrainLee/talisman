@@ -1099,9 +1099,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         );
     };
 
-    // 渲染 Mermaid 图表
-    // const renderMermaid = (code: string, id: string) => { ... };
-
     // Mermaid 图表组件
     const MermaidChart: React.FC<{ code: string }> = ({ code }) => {
         const [svg, setSvg] = useState<string>('');
@@ -1109,56 +1106,42 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         const id = useMemo(() => 'mermaid-' + Math.random().toString(36).substring(2, 15), []);
 
         useEffect(() => {
-            // 清理之前的错误元素
-            const cleanup = () => {
-                const errorElement = document.getElementById(`dmermaid-${id}`);
-                if (errorElement) {
-                    errorElement.remove();
+            const renderChart = async () => {
+                try {
+                    const { svg } = await mermaid.render(id, code);
+                    setSvg(svg);
+                    setError('');
+                } catch (err: any) {
+                    console.error('Mermaid 渲染失败:', err);
+                    setError(err.message || '未知错误');
+                    setSvg('');
                 }
             };
 
-            cleanup();
-
-            mermaid.render(id, code)
-                .then(({ svg }) => {
-                    setSvg(svg);
-                    setError('');
-                })
-                .catch(error => {
-                    console.error('Mermaid 渲染失败:', error);
-                    setError(error.message);
-                    setSvg('');
-                });
-
-            return cleanup;
+            renderChart();
         }, [code, id]);
 
         if (error) {
             return (
-                <div
-                    style={{
-                        margin: '1em 0',
-                        padding: '1em',
-                        borderRadius: '6px',
-                        backgroundColor: '#fff2f0',
-                        border: '1px solid #ffccc7',
-                        color: '#cf1322',
-                        minHeight: '100px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column',
-                        gap: '8px'
-                    }}
-                >
-                    <div>Mermaid 图表渲染失败</div>
-                    <div style={{ fontSize: '0.9em', opacity: 0.8 }}>{error}</div>
-                    <pre style={{ 
-                        margin: '8px 0 0',
+                <div style={{
+                    margin: '1em 0',
+                    padding: '1em',
+                    borderRadius: '6px',
+                    backgroundColor: '#fff2f0',
+                    border: '1px solid #ffccc7'
+                }}>
+                    <div style={{ color: '#ff4d4f', marginBottom: '8px' }}>
+                        Mermaid 图表渲染失败
+                    </div>
+                    <div style={{ color: '#666', fontSize: '12px' }}>
+                        {error}
+                    </div>
+                    <pre style={{
+                        marginTop: '8px',
                         padding: '8px',
-                        backgroundColor: '#fff',
+                        backgroundColor: '#f5f5f5',
                         borderRadius: '4px',
-                        fontSize: '0.9em',
+                        fontSize: '12px',
                         overflow: 'auto'
                     }}>
                         {code}
@@ -1180,7 +1163,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                     alignItems: 'center',
                     justifyContent: 'center'
                 }}
-                dangerouslySetInnerHTML={{ __html: svg || `<pre>${code}</pre>` }}
+                dangerouslySetInnerHTML={{ __html: svg }}
             />
         );
     };
@@ -1509,7 +1492,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                             code: ({ className, children, node, ...props }: CodeProps) => {
                                                 const content = String(children).replace(/\n$/, '');
                                                 const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
-                                                
                                                 if (className === 'language-mermaid') {
                                                     return <MermaidChart code={content} />;
                                                 }
@@ -1591,11 +1573,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 showCodeRowNumber={false}
                                 preview={isTxtFile(currentFile) ? false : true}
                                 noPrettier={true}
-                                noMermaid={false}
                                 noKatex={true}
                                 onSave={() => saveMarkdown(false)}
                                 sanitize={(html) => html}
                                 formatCopiedText={(text) => text}
+                                className="custom-md-editor"
                                 toolbars={isTxtFile(currentFile) ? [
                                     'revoke',
                                     'next',
