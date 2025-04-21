@@ -4,13 +4,8 @@ import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbo
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined, FileTextOutlined, FileUnknownOutlined } from '@ant-design/icons';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import rehypeRaw from 'rehype-raw';
-import remarkGfm from 'remark-gfm';
 import 'markdown-navbar/dist/navbar.css';
-import { MdEditor } from 'md-editor-rt';
+import { MdEditor, MdPreview } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
@@ -52,6 +47,56 @@ interface Props {
 
 // 应用名称
 const APP_NAME = 'Talisman';
+
+// 在组件顶部定义共同配置
+const mdCommonProps = {
+    theme: "light",
+    previewTheme: "github",
+    codeTheme: "github",
+    showCodeRowNumber: false,
+};
+
+const TXT_TOOLBARS = [
+    'revoke',
+    'next',
+    'save',
+    '=',
+    'pageFullscreen',
+    'fullscreen'
+] as any[];
+
+const MD_TOOLBARS = [
+    'bold',
+    'underline',
+    'italic',
+    'strikeThrough',
+    '-',
+    'title',
+    'sub',
+    'sup',
+    'quote',
+    'unorderedList',
+    'orderedList',
+    'task',
+    '-',
+    'codeRow',
+    'code',
+    'link',
+    'image',
+    'table',
+    'mermaid',
+    '-',
+    'revoke',
+    'next',
+    'save',
+    '=',
+    'prettier',
+    'pageFullscreen',
+    'fullscreen',
+    'preview',
+    'htmlPreview',
+    'catalog'
+] as any[];
 
 const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [markdown, setMarkdown] = useState('');
@@ -1099,75 +1144,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
         );
     };
 
-    // Mermaid 图表组件
-    const MermaidChart: React.FC<{ code: string }> = ({ code }) => {
-        const [svg, setSvg] = useState<string>('');
-        const [error, setError] = useState<string>('');
-        const id = useMemo(() => 'mermaid-' + Math.random().toString(36).substring(2, 15), []);
-
-        useEffect(() => {
-            const renderChart = async () => {
-                try {
-                    const { svg } = await mermaid.render(id, code);
-                    setSvg(svg);
-                    setError('');
-                } catch (err: any) {
-                    console.error('Mermaid 渲染失败:', err);
-                    setError(err.message || '未知错误');
-                    setSvg('');
-                }
-            };
-
-            renderChart();
-        }, [code, id]);
-
-        if (error) {
-            return (
-                <div style={{
-                    margin: '1em 0',
-                    padding: '1em',
-                    borderRadius: '6px',
-                    backgroundColor: '#fff2f0',
-                    border: '1px solid #ffccc7'
-                }}>
-                    <div style={{ color: '#ff4d4f', marginBottom: '8px' }}>
-                        Mermaid 图表渲染失败
-                    </div>
-                    <div style={{ color: '#666', fontSize: '12px' }}>
-                        {error}
-                    </div>
-                    <pre style={{
-                        marginTop: '8px',
-                        padding: '8px',
-                        backgroundColor: '#f5f5f5',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        overflow: 'auto'
-                    }}>
-                        {code}
-                    </pre>
-                </div>
-            );
-        }
-
-        return (
-            <div
-                style={{
-                    margin: '1em 0',
-                    padding: '1em',
-                    borderRadius: '6px',
-                    backgroundColor: '#f6f8fa',
-                    border: '1px solid #eaecef',
-                    minHeight: '100px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                }}
-                dangerouslySetInnerHTML={{ __html: svg }}
-            />
-        );
-    };
-
     return (
         <Layout style={{ 
             background: '#fff', 
@@ -1472,7 +1448,7 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                         isPreview ? (
                             <div style={{ height: '100%', overflow: 'auto' }}>
                                 {isTxtFile(currentFile) ? (
-                                    // TXT 文件直接显示为纯文本，保留换行
+                                    // TXT 文件保持原样
                                     <pre style={{ 
                                         whiteSpace: 'pre-wrap', 
                                         wordWrap: 'break-word',
@@ -1484,82 +1460,19 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                         {markdown}
                                     </pre>
                                 ) : (
-                                    // Markdown 文件使用 ReactMarkdown 渲染
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        rehypePlugins={[rehypeRaw]}
-                                        components={{
-                                            code: ({ className, children, node, ...props }: CodeProps) => {
-                                                const content = String(children).replace(/\n$/, '');
-                                                const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line;
-                                                if (className === 'language-mermaid') {
-                                                    return <MermaidChart code={content} />;
-                                                }
-                                                
-                                                if (!isCodeBlock) {
-                                                    return (
-                                                        <code
-                                                            style={{
-                                                                backgroundColor: '#f5f5f5',
-                                                                color: '#d63200',
-                                                                padding: '2px 4px',
-                                                                borderRadius: '3px',
-                                                                fontSize: '0.9em',
-                                                                fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace'
-                                                            }}
-                                                            {...props}
-                                                        >
-                                                            {content}
-                                                        </code>
-                                                    );
-                                                }
-                                                return (
-                                                    <div style={{ position: 'relative' }}>
-                                                        <SyntaxHighlighter
-                                                            style={oneLight as any}
-                                                            language={className ? className.replace(/language-/, '') : ''}
-                                                            PreTag="div"
-                                                            customStyle={{
-                                                                margin: '1em 0',
-                                                                padding: '1em',
-                                                                borderRadius: '6px',
-                                                                fontSize: '85%',
-                                                                backgroundColor: '#f6f8fa',
-                                                                border: '1px solid #eaecef'
-                                                            }}
-                                                            {...props}
-                                                        >
-                                                            {content}
-                                                        </SyntaxHighlighter>
-                                                        {className && (
-                                                            <div
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    top: '0',
-                                                                    right: '0',
-                                                                    padding: '0.2em 0.6em',
-                                                                    fontSize: '85%',
-                                                                    color: '#57606a',
-                                                                    backgroundColor: '#f6f8fa',
-                                                                    borderLeft: '1px solid #eaecef',
-                                                                    borderBottom: '1px solid #eaecef',
-                                                                    borderRadius: '0 6px 0 6px'
-                                                                }}
-                                                            >
-                                                                {className.replace(/language-/, '')}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            }
+                                    // Markdown 文件使用 MdPreview 替代 ReactMarkdown
+                                    <MdPreview 
+                                        {...mdCommonProps}
+                                        modelValue={markdown}
+                                        style={{
+                                            backgroundColor: '#fff'
                                         }}
-                                    >
-                                        {markdown}
-                                    </ReactMarkdown>
+                                    />
                                 )}
                             </div>
                         ) : (
                             <MdEditor
+                                {...mdCommonProps}
                                 modelValue={markdown}
                                 onChange={setMarkdown}
                                 style={{
@@ -1567,9 +1480,6 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                     '--md-editor-code-head-display': 'block',
                                     '--md-editor-code-flag-display': 'none'
                                 } as any}
-                                theme="light"
-                                previewTheme="github"
-                                codeTheme="github"
                                 showCodeRowNumber={false}
                                 preview={isTxtFile(currentFile) ? false : true}
                                 noPrettier={true}
@@ -1578,52 +1488,11 @@ const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
                                 sanitize={(html) => html}
                                 formatCopiedText={(text) => text}
                                 className="custom-md-editor"
-                                toolbars={isTxtFile(currentFile) ? [
-                                    'revoke',
-                                    'next',
-                                    'save',
-                                    '=',
-                                    'pageFullscreen',
-                                    'fullscreen'
-                                ] as any[] : [
-                                    'bold',
-                                    'underline',
-                                    'italic',
-                                    'strikeThrough',
-                                    '-',
-                                    'title',
-                                    'sub',
-                                    'sup',
-                                    'quote',
-                                    'unorderedList',
-                                    'orderedList',
-                                    'task',
-                                    '-',
-                                    'codeRow',
-                                    'code',
-                                    'link',
-                                    'image',
-                                    'table',
-                                    'mermaid',
-                                    '-',
-                                    'revoke',
-                                    'next',
-                                    'save',
-                                    '=',
-                                    'prettier',
-                                    'pageFullscreen',
-                                    'fullscreen',
-                                    'preview',
-                                    'htmlPreview',
-                                    'catalog'
-                                ] as any[]}
+                                toolbars={isTxtFile(currentFile) ? TXT_TOOLBARS : MD_TOOLBARS}
                             />
                         )
                     ) : (
-                        <div style={{
-                            height: '100%'
-                        }}>
-                        </div>
+                        <div style={{ height: '100%' }}></div>
                     )}
                 </Content>
             </Layout>
