@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Space, Layout, Tree, message, Modal, Input, Form, Button, Checkbox, Dropdown, Select, Tooltip, Menu } from 'antd';
 import { Resizable } from 'react-resizable';
 import 'react-resizable/css/styles.css';
 import { MenuFoldOutlined, MenuUnfoldOutlined, FolderOutlined, FileOutlined, GithubOutlined, SettingOutlined, PlusOutlined, CloseOutlined, FolderOpenOutlined, FileAddOutlined, FolderAddOutlined, FileTextOutlined, FileUnknownOutlined } from '@ant-design/icons';
 import 'markdown-navbar/dist/navbar.css';
-import { MdEditor, MdPreview } from 'md-editor-rt';
+import { MdEditor, MdPreview, type Themes, type ToolbarNames } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
 import { API_BASE_URL, USE_IPC } from './config';
 import './doc.css';
@@ -29,18 +29,6 @@ mermaid.initialize({
 const { Sider, Content } = Layout;
 const { Option } = Select;
 
-interface CodeProps extends React.HTMLAttributes<HTMLElement> {
-    inline?: boolean;
-    className?: string;
-    children?: React.ReactNode;
-    node?: {
-        position?: {
-            start?: { line: number };
-            end?: { line: number };
-        };
-    };
-}
-
 interface Props {
     menuCollapsed?: boolean;
 }
@@ -50,22 +38,22 @@ const APP_NAME = 'Talisman';
 
 // 在组件顶部定义共同配置
 const mdCommonProps = {
-    theme: "light",
-    previewTheme: "github",
-    codeTheme: "github",
+    theme: 'light' as Themes,
+    previewTheme: 'github',
+    codeTheme: 'github',
     showCodeRowNumber: false,
-};
+} as const;
 
-const TXT_TOOLBARS = [
+const TXT_TOOLBARS: ToolbarNames[] = [
     'revoke',
     'next',
     'save',
     '=',
     'pageFullscreen',
     'fullscreen'
-] as any[];
+];
 
-const MD_TOOLBARS = [
+const MD_TOOLBARS: ToolbarNames[] = [
     'bold',
     'underline',
     'italic',
@@ -96,7 +84,7 @@ const MD_TOOLBARS = [
     'preview',
     'htmlPreview',
     'catalog'
-] as any[];
+];
 
 const Doc: React.FC<Props> = ({ menuCollapsed = true }) => {
     const [markdown, setMarkdown] = useState('');
