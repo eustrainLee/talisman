@@ -67,6 +67,22 @@ export function initializeDatabase() {
       )
     `)
 
+    // Create annual settlement table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS annual_settlement (
+        year INTEGER PRIMARY KEY,           -- 年份
+        opening_cumulative_income INTEGER NOT NULL,  -- 期初累计收入（分）
+        closing_cumulative_income INTEGER NOT NULL,  -- 期末累计收入（分）
+        opening_cumulative_expense INTEGER NOT NULL, -- 期初累计支出（分）
+        closing_cumulative_expense INTEGER NOT NULL, -- 期末累计支出（分）
+        total_income INTEGER NOT NULL,      -- 总收入（分）
+        total_expense INTEGER NOT NULL,     -- 总支出（分）
+        net_income INTEGER NOT NULL,        -- 净收入（分，可以为负数）
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP   -- 更新时间
+      )
+    `)
+
     log.info('Database tables created successfully')
   } catch (error) {
     log.error('Failed to create database tables:', error)
