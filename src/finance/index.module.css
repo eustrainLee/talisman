@@ -1,0 +1,13 @@
+.container {
+  padding: 20px;
+  height: 100%;
+}
+
+.tabs {
+  height: 100%;
+}
+
+.tabs :global(.ant-tabs-content) {
+  height: calc(100% - 46px);
+  overflow: auto;
+} 

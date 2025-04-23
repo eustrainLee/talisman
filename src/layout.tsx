@@ -5,7 +5,7 @@ import { HomeOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Route, Routes } from 'react-router-dom'
 import Home from './home'
 import Doc from './doc'
-import Assets from './assets'
+import Finance from './finance'
 
 const { Content, Sider } = Layout;
 
@@ -31,9 +31,9 @@ const items = [
     label: '文档',
   },
   {
-    key: 'assets',
+    key: 'finance',
     icon: <AppstoreOutlined />,
-    label: '资产',
+    label: '财务',
   },
 ];
 
@@ -85,7 +85,7 @@ export default function AppLayout() {
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
             <Route path="/docs" element={<Doc menuCollapsed={collapsed} />} />
-            <Route path="/assets" element={<Assets />} />
+            <Route path="/finance" element={<Finance />} />
           </Routes>
         </Content>
       </Layout>
