@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Layout, Menu } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { HomeOutlined, FileOutlined, AppstoreOutlined } from '@ant-design/icons'
+import { HomeOutlined, FileOutlined, AccountBookOutlined } from '@ant-design/icons'
 import { Route, Routes } from 'react-router-dom'
 import Home from './home'
 import Doc from './doc'
@@ -32,7 +32,7 @@ const items = [
   },
   {
     key: 'finance',
-    icon: <AppstoreOutlined />,
+    icon: <AccountBookOutlined />,
     label: '财务',
   },
 ];
