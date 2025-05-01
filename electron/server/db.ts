@@ -83,6 +83,42 @@ export function initializeDatabase() {
       )
     `)
 
+    // Create periodic expenses table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS periodic_expenses (
+        name TEXT NOT NULL,
+        period_type TEXT NOT NULL,          -- 周期类型：DAY/WEEK/MONTH/QUARTER/YEAR
+        period_start_date DATE NOT NULL,    -- 周期开始日期
+        period_end_date DATE NOT NULL,      -- 周期结束日期
+        budget_amount INTEGER NOT NULL,      -- 预算额度（分）
+        actual_amount INTEGER NOT NULL,      -- 实际开销（分）
+        balance INTEGER NOT NULL,            -- 结余（分）
+        opening_cumulative_balance INTEGER NOT NULL,  -- 期初累计结余（分）
+        closing_cumulative_balance INTEGER NOT NULL,  -- 期末累计结余（分）
+        opening_cumulative_expense INTEGER NOT NULL,  -- 期初累计开支（分）
+        closing_cumulative_expense INTEGER NOT NULL,  -- 期末累计开支（分）
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 更新时间
+        PRIMARY KEY (name, period_type, period_start_date, period_end_date)
+      )
+    `)
+
+    // Create periodic income table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS periodic_income (
+        name TEXT NOT NULL,
+        period_type TEXT NOT NULL,          -- 周期类型：DAY/WEEK/MONTH/QUARTER/YEAR
+        period_start_date DATE NOT NULL,    -- 周期开始日期
+        period_end_date DATE NOT NULL,      -- 周期结束日期
+        amount INTEGER NOT NULL,             -- 收入（分）
+        opening_cumulative INTEGER NOT NULL, -- 期初累计（分）
+        closing_cumulative INTEGER NOT NULL, -- 期末累计（分）
+        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
+        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 更新时间
+        PRIMARY KEY (name, period_type, period_start_date, period_end_date)
+      )
+    `)
+
     log.info('Database tables created successfully')
   } catch (error) {
     log.error('Failed to create database tables:', error)
@@ -116,4 +152,32 @@ export function deleteRecord(year: number, month: number) {
   
   const stmt = db.prepare('DELETE FROM monthly_records WHERE year = ? AND month = ?')
   return stmt.run(year, month)
+}
+
+export function getPeriodicRecord(periodType: string, periodStartDate: string, periodEndDate: string) {
+  if (!db) throw new Error('Database not initialized')
+  
+  const stmt = db.prepare('SELECT * FROM periodic_records WHERE period_type = ? AND period_start_date = ? AND period_end_date = ?')
+  return stmt.get(periodType, periodStartDate, periodEndDate)
+}
+
+export function insertOrUpdatePeriodicRecord(periodType: string, periodStartDate: string, periodEndDate: string, data: string) {
+  if (!db) throw new Error('Database not initialized')
+  
+  const stmt = db.prepare(`
+    INSERT INTO periodic_records (period_type, period_start_date, period_end_date, data, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(period_type, period_start_date, period_end_date) DO UPDATE SET
+    data = excluded.data,
+    updated_at = CURRENT_TIMESTAMP
+  `)
+  
+  return stmt.run(periodType, periodStartDate, periodEndDate, data)
+}
+
+export function deletePeriodicRecord(periodType: string, periodStartDate: string, periodEndDate: string) {
+  if (!db) throw new Error('Database not initialized')
+  
+  const stmt = db.prepare('DELETE FROM periodic_records WHERE period_type = ? AND period_start_date = ? AND period_end_date = ?')
+  return stmt.run(periodType, periodStartDate, periodEndDate)
 } 
