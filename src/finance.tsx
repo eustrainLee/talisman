@@ -1,7 +1,8 @@
 import React from 'react';
 import { Card, Space, Tabs } from 'antd';
 import Overview from './finance/Overview';
-import Monthly from './finance/Monthly';
+import Income from './finance/Income';
+import Expense from './finance/Expense';
 import Annual from './finance/Annual';
 import Assets from './finance/Assets';
 import styles from './finance/index.module.css';
@@ -16,8 +17,11 @@ const Finance: React.FC = () => {
           <TabPane tab="概览" key="overview">
             <Overview />
           </TabPane>
-          <TabPane tab="月度" key="monthly">
-            <Monthly />
+          <TabPane tab="收入" key="income">
+            <Income />
+          </TabPane>
+          <TabPane tab="支出" key="expense">
+            <Expense />
           </TabPane>
           <TabPane tab="年度" key="annual">
             <Annual />
