@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { setupIpcHandlers } from './server/ipc'
+import { initializeDatabase } from './server/db'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -79,6 +80,7 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  initializeDatabase()
   setupIpcHandlers()
   createWindow()
   const {Menu} = require('electron')

@@ -8,7 +8,7 @@ let db: Database.Database | null = null
 export function initializeDatabase() {
   try {
     const userDataPath = app.getPath('userData')
-    const dbPath = path.join(userDataPath, 'data.db')
+    const dbPath = path.join(userDataPath, 'finance.db')
     
     db = new Database(dbPath)
     
@@ -118,7 +118,7 @@ export function initializeDatabase() {
         PRIMARY KEY (name, period_type, period_start_date, period_end_date)
       )
     `)
-
+  
     log.info('Database tables created successfully')
   } catch (error) {
     log.error('Failed to create database tables:', error)
