@@ -10,12 +10,6 @@ interface MonthlyRecord {
   balance: number;
 }
 
-interface AnnualSummary {
-  totalIncome: number;
-  totalExpense: number;
-  netIncome: number;
-}
-
 const Annual: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Table, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -15,8 +15,6 @@ interface Asset {
 }
 
 const Assets: React.FC = () => {
-  const [searchText, setSearchText] = useState('');
-
   const columns: ColumnsType<Asset> = [
     {
       title: '名称',
@@ -58,7 +56,6 @@ const Assets: React.FC = () => {
         <Search
           placeholder="搜索资产名称"
           allowClear
-          onSearch={value => setSearchText(value)}
           style={{ width: 200 }}
         />
       </div>
