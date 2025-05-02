@@ -211,6 +211,25 @@ const Expense: React.FC = () => {
     }
   };
 
+  // 根据周期筛选可用的开支计划
+  const filteredPlans = periodType
+    ? plans.filter(plan => plan.period === periodType)
+    : plans;
+
+  // 当周期改变时，检查并可能取消选中的开支计划
+  const handlePeriodTypeChange = (value: string | null) => {
+    setPeriodType(value);
+    setSelectedDate(null);
+    
+    // 只有在选择了周期且当前选中的开支计划不匹配该周期时，才取消选中
+    if (value && selectedPlanId) {
+      const selectedPlan = plans.find(p => p.id === selectedPlanId);
+      if (selectedPlan && selectedPlan.period !== value) {
+        setSelectedPlanId(null);
+      }
+    }
+  };
+
   const columns: ColumnsType<ExpenseRecord> = [
     {
       title: '名称',
@@ -291,22 +310,8 @@ const Expense: React.FC = () => {
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 16 }}>
               <Select
-                value={selectedPlanId}
-                onChange={setSelectedPlanId}
-                style={{ width: 200 }}
-                placeholder="选择开支计划（可选）"
-                allowClear
-              >
-                {plans.map(plan => (
-                  <Option key={plan.id} value={plan.id}>{plan.name}</Option>
-                ))}
-              </Select>
-              <Select
                 value={periodType}
-                onChange={(value) => {
-                  setPeriodType(value);
-                  setSelectedDate(null);
-                }}
+                onChange={handlePeriodTypeChange}
                 style={{ width: 120 }}
                 placeholder="选择周期（可选）"
                 allowClear
@@ -322,6 +327,17 @@ const Expense: React.FC = () => {
                 style={{ width: 200 }}
                 disabled={!periodType}
               />
+              <Select
+                value={selectedPlanId}
+                onChange={setSelectedPlanId}
+                style={{ width: 200 }}
+                placeholder="选择开支计划（可选）"
+                allowClear
+              >
+                {filteredPlans.map(plan => (
+                  <Option key={plan.id} value={plan.id}>{plan.name}</Option>
+                ))}
+              </Select>
             </div>
           </Card>
 
