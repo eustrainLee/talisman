@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan } from '../api/finance';
+import { financeAPI, ExpensePlan, ExpenseRecord } from '../api/finance';
 import dayjs from 'dayjs';
+import weekOfYear from 'dayjs/plugin/weekOfYear';
+
+// 添加周数插件
+dayjs.extend(weekOfYear);
 
 const { Option } = Select;
 
@@ -24,6 +28,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const [loading, setLoading] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
+  const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
 
   useEffect(() => {
     fetchPlans();
@@ -109,19 +114,96 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     });
   };
 
+  // 检查指定时间是否已存在记录
+  const checkExistingRecord = async (planId: number, date: dayjs.Dayjs) => {
+    try {
+      const records = await financeAPI.getExpenseRecords(planId);
+      const period = selectedPlan?.period;
+      const existing = records.find(record => {
+        const recordDate = dayjs(record.date);
+        switch (period) {
+          case 'WEEK':
+            return recordDate.year() === date.year() && 
+                   recordDate.week() === date.week();
+          case 'MONTH':
+            return recordDate.year() === date.year() && 
+                   recordDate.month() === date.month();
+          case 'QUARTER':
+            return recordDate.year() === date.year() && 
+                   Math.floor(recordDate.month() / 3) === Math.floor(date.month() / 3);
+          case 'YEAR':
+            return recordDate.year() === date.year();
+          default:
+            return false;
+        }
+      });
+      setExistingRecord(existing || null);
+      return !!existing;
+    } catch (error) {
+      console.error('检查记录失败:', error);
+      return false;
+    }
+  };
+
+  // 设置周期起始时间
+  const setPeriodStartDate = (date: dayjs.Dayjs) => {
+    if (!selectedPlan) return date;
+    
+    switch (selectedPlan.period) {
+      case 'WEEK':
+        return date.startOf('week');
+      case 'MONTH':
+        return date.startOf('month');
+      case 'QUARTER':
+        // 手动计算季度的开始日期
+        const quarter = Math.floor(date.month() / 3);
+        return date.month(quarter * 3).startOf('month');
+      case 'YEAR':
+        return date.startOf('year');
+      default:
+        return date;
+    }
+  };
+
   const handleCreate = (plan: ExpensePlan) => {
     setSelectedPlan(plan);
+    const today = dayjs();
+    const startDate = setPeriodStartDate(today);
+    
     createForm.setFieldsValue({
-      date: dayjs(),
-      budget_amount: plan.amount / 100, // 转换为元
+      date: startDate,
+      budget_amount: plan.amount / 100,
       actual_amount: 0,
-      balance: plan.amount / 100, // 转换为元
+      balance: plan.amount / 100,
       opening_cumulative_balance: 0,
-      closing_cumulative_balance: plan.amount / 100, // 转换为元
+      closing_cumulative_balance: plan.amount / 100,
       opening_cumulative_expense: 0,
       closing_cumulative_expense: 0,
     });
     setIsCreateModalVisible(true);
+  };
+
+  // 添加 useEffect 来监听弹窗状态
+  useEffect(() => {
+    if (isCreateModalVisible && selectedPlan) {
+      const date = createForm.getFieldValue('date');
+      if (date) {
+        checkExistingRecord(selectedPlan.id, date);
+      }
+    }
+  }, [isCreateModalVisible, selectedPlan]);
+
+  const handleDateChange = async (date: dayjs.Dayjs | null) => {
+    if (!date || !selectedPlan) return;
+    
+    const startDate = setPeriodStartDate(date);
+    createForm.setFieldsValue({ date: startDate });
+    
+    // 在日期变化时检查是否存在记录
+    const hasExisting = await checkExistingRecord(selectedPlan.id, startDate);
+    if (hasExisting) {
+      message.error('该周期已存在记录');
+    }
   };
 
   const handleCreateSubmit = async () => {
@@ -129,16 +211,23 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       const values = await createForm.validateFields();
       if (!selectedPlan) return;
 
+      // 提交前再次检查是否已存在记录
+      const hasExisting = await checkExistingRecord(selectedPlan.id, values.date);
+      if (hasExisting) {
+        message.error('该周期已存在记录');
+        return;
+      }
+
       await financeAPI.createExpenseRecord(
         selectedPlan.id,
         values.date.format('YYYY-MM-DD'),
-        values.budget_amount * 100, // 转换为分
-        values.actual_amount * 100, // 转换为分
-        values.balance * 100, // 转换为分
-        values.opening_cumulative_balance * 100, // 转换为分
-        values.closing_cumulative_balance * 100, // 转换为分
-        values.opening_cumulative_expense * 100, // 转换为分
-        values.closing_cumulative_expense * 100, // 转换为分
+        values.budget_amount * 100,
+        values.actual_amount * 100,
+        values.balance * 100,
+        values.opening_cumulative_balance * 100,
+        values.closing_cumulative_balance * 100,
+        values.opening_cumulative_expense * 100,
+        values.closing_cumulative_expense * 100,
       );
       message.success('创建成功');
       setIsCreateModalVisible(false);
@@ -241,6 +330,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         onOk={handleCreateSubmit}
         onCancel={() => setIsCreateModalVisible(false)}
         width={600}
+        okButtonProps={{ disabled: !!existingRecord }}
       >
         <Form
           form={createForm}
@@ -251,10 +341,16 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             name="date"
             label="时间"
             rules={[{ required: true, message: '请选择时间' }]}
+            extra={existingRecord && (
+              <span style={{ color: 'red' }}>
+                该周期已存在记录，创建日期为 {dayjs(existingRecord.date).format('YYYY-MM-DD')}
+              </span>
+            )}
           >
             <DatePicker
               picker={selectedPlan?.period.toLowerCase() as any}
               style={{ width: '100%' }}
+              onChange={handleDateChange}
             />
           </Form.Item>
           <Form.Item
