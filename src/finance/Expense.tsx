@@ -105,22 +105,52 @@ const Expense: React.FC = () => {
     }
   };
 
+  // 设置周期起始时间
+  const setPeriodStartDate = (date: dayjs.Dayjs) => {
+    if (!selectedRecord) return date;
+    const plan = plans.find(p => p.id === selectedRecord.plan_id);
+    if (!plan) return date;
+    
+    switch (plan.period) {
+      case 'WEEK':
+        return date.startOf('week');
+      case 'MONTH':
+        return date.startOf('month');
+      case 'QUARTER':
+        return date.startOf('quarter');
+      case 'YEAR':
+        return date.startOf('year');
+      default:
+        return date;
+    }
+  };
+
   const handleEdit = (record: ExpenseRecord) => {
     setSelectedRecord(record);
     const plan = plans.find(p => p.id === record.plan_id);
     if (!plan) return;
 
+    const recordDate = dayjs(record.date);
+    const startDate = setPeriodStartDate(recordDate);
+
     editForm.setFieldsValue({
-      date: dayjs(record.date),
-      budget_amount: plan.amount / 100, // 转换为元
-      actual_amount: record.actual_amount / 100, // 转换为元
-      balance: record.balance / 100, // 转换为元
-      opening_cumulative_balance: record.opening_cumulative_balance / 100, // 转换为元
-      closing_cumulative_balance: record.closing_cumulative_balance / 100, // 转换为元
-      opening_cumulative_expense: record.opening_cumulative_expense / 100, // 转换为元
-      closing_cumulative_expense: record.closing_cumulative_expense / 100, // 转换为元
+      date: startDate,
+      budget_amount: plan.amount / 100,
+      actual_amount: record.actual_amount / 100,
+      balance: record.balance / 100,
+      opening_cumulative_balance: record.opening_cumulative_balance / 100,
+      closing_cumulative_balance: record.closing_cumulative_balance / 100,
+      opening_cumulative_expense: record.opening_cumulative_expense / 100,
+      closing_cumulative_expense: record.closing_cumulative_expense / 100,
     });
     setIsEditModalVisible(true);
+  };
+
+  const handleDateChange = async (date: dayjs.Dayjs | null) => {
+    if (!date || !selectedRecord) return;
+    
+    const startDate = setPeriodStartDate(date);
+    editForm.setFieldsValue({ date: startDate });
   };
 
   const handleFormValuesChange = (changedValues: any, allValues: any) => {
@@ -367,8 +397,9 @@ const Expense: React.FC = () => {
                 rules={[{ required: true, message: '请选择时间' }]}
               >
                 <DatePicker
-                  picker={periodType?.toLowerCase() as any}
+                  picker={selectedRecord ? plans.find(p => p.id === selectedRecord.plan_id)?.period.toLowerCase() as any : undefined}
                   style={{ width: '100%' }}
+                  onChange={handleDateChange}
                 />
               </Form.Item>
               <Form.Item
