@@ -15,8 +15,8 @@ const periodTypes = [
 ];
 
 const Expense: React.FC = () => {
-  const [periodType, setPeriodType] = useState('MONTH');
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [periodType, setPeriodType] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [records, setRecords] = useState<ExpenseRecord[]>([]);
   const [plans, setPlans] = useState<ExpensePlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
@@ -64,26 +64,38 @@ const Expense: React.FC = () => {
         }
       }
       
-      // 根据日期筛选记录
+      // 根据日期和周期筛选记录
       const filteredRecords = allRecords.filter(record => {
         const recordDate = dayjs(record.date);
-        switch (periodType) {
-          case 'YEAR':
-            return recordDate.year() === selectedDate.year();
-          case 'QUARTER':
-            return recordDate.year() === selectedDate.year() && 
-                   Math.floor(recordDate.month() / 3) === Math.floor(selectedDate.month() / 3);
-          case 'MONTH':
-            return recordDate.year() === selectedDate.year() && 
-                   recordDate.month() === selectedDate.month();
-          case 'WEEK':
-            return recordDate.year() === selectedDate.year() && 
-                   Math.floor(recordDate.diff(selectedDate.startOf('year'), 'day') / 7) === 
-                   Math.floor(selectedDate.diff(selectedDate.startOf('year'), 'day') / 7);
-          default:
-            return true;
+        const plan = plans.find(p => p.id === record.plan_id);
+        
+        // 如果选择了周期类型，只显示匹配周期的记录
+        if (periodType && plan?.period !== periodType) {
+          return false;
         }
-      });
+        
+        // 如果选择了日期，进行日期筛选
+        if (selectedDate) {
+          switch (periodType) {
+            case 'YEAR':
+              return recordDate.year() === selectedDate.year();
+            case 'QUARTER':
+              return recordDate.year() === selectedDate.year() && 
+                     Math.floor(recordDate.month() / 3) === Math.floor(selectedDate.month() / 3);
+            case 'MONTH':
+              return recordDate.year() === selectedDate.year() && 
+                     recordDate.month() === selectedDate.month();
+            case 'WEEK':
+              return recordDate.year() === selectedDate.year() && 
+                     Math.floor(recordDate.diff(selectedDate.startOf('year'), 'day') / 7) === 
+                     Math.floor(selectedDate.diff(selectedDate.startOf('year'), 'day') / 7);
+            default:
+              return true;
+          }
+        }
+        
+        return true;
+      }).sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
       
       setRecords(filteredRecords);
     } catch (error) {
@@ -243,8 +255,13 @@ const Expense: React.FC = () => {
               </Select>
               <Select
                 value={periodType}
-                onChange={setPeriodType}
+                onChange={(value) => {
+                  setPeriodType(value);
+                  setSelectedDate(null);
+                }}
                 style={{ width: 120 }}
+                placeholder="选择周期（可选）"
+                allowClear
               >
                 {periodTypes.map(type => (
                   <Option key={type.value} value={type.value}>{type.label}</Option>
@@ -253,8 +270,9 @@ const Expense: React.FC = () => {
               <DatePicker
                 value={selectedDate}
                 onChange={setSelectedDate}
-                picker={periodType.toLowerCase() as any}
+                picker={periodType?.toLowerCase() as any}
                 style={{ width: 200 }}
+                disabled={!periodType}
               />
             </div>
           </Card>
@@ -284,7 +302,7 @@ const Expense: React.FC = () => {
                 rules={[{ required: true, message: '请选择时间' }]}
               >
                 <DatePicker
-                  picker={periodType.toLowerCase() as any}
+                  picker={periodType?.toLowerCase() as any}
                   style={{ width: '100%' }}
                 />
               </Form.Item>
