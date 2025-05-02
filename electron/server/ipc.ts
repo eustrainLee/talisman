@@ -770,4 +770,68 @@ export function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // 创建开支记录
+  ipcMain.handle('finance:create-expense-record', async (_event, record: {
+    plan_id: number;
+    date: string;
+    budget_amount: number;
+    actual_amount: number;
+    balance: number;
+    opening_cumulative_balance: number;
+    closing_cumulative_balance: number;
+    opening_cumulative_expense: number;
+    closing_cumulative_expense: number;
+  }) => {
+    try {
+      const stmt = getDatabase().prepare(`
+        INSERT INTO expense_records (
+          plan_id,
+          date,
+          budget_amount,
+          actual_amount,
+          balance,
+          opening_cumulative_balance,
+          closing_cumulative_balance,
+          opening_cumulative_expense,
+          closing_cumulative_expense
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        record.plan_id,
+        record.date,
+        record.budget_amount,
+        record.actual_amount,
+        record.balance,
+        record.opening_cumulative_balance,
+        record.closing_cumulative_balance,
+        record.opening_cumulative_expense,
+        record.closing_cumulative_expense
+      );
+      return {
+        id: result.lastInsertRowid,
+        ...record,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    } catch (error) {
+      log.error('创建开支记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取开支记录列表
+  ipcMain.handle('finance:get-expense-records', async (_event, planId: number) => {
+    try {
+      const stmt = getDatabase().prepare(`
+        SELECT * FROM expense_records 
+        WHERE plan_id = ? 
+        ORDER BY date DESC
+      `);
+      return stmt.all(planId);
+    } catch (error) {
+      log.error('获取开支记录失败:', error);
+      throw error;
+    }
+  });
 } 

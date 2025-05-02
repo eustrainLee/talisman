@@ -40,8 +40,8 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: true,
     },
-    width: 1080,
-    height: 720,
+    width: 1920,
+    height: 1080,
     title: APP_NAME,
   })
 

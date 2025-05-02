@@ -11,6 +11,21 @@ export interface ExpensePlan {
   updated_at: string;
 }
 
+export interface ExpenseRecord {
+  id: number;
+  plan_id: number;
+  date: string;
+  budget_amount: number;
+  actual_amount: number;
+  balance: number;
+  opening_cumulative_balance: number;
+  closing_cumulative_balance: number;
+  opening_cumulative_expense: number;
+  closing_cumulative_expense: number;
+  created_at: string;
+  updated_at: string;
+}
+
 class FinanceAPI {
   async getExpensePlans(): Promise<ExpensePlan[]> {
     if (USE_IPC) {
@@ -29,6 +44,40 @@ class FinanceAPI {
   async deleteExpensePlan(id: number): Promise<void> {
     if (USE_IPC) {
       return window.electronAPI.deleteExpensePlan(id);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async getExpenseRecords(planId: number): Promise<ExpenseRecord[]> {
+    if (USE_IPC) {
+      return window.electronAPI.getExpenseRecords(planId);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async createExpenseRecord(
+    planId: number,
+    date: string,
+    budgetAmount: number,
+    actualAmount: number,
+    balance: number,
+    openingCumulativeBalance: number,
+    closingCumulativeBalance: number,
+    openingCumulativeExpense: number,
+    closingCumulativeExpense: number
+  ): Promise<ExpenseRecord> {
+    if (USE_IPC) {
+      return window.electronAPI.createExpenseRecord({
+        plan_id: planId,
+        date,
+        budget_amount: budgetAmount * 100,
+        actual_amount: actualAmount * 100,
+        balance: balance * 100,
+        opening_cumulative_balance: openingCumulativeBalance * 100,
+        closing_cumulative_balance: closingCumulativeBalance * 100,
+        opening_cumulative_expense: openingCumulativeExpense * 100,
+        closing_cumulative_expense: closingCumulativeExpense * 100,
+      });
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }

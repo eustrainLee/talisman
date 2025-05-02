@@ -137,6 +137,25 @@ export function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
+
+    // Create expense records table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS expense_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        budget_amount INTEGER NOT NULL,
+        actual_amount INTEGER NOT NULL,
+        balance INTEGER NOT NULL,
+        opening_cumulative_balance INTEGER NOT NULL,
+        closing_cumulative_balance INTEGER NOT NULL,
+        opening_cumulative_expense INTEGER NOT NULL,
+        closing_cumulative_expense INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (plan_id) REFERENCES expense_plans (id) ON DELETE CASCADE
+      )
+    `)
   
     log.info('Database tables created successfully')
   } catch (error) {

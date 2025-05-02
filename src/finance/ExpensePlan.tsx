@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Form, Input, Select, Button, Card, Space, message, Modal } from 'antd';
+import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { financeAPI, ExpensePlan } from '../api/finance';
+import dayjs from 'dayjs';
 
 const { Option } = Select;
 
@@ -12,10 +13,17 @@ const periodTypes = [
   { value: 'YEAR', label: '年' },
 ];
 
-const ExpensePlanComponent: React.FC = () => {
+interface ExpensePlanComponentProps {
+  onRecordCreated?: () => void;
+}
+
+const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCreated }) => {
   const [form] = Form.useForm();
+  const [createForm] = Form.useForm();
   const [plans, setPlans] = useState<ExpensePlan[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
 
   useEffect(() => {
     fetchPlans();
@@ -56,6 +64,9 @@ const ExpensePlanComponent: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
+          <Button type="link" onClick={() => handleCreate(record)}>
+            创建
+          </Button>
           <Button type="link" danger onClick={() => handleDelete(record.id)}>
             删除
           </Button>
@@ -96,6 +107,43 @@ const ExpensePlanComponent: React.FC = () => {
         }
       }
     });
+  };
+
+  const handleCreate = (plan: ExpensePlan) => {
+    setSelectedPlan(plan);
+    createForm.setFieldsValue({
+      budget_amount: plan.amount / 100,
+      actual_amount: 0,
+      balance: plan.amount / 100,
+      opening_cumulative_balance: 0,
+      closing_cumulative_balance: plan.amount / 100,
+      opening_cumulative_expense: 0,
+      closing_cumulative_expense: 0,
+      date: dayjs(),
+    });
+    setIsCreateModalVisible(true);
+  };
+
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      await financeAPI.createExpenseRecord(
+        selectedPlan!.id,
+        values.date.format('YYYY-MM-DD'),
+        values.budget_amount,
+        values.actual_amount,
+        values.balance,
+        values.opening_cumulative_balance,
+        values.closing_cumulative_balance,
+        values.opening_cumulative_expense,
+        values.closing_cumulative_expense
+      );
+      setIsCreateModalVisible(false);
+      message.success('创建成功');
+      onRecordCreated?.();
+    } catch (error) {
+      message.error('创建失败');
+    }
   };
 
   return (
@@ -142,6 +190,79 @@ const ExpensePlanComponent: React.FC = () => {
         pagination={false}
         rowKey="id"
       />
+
+      <Modal
+        title="创建开支记录"
+        open={isCreateModalVisible}
+        onOk={handleCreateSubmit}
+        onCancel={() => setIsCreateModalVisible(false)}
+        width={600}
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="date"
+            label="时间"
+            rules={[{ required: true, message: '请选择时间' }]}
+          >
+            <DatePicker
+              picker={selectedPlan?.period.toLowerCase() as any}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Form.Item
+            name="budget_amount"
+            label="预算额度"
+            rules={[{ required: true, message: '请输入预算额度' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="actual_amount"
+            label="实际开销"
+            rules={[{ required: true, message: '请输入实际开销' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="balance"
+            label="结余"
+            rules={[{ required: true, message: '请输入结余' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="opening_cumulative_balance"
+            label="期初累计结余"
+            rules={[{ required: true, message: '请输入期初累计结余' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="closing_cumulative_balance"
+            label="期末累计结余"
+            rules={[{ required: true, message: '请输入期末累计结余' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="opening_cumulative_expense"
+            label="期初累计开支"
+            rules={[{ required: true, message: '请输入期初累计开支' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="closing_cumulative_expense"
+            label="期末累计开支"
+            rules={[{ required: true, message: '请输入期末累计开支' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

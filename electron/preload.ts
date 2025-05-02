@@ -46,6 +46,22 @@ interface ExpensePlan {
   updated_at: string;
 }
 
+// 开支记录接口
+interface ExpenseRecord {
+  id: number;
+  plan_id: number;
+  date: string;
+  budget_amount: number;
+  actual_amount: number;
+  balance: number;
+  opening_cumulative_balance: number;
+  closing_cumulative_balance: number;
+  opening_cumulative_expense: number;
+  closing_cumulative_expense: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // 用户设置接口
 interface UserSettings {
   lastDocId?: string;
@@ -79,6 +95,18 @@ interface IElectronAPI {
   getExpensePlans: () => Promise<ExpensePlan[]>;
   createExpensePlan: (plan: { name: string; amount: number; period: string }) => Promise<ExpensePlan>;
   deleteExpensePlan: (id: number) => Promise<void>;
+  getExpenseRecords: (planId: number) => Promise<ExpenseRecord[]>;
+  createExpenseRecord: (record: {
+    plan_id: number;
+    date: string;
+    budget_amount: number;
+    actual_amount: number;
+    balance: number;
+    opening_cumulative_balance: number;
+    closing_cumulative_balance: number;
+    opening_cumulative_expense: number;
+    closing_cumulative_expense: number;
+  }) => Promise<ExpenseRecord>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -109,7 +137,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 财务相关 API
   getExpensePlans: () => ipcRenderer.invoke('finance:get-expense-plans'),
   createExpensePlan: (plan: { name: string; amount: number; period: string }) => ipcRenderer.invoke('finance:create-expense-plan', plan),
-  deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id)
+  deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id),
+  getExpenseRecords: (planId: number) => ipcRenderer.invoke('finance:get-expense-records', planId),
+  createExpenseRecord: (record: {
+    plan_id: number;
+    date: string;
+    budget_amount: number;
+    actual_amount: number;
+    balance: number;
+    opening_cumulative_balance: number;
+    closing_cumulative_balance: number;
+    opening_cumulative_expense: number;
+    closing_cumulative_expense: number;
+  }) => ipcRenderer.invoke('finance:create-expense-record', record),
 })
 
 // 声明全局类型
