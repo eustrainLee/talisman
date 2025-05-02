@@ -116,11 +116,13 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     });
   };
 
-  // 检查指定时间是否已存在记录
+  // 检查指定时间是否已存在记录，并获取最近周期的期末累计值
   const checkExistingRecord = async (planId: number, date: dayjs.Dayjs) => {
     try {
       const records = await financeAPI.getExpenseRecords(planId);
       const period = selectedPlan?.period;
+      
+      // 检查当前周期是否存在记录
       const existing = records.find(record => {
         const recordDate = dayjs(record.date);
         switch (period) {
@@ -140,6 +142,42 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         }
       });
       setExistingRecord(existing || null);
+
+      // 查找最近周期的记录
+      const sortedRecords = records.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      const previousRecord = sortedRecords.find(record => {
+        const recordDate = dayjs(record.date);
+        return recordDate.isBefore(date);
+      });
+
+      // 如果找到最近周期的记录，更新期初累计值
+      if (previousRecord) {
+        const openingCumulativeBalance = previousRecord.closing_cumulative_balance / 100;
+        const openingCumulativeExpense = previousRecord.closing_cumulative_expense / 100;
+        const budgetAmount = createForm.getFieldValue('budget_amount') || 0;
+        const actualAmount = createForm.getFieldValue('actual_amount') || 0;
+        const balance = budgetAmount - actualAmount;
+
+        createForm.setFieldsValue({
+          opening_cumulative_balance: openingCumulativeBalance,
+          opening_cumulative_expense: openingCumulativeExpense,
+          closing_cumulative_balance: openingCumulativeBalance + balance,
+          closing_cumulative_expense: openingCumulativeExpense + actualAmount,
+        });
+      } else {
+        // 如果没有找到，重置为0
+        const budgetAmount = createForm.getFieldValue('budget_amount') || 0;
+        const actualAmount = createForm.getFieldValue('actual_amount') || 0;
+        const balance = budgetAmount - actualAmount;
+
+        createForm.setFieldsValue({
+          opening_cumulative_balance: 0,
+          opening_cumulative_expense: 0,
+          closing_cumulative_balance: balance,
+          closing_cumulative_expense: actualAmount,
+        });
+      }
+
       return !!existing;
     } catch (error) {
       console.error('检查记录失败:', error);
@@ -199,7 +237,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     const startDate = setPeriodStartDate(date);
     createForm.setFieldsValue({ date: startDate });
     
-    // 在日期变化时检查是否存在记录
+    // 在日期变化时检查是否存在记录并更新期初累计值
     const hasExisting = await checkExistingRecord(selectedPlan.id, startDate);
     if (hasExisting) {
       message.error('该周期已存在记录');
