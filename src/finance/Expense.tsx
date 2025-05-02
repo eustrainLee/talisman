@@ -444,7 +444,7 @@ const Expense: React.FC = () => {
                 rules={[{ required: true, message: '请选择时间' }]}
                 extra={existingRecord && (
                   <span style={{ color: 'red' }}>
-                    该周期已存在记录，创建日期为 {dayjs(existingRecord.date).format('YYYY-MM-DD')}
+                    该周期已存在记录
                   </span>
                 )}
               >
