@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Form, Input, Select, Button, Card, Space, message } from 'antd';
+import { Table, Form, Input, Select, Button, Card, Space, message, Modal } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan, PeriodType } from '../api/finance';
+import { financeAPI, ExpensePlan } from '../api/finance';
 
 const { Option } = Select;
 
@@ -81,13 +81,21 @@ const ExpensePlanComponent: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    try {
-      await financeAPI.deleteExpensePlan(id);
-      message.success('删除成功');
-      fetchPlans();
-    } catch (error) {
-      message.error('删除失败');
-    }
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这条开支计划吗？',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await financeAPI.deleteExpensePlan(id);
+          message.success('删除成功');
+          fetchPlans();
+        } catch (error) {
+          message.error('删除失败');
+        }
+      }
+    });
   };
 
   return (
@@ -138,4 +146,4 @@ const ExpensePlanComponent: React.FC = () => {
   );
 };
 
-export default ExpensePlanComponent; 
+export default ExpensePlanComponent;
