@@ -24,6 +24,8 @@ const Expense: React.FC = () => {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<ExpenseRecord | null>(null);
   const [editForm] = Form.useForm();
+  const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
+  const [isFormDisabled, setIsFormDisabled] = useState(false);
 
   useEffect(() => {
     fetchPlans();
@@ -125,6 +127,42 @@ const Expense: React.FC = () => {
     }
   };
 
+  // 检查指定时间是否已存在记录
+  const checkExistingRecord = async (recordId: number, planId: number, date: dayjs.Dayjs) => {
+    try {
+      const records = await financeAPI.getExpenseRecords(planId);
+      const plan = plans.find(p => p.id === planId);
+      if (!plan) return false;
+      
+      // 检查当前周期是否存在其他记录
+      const existing = records.find(record => {
+        if (record.id === recordId) return false; // 排除当前正在编辑的记录
+        const recordDate = dayjs(record.date);
+        switch (plan.period) {
+          case 'WEEK':
+            return recordDate.year() === date.year() && 
+                   recordDate.week() === date.week();
+          case 'MONTH':
+            return recordDate.year() === date.year() && 
+                   recordDate.month() === date.month();
+          case 'QUARTER':
+            return recordDate.year() === date.year() && 
+                   Math.floor(recordDate.month() / 3) === Math.floor(date.month() / 3);
+          case 'YEAR':
+            return recordDate.year() === date.year();
+          default:
+            return false;
+        }
+      });
+      setExistingRecord(existing || null);
+      setIsFormDisabled(!!existing);
+      return !!existing;
+    } catch (error) {
+      console.error('检查记录失败:', error);
+      return false;
+    }
+  };
+
   const handleEdit = (record: ExpenseRecord) => {
     setSelectedRecord(record);
     const plan = plans.find(p => p.id === record.plan_id);
@@ -144,6 +182,8 @@ const Expense: React.FC = () => {
       closing_cumulative_expense: record.closing_cumulative_expense / 100,
     });
     setIsEditModalVisible(true);
+    setIsFormDisabled(false);
+    checkExistingRecord(record.id, record.plan_id, startDate);
   };
 
   const handleDateChange = async (date: dayjs.Dayjs | null) => {
@@ -151,6 +191,12 @@ const Expense: React.FC = () => {
     
     const startDate = setPeriodStartDate(date);
     editForm.setFieldsValue({ date: startDate });
+    
+    // 在日期变化时检查是否存在记录
+    const hasExisting = await checkExistingRecord(selectedRecord.id, selectedRecord.plan_id, startDate);
+    if (hasExisting) {
+      message.error('该周期已存在记录');
+    }
   };
 
   const handleFormValuesChange = (changedValues: any, allValues: any) => {
@@ -385,6 +431,7 @@ const Expense: React.FC = () => {
             onOk={handleEditSubmit}
             onCancel={() => setIsEditModalVisible(false)}
             width={600}
+            okButtonProps={{ disabled: !!existingRecord }}
           >
             <Form
               form={editForm}
@@ -395,6 +442,11 @@ const Expense: React.FC = () => {
                 name="date"
                 label="时间"
                 rules={[{ required: true, message: '请选择时间' }]}
+                extra={existingRecord && (
+                  <span style={{ color: 'red' }}>
+                    该周期已存在记录，创建日期为 {dayjs(existingRecord.date).format('YYYY-MM-DD')}
+                  </span>
+                )}
               >
                 <DatePicker
                   picker={selectedRecord ? plans.find(p => p.id === selectedRecord.plan_id)?.period.toLowerCase() as any : undefined}
@@ -407,49 +459,49 @@ const Expense: React.FC = () => {
                 label="预算额度"
                 rules={[{ required: true, message: '请输入预算额度' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="actual_amount"
                 label="实际开销"
                 rules={[{ required: true, message: '请输入实际开销' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="balance"
                 label="结余"
                 rules={[{ required: true, message: '请输入结余' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="opening_cumulative_balance"
                 label="期初累计结余"
                 rules={[{ required: true, message: '请输入期初累计结余' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="closing_cumulative_balance"
                 label="期末累计结余"
                 rules={[{ required: true, message: '请输入期末累计结余' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="opening_cumulative_expense"
                 label="期初累计开支"
                 rules={[{ required: true, message: '请输入期初累计开支' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
               <Form.Item
                 name="closing_cumulative_expense"
                 label="期末累计开支"
                 rules={[{ required: true, message: '请输入期末累计开支' }]}
               >
-                <Input type="number" />
+                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
             </Form>
           </Modal>
