@@ -31,6 +31,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
   const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
+  const [isFormDisabled, setIsFormDisabled] = useState(false);
 
   useEffect(() => {
     fetchPlans();
@@ -142,6 +143,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         }
       });
       setExistingRecord(existing || null);
+      setIsFormDisabled(!!existing);
 
       // 查找最近周期的记录
       const sortedRecords = records.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
@@ -219,6 +221,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       closing_cumulative_expense: 0,
     });
     setIsCreateModalVisible(true);
+    setIsFormDisabled(false);
   };
 
   // 添加 useEffect 来监听弹窗状态
@@ -396,49 +399,49 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             label="预算额度"
             rules={[{ required: true, message: '请输入预算额度' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="actual_amount"
             label="实际开销"
             rules={[{ required: true, message: '请输入实际开销' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="balance"
             label="结余"
             rules={[{ required: true, message: '请输入结余' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="opening_cumulative_balance"
             label="期初累计结余"
             rules={[{ required: true, message: '请输入期初累计结余' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="closing_cumulative_balance"
             label="期末累计结余"
             rules={[{ required: true, message: '请输入期末累计结余' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="opening_cumulative_expense"
             label="期初累计开支"
             rules={[{ required: true, message: '请输入期初累计开支' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
           <Form.Item
             name="closing_cumulative_expense"
             label="期末累计开支"
             rules={[{ required: true, message: '请输入期末累计开支' }]}
           >
-            <Input type="number" />
+            <Input type="number" disabled={isFormDisabled} />
           </Form.Item>
         </Form>
       </Modal>
