@@ -29,14 +29,22 @@ export interface ExpenseRecord {
 class FinanceAPI {
   async getExpensePlans(): Promise<ExpensePlan[]> {
     if (USE_IPC) {
-      return window.electronAPI.getExpensePlans();
+      const plans = await window.electronAPI.getExpensePlans();
+      return plans.map(plan => ({
+        ...plan,
+        period: plan.period as PeriodType
+      }));
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
   async createExpensePlan(name: string, amount: number, period: PeriodType): Promise<ExpensePlan> {
     if (USE_IPC) {
-      return window.electronAPI.createExpensePlan({ name, amount, period });
+      const plan = await window.electronAPI.createExpensePlan({ name, amount, period });
+      return {
+        ...plan,
+        period: plan.period as PeriodType
+      };
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
