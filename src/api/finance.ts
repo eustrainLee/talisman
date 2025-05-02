@@ -71,13 +71,13 @@ class FinanceAPI {
       return window.electronAPI.createExpenseRecord({
         plan_id: planId,
         date,
-        budget_amount: budgetAmount * 100,
-        actual_amount: actualAmount * 100,
-        balance: balance * 100,
-        opening_cumulative_balance: openingCumulativeBalance * 100,
-        closing_cumulative_balance: closingCumulativeBalance * 100,
-        opening_cumulative_expense: openingCumulativeExpense * 100,
-        closing_cumulative_expense: closingCumulativeExpense * 100,
+        budget_amount: budgetAmount,
+        actual_amount: actualAmount,
+        balance,
+        opening_cumulative_balance: openingCumulativeBalance,
+        closing_cumulative_balance: closingCumulativeBalance,
+        opening_cumulative_expense: openingCumulativeExpense,
+        closing_cumulative_expense: closingCumulativeExpense,
       });
     }
     throw new Error('非 Electron 环境不支持财务功能');

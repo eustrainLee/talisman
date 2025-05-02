@@ -112,14 +112,14 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const handleCreate = (plan: ExpensePlan) => {
     setSelectedPlan(plan);
     createForm.setFieldsValue({
-      budget_amount: plan.amount / 100,
+      date: dayjs(),
+      budget_amount: plan.amount / 100, // 转换为元
       actual_amount: 0,
-      balance: plan.amount / 100,
+      balance: plan.amount / 100, // 转换为元
       opening_cumulative_balance: 0,
-      closing_cumulative_balance: plan.amount / 100,
+      closing_cumulative_balance: plan.amount / 100, // 转换为元
       opening_cumulative_expense: 0,
       closing_cumulative_expense: 0,
-      date: dayjs(),
     });
     setIsCreateModalVisible(true);
   };
@@ -127,22 +127,66 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const handleCreateSubmit = async () => {
     try {
       const values = await createForm.validateFields();
+      if (!selectedPlan) return;
+
       await financeAPI.createExpenseRecord(
-        selectedPlan!.id,
+        selectedPlan.id,
         values.date.format('YYYY-MM-DD'),
-        values.budget_amount,
-        values.actual_amount,
-        values.balance,
-        values.opening_cumulative_balance,
-        values.closing_cumulative_balance,
-        values.opening_cumulative_expense,
-        values.closing_cumulative_expense
+        values.budget_amount * 100, // 转换为分
+        values.actual_amount * 100, // 转换为分
+        values.balance * 100, // 转换为分
+        values.opening_cumulative_balance * 100, // 转换为分
+        values.closing_cumulative_balance * 100, // 转换为分
+        values.opening_cumulative_expense * 100, // 转换为分
+        values.closing_cumulative_expense * 100, // 转换为分
       );
-      setIsCreateModalVisible(false);
       message.success('创建成功');
+      setIsCreateModalVisible(false);
       onRecordCreated?.();
     } catch (error) {
       message.error('创建失败');
+    }
+  };
+
+  const handleCreateFormValuesChange = (changedValues: any, allValues: any) => {
+    // 使用预算额度输入框的值（元）
+    const budgetAmount = Number(allValues.budget_amount || 0);
+    
+    if (budgetAmount > 0) {
+      if ('actual_amount' in changedValues) {
+        // 如果实际开销被修改，重新计算结余
+        const actualAmount = Number(changedValues.actual_amount);
+        const balance = budgetAmount - actualAmount;
+        createForm.setFieldsValue({ balance });
+        // 更新期末累计结余
+        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+        const closingCumulativeBalance = openingCumulativeBalance + balance;
+        createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+      } else if ('balance' in changedValues) {
+        // 如果结余被修改，重新计算实际开销
+        const balance = Number(changedValues.balance);
+        const actualAmount = budgetAmount - balance;
+        createForm.setFieldsValue({ actual_amount: actualAmount });
+        // 更新期末累计结余
+        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+        const closingCumulativeBalance = openingCumulativeBalance + balance;
+        createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+      }
+    }
+
+    // 计算累计值
+    if ('opening_cumulative_balance' in changedValues || 'balance' in changedValues) {
+      const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+      const balance = Number(allValues.balance || 0);
+      const closingCumulativeBalance = openingCumulativeBalance + balance;
+      createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+    }
+
+    if ('opening_cumulative_expense' in changedValues || 'actual_amount' in changedValues) {
+      const openingCumulativeExpense = Number(allValues.opening_cumulative_expense || 0);
+      const actualAmount = Number(allValues.actual_amount || 0);
+      const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
+      createForm.setFieldsValue({ closing_cumulative_expense: closingCumulativeExpense });
     }
   };
 
@@ -201,6 +245,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         <Form
           form={createForm}
           layout="vertical"
+          onValuesChange={handleCreateFormValuesChange}
         >
           <Form.Item
             name="date"

@@ -873,15 +873,16 @@ export function setupIpcHandlers() {
         WHERE id = ?
       `).run(
         data.date || record.date,
-        data.budget_amount ? data.budget_amount * 100 : record.budget_amount,
-        data.actual_amount ? data.actual_amount * 100 : record.actual_amount,
-        data.balance ? data.balance * 100 : record.balance,
-        data.opening_cumulative_balance ? data.opening_cumulative_balance * 100 : record.opening_cumulative_balance,
-        data.closing_cumulative_balance ? data.closing_cumulative_balance * 100 : record.closing_cumulative_balance,
-        data.opening_cumulative_expense ? data.opening_cumulative_expense * 100 : record.opening_cumulative_expense,
-        data.closing_cumulative_expense ? data.closing_cumulative_expense * 100 : record.closing_cumulative_expense,
+        data.budget_amount || record.budget_amount,
+        data.actual_amount || record.actual_amount,
+        data.balance || record.balance,
+        data.opening_cumulative_balance || record.opening_cumulative_balance,
+        data.closing_cumulative_balance || record.closing_cumulative_balance,
+        data.opening_cumulative_expense || record.opening_cumulative_expense,
+        data.closing_cumulative_expense || record.closing_cumulative_expense,
         recordId
       );
+      return true;
     } catch (error) {
       console.error('更新开支记录失败:', error);
       throw error;

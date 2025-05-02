@@ -107,17 +107,62 @@ const Expense: React.FC = () => {
 
   const handleEdit = (record: ExpenseRecord) => {
     setSelectedRecord(record);
+    const plan = plans.find(p => p.id === record.plan_id);
+    if (!plan) return;
+
     editForm.setFieldsValue({
       date: dayjs(record.date),
-      budget_amount: record.budget_amount / 100,
-      actual_amount: record.actual_amount / 100,
-      balance: record.balance / 100,
-      opening_cumulative_balance: record.opening_cumulative_balance / 100,
-      closing_cumulative_balance: record.closing_cumulative_balance / 100,
-      opening_cumulative_expense: record.opening_cumulative_expense / 100,
-      closing_cumulative_expense: record.closing_cumulative_expense / 100,
+      budget_amount: plan.amount / 100, // 转换为元
+      actual_amount: record.actual_amount / 100, // 转换为元
+      balance: record.balance / 100, // 转换为元
+      opening_cumulative_balance: record.opening_cumulative_balance / 100, // 转换为元
+      closing_cumulative_balance: record.closing_cumulative_balance / 100, // 转换为元
+      opening_cumulative_expense: record.opening_cumulative_expense / 100, // 转换为元
+      closing_cumulative_expense: record.closing_cumulative_expense / 100, // 转换为元
     });
     setIsEditModalVisible(true);
+  };
+
+  const handleFormValuesChange = (changedValues: any, allValues: any) => {
+    // 使用预算额度输入框的值（元）
+    const budgetAmount = Number(allValues.budget_amount || 0);
+    
+    if (budgetAmount > 0) {
+      if ('actual_amount' in changedValues) {
+        // 如果实际开销被修改，重新计算结余
+        const actualAmount = Number(changedValues.actual_amount);
+        const balance = budgetAmount - actualAmount;
+        editForm.setFieldsValue({ balance });
+        // 更新期末累计结余
+        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+        const closingCumulativeBalance = openingCumulativeBalance + balance;
+        editForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+      } else if ('balance' in changedValues) {
+        // 如果结余被修改，重新计算实际开销
+        const balance = Number(changedValues.balance);
+        const actualAmount = budgetAmount - balance;
+        editForm.setFieldsValue({ actual_amount: actualAmount });
+        // 更新期末累计结余
+        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+        const closingCumulativeBalance = openingCumulativeBalance + balance;
+        editForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+      }
+    }
+
+    // 计算累计值
+    if ('opening_cumulative_balance' in changedValues || 'balance' in changedValues) {
+      const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
+      const balance = Number(allValues.balance || 0);
+      const closingCumulativeBalance = openingCumulativeBalance + balance;
+      editForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
+    }
+
+    if ('opening_cumulative_expense' in changedValues || 'actual_amount' in changedValues) {
+      const openingCumulativeExpense = Number(allValues.opening_cumulative_expense || 0);
+      const actualAmount = Number(allValues.actual_amount || 0);
+      const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
+      editForm.setFieldsValue({ closing_cumulative_expense: closingCumulativeExpense });
+    }
   };
 
   const handleDelete = (record: ExpenseRecord) => {
@@ -143,16 +188,19 @@ const Expense: React.FC = () => {
     try {
       const values = await editForm.validateFields();
       if (selectedRecord) {
+        const plan = plans.find(p => p.id === selectedRecord.plan_id);
+        if (!plan) return;
+
         await financeAPI.updateExpenseRecord(selectedRecord.id, {
           ...values,
           date: values.date.format('YYYY-MM-DD'),
-          budget_amount: values.budget_amount,
-          actual_amount: values.actual_amount,
-          balance: values.balance,
-          opening_cumulative_balance: values.opening_cumulative_balance,
-          closing_cumulative_balance: values.closing_cumulative_balance,
-          opening_cumulative_expense: values.opening_cumulative_expense,
-          closing_cumulative_expense: values.closing_cumulative_expense,
+          budget_amount: values.budget_amount * 100, // 转换为分
+          actual_amount: values.actual_amount * 100, // 转换为分
+          balance: values.balance * 100, // 转换为分
+          opening_cumulative_balance: values.opening_cumulative_balance * 100, // 转换为分
+          closing_cumulative_balance: values.closing_cumulative_balance * 100, // 转换为分
+          opening_cumulative_expense: values.opening_cumulative_expense * 100, // 转换为分
+          closing_cumulative_expense: values.closing_cumulative_expense * 100, // 转换为分
         });
         message.success('更新成功');
         setIsEditModalVisible(false);
@@ -295,6 +343,7 @@ const Expense: React.FC = () => {
             <Form
               form={editForm}
               layout="vertical"
+              onValuesChange={handleFormValuesChange}
             >
               <Form.Item
                 name="date"
