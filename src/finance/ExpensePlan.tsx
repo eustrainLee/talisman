@@ -4,9 +4,11 @@ import type { ColumnsType } from 'antd/es/table';
 import { financeAPI, ExpensePlan, ExpenseRecord } from '../api/finance';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
+import quarterOfYear from 'dayjs/plugin/quarterOfYear';
 
-// 添加周数插件
+// 添加周数和季度插件
 dayjs.extend(weekOfYear);
+dayjs.extend(quarterOfYear);
 
 const { Option } = Select;
 
@@ -155,9 +157,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       case 'MONTH':
         return date.startOf('month');
       case 'QUARTER':
-        // 手动计算季度的开始日期
-        const quarter = Math.floor(date.month() / 3);
-        return date.month(quarter * 3).startOf('month');
+        return date.startOf('quarter');
       case 'YEAR':
         return date.startOf('year');
       default:
