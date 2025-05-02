@@ -107,6 +107,7 @@ interface IElectronAPI {
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
   }) => Promise<ExpenseRecord>;
+  invoke: (channel: string, ...args: any[]) => Promise<void>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -150,6 +151,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
   }) => ipcRenderer.invoke('finance:create-expense-record', record),
+  invoke: (channel: string, ...args: any[]) => {
+    return ipcRenderer.invoke(channel, ...args);
+  },
 })
 
 // 声明全局类型

@@ -47,6 +47,21 @@ interface UserSettings {
   lastFilePath?: string;
 }
 
+interface ExpenseRecord {
+  id: number;
+  plan_id: number;
+  date: string;
+  budget_amount: number;
+  actual_amount: number;
+  balance: number;
+  opening_cumulative_balance: number;
+  closing_cumulative_balance: number;
+  opening_cumulative_expense: number;
+  closing_cumulative_expense: number;
+  created_at: string;
+  updated_at: string;
+}
+
 const getConfigDir = () => {
     const userDataPath = app.getPath('userData');
     return path.join(userDataPath, 'config');
@@ -831,6 +846,63 @@ export function setupIpcHandlers() {
       return stmt.all(planId);
     } catch (error) {
       log.error('获取开支记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 更新开支记录
+  ipcMain.handle('finance:update-expense-record', async (_, recordId: number, data: Partial<ExpenseRecord>) => {
+    try {
+      const db = getDatabase();
+      const record = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(recordId) as ExpenseRecord;
+      if (!record) {
+        throw new Error('记录不存在');
+      }
+
+      // 更新记录
+      db.prepare(`
+        UPDATE expense_records 
+        SET date = ?, 
+            budget_amount = ?, 
+            actual_amount = ?, 
+            balance = ?,
+            opening_cumulative_balance = ?,
+            closing_cumulative_balance = ?,
+            opening_cumulative_expense = ?,
+            closing_cumulative_expense = ?
+        WHERE id = ?
+      `).run(
+        data.date || record.date,
+        data.budget_amount ? data.budget_amount * 100 : record.budget_amount,
+        data.actual_amount ? data.actual_amount * 100 : record.actual_amount,
+        data.balance ? data.balance * 100 : record.balance,
+        data.opening_cumulative_balance ? data.opening_cumulative_balance * 100 : record.opening_cumulative_balance,
+        data.closing_cumulative_balance ? data.closing_cumulative_balance * 100 : record.closing_cumulative_balance,
+        data.opening_cumulative_expense ? data.opening_cumulative_expense * 100 : record.opening_cumulative_expense,
+        data.closing_cumulative_expense ? data.closing_cumulative_expense * 100 : record.closing_cumulative_expense,
+        recordId
+      );
+    } catch (error) {
+      console.error('更新开支记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 删除开支记录
+  ipcMain.handle('finance:delete-expense-record', async (_, recordId: number) => {
+    try {
+      const db = getDatabase();
+      const stmt = db.prepare('DELETE FROM expense_records WHERE id = ?');
+      const result = stmt.run(recordId);
+      
+      if (result.changes === 0) {
+        log.error('删除开支记录失败: 记录不存在', { recordId });
+        throw new Error('记录不存在');
+      }
+      
+      log.info('删除开支记录成功', { recordId });
+    } catch (error) {
+      log.error('删除开支记录失败:', error);
       throw error;
     }
   });

@@ -43,7 +43,8 @@ class FinanceAPI {
 
   async deleteExpensePlan(id: number): Promise<void> {
     if (USE_IPC) {
-      return window.electronAPI.deleteExpensePlan(id);
+      await window.electronAPI.deleteExpensePlan(id);
+      return;
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
@@ -78,6 +79,22 @@ class FinanceAPI {
         opening_cumulative_expense: openingCumulativeExpense * 100,
         closing_cumulative_expense: closingCumulativeExpense * 100,
       });
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async updateExpenseRecord(recordId: number, data: Partial<ExpenseRecord>): Promise<void> {
+    if (USE_IPC) {
+      await window.electronAPI.invoke('finance:update-expense-record', recordId, data);
+      return;
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async deleteExpenseRecord(recordId: number): Promise<void> {
+    if (USE_IPC) {
+      await window.electronAPI.invoke('finance:delete-expense-record', recordId);
+      return;
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }

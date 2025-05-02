@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Card, Tabs } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Input, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
@@ -21,6 +21,9 @@ const Expense: React.FC = () => {
   const [plans, setPlans] = useState<ExpensePlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<ExpenseRecord | null>(null);
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchPlans();
@@ -90,6 +93,64 @@ const Expense: React.FC = () => {
     }
   };
 
+  const handleEdit = (record: ExpenseRecord) => {
+    setSelectedRecord(record);
+    editForm.setFieldsValue({
+      date: dayjs(record.date),
+      budget_amount: record.budget_amount / 100,
+      actual_amount: record.actual_amount / 100,
+      balance: record.balance / 100,
+      opening_cumulative_balance: record.opening_cumulative_balance / 100,
+      closing_cumulative_balance: record.closing_cumulative_balance / 100,
+      opening_cumulative_expense: record.opening_cumulative_expense / 100,
+      closing_cumulative_expense: record.closing_cumulative_expense / 100,
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleDelete = (record: ExpenseRecord) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这条开支记录吗？',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await financeAPI.deleteExpenseRecord(record.id);
+          message.success('删除成功');
+          fetchRecords();
+        } catch (error) {
+          console.error('删除失败:', error);
+          message.error(error instanceof Error ? error.message : '删除失败');
+        }
+      },
+    });
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      if (selectedRecord) {
+        await financeAPI.updateExpenseRecord(selectedRecord.id, {
+          ...values,
+          date: values.date.format('YYYY-MM-DD'),
+          budget_amount: values.budget_amount,
+          actual_amount: values.actual_amount,
+          balance: values.balance,
+          opening_cumulative_balance: values.opening_cumulative_balance,
+          closing_cumulative_balance: values.closing_cumulative_balance,
+          opening_cumulative_expense: values.opening_cumulative_expense,
+          closing_cumulative_expense: values.closing_cumulative_expense,
+        });
+        message.success('更新成功');
+        setIsEditModalVisible(false);
+        fetchRecords();
+      }
+    } catch (error) {
+      message.error('更新失败');
+    }
+  };
+
   const columns: ColumnsType<ExpenseRecord> = [
     {
       title: '名称',
@@ -147,6 +208,20 @@ const Expense: React.FC = () => {
       key: 'closing_cumulative_expense',
       render: (value: number) => (value / 100).toFixed(2),
     },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) => (
+        <Space size="middle">
+          <Button type="link" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
+          <Button type="link" danger onClick={() => handleDelete(record)}>
+            删除
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -191,6 +266,79 @@ const Expense: React.FC = () => {
             pagination={false}
             rowKey="id"
           />
+
+          <Modal
+            title="编辑开支记录"
+            open={isEditModalVisible}
+            onOk={handleEditSubmit}
+            onCancel={() => setIsEditModalVisible(false)}
+            width={600}
+          >
+            <Form
+              form={editForm}
+              layout="vertical"
+            >
+              <Form.Item
+                name="date"
+                label="时间"
+                rules={[{ required: true, message: '请选择时间' }]}
+              >
+                <DatePicker
+                  picker={periodType.toLowerCase() as any}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+              <Form.Item
+                name="budget_amount"
+                label="预算额度"
+                rules={[{ required: true, message: '请输入预算额度' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="actual_amount"
+                label="实际开销"
+                rules={[{ required: true, message: '请输入实际开销' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="balance"
+                label="结余"
+                rules={[{ required: true, message: '请输入结余' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="opening_cumulative_balance"
+                label="期初累计结余"
+                rules={[{ required: true, message: '请输入期初累计结余' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="closing_cumulative_balance"
+                label="期末累计结余"
+                rules={[{ required: true, message: '请输入期末累计结余' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="opening_cumulative_expense"
+                label="期初累计开支"
+                rules={[{ required: true, message: '请输入期初累计开支' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+              <Form.Item
+                name="closing_cumulative_expense"
+                label="期末累计开支"
+                rules={[{ required: true, message: '请输入期末累计开支' }]}
+              >
+                <Input type="number" />
+              </Form.Item>
+            </Form>
+          </Modal>
         </Tabs.TabPane>
         <Tabs.TabPane tab="开支计划" key="2">
           <ExpensePlanComponent onRecordCreated={fetchRecords} />
