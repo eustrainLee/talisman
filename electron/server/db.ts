@@ -5,6 +5,13 @@ import log from 'electron-log'
 
 let db: Database.Database | null = null
 
+export function getDatabase(): Database.Database {
+  if (!db) {
+    throw new Error('Database not initialized');
+  }
+  return db;
+}
+
 export function initializeDatabase() {
   try {
     const userDataPath = app.getPath('userData')
@@ -116,6 +123,18 @@ export function initializeDatabase() {
         create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
         update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 更新时间
         PRIMARY KEY (name, period_type, period_start_date, period_end_date)
+      )
+    `)
+
+    // Create expense plans table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS expense_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        period TEXT NOT NULL CHECK (period IN ('WEEK', 'MONTH', 'QUARTER', 'YEAR')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
   

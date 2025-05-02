@@ -36,6 +36,16 @@ interface PullRequestConfig {
   targetBranch: string;
 }
 
+// 开支计划接口
+interface ExpensePlan {
+  id: number;
+  name: string;
+  amount: number;
+  period: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // 用户设置接口
 interface UserSettings {
   lastDocId?: string;
@@ -65,6 +75,10 @@ interface IElectronAPI {
   saveUserSettings: (settings: UserSettings) => Promise<boolean>;
   setWindowTitle: (title: string) => Promise<void>;
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
+  // 财务相关 API
+  getExpensePlans: () => Promise<ExpensePlan[]>;
+  createExpensePlan: (plan: { name: string; amount: number; period: string }) => Promise<ExpensePlan>;
+  deleteExpensePlan: (id: number) => Promise<void>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -91,7 +105,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setWindowTitle: (title: string) => ipcRenderer.invoke('window:set-title', title),
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
-  }
+  },
+  // 财务相关 API
+  getExpensePlans: () => ipcRenderer.invoke('finance:get-expense-plans'),
+  createExpensePlan: (plan: { name: string; amount: number; period: string }) => ipcRenderer.invoke('finance:create-expense-plan', plan),
+  deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id)
 })
 
 // 声明全局类型

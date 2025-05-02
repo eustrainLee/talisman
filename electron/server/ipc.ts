@@ -5,6 +5,7 @@ import * as path from 'path'
 import log from 'electron-log'
 import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as gitModule from './git'
+import { getDatabase } from './db'
 
 // 配置日志
 log.transports.file.level = 'debug';
@@ -730,6 +731,43 @@ export function setupIpcHandlers() {
     } catch (error) {
       log.error('设置窗口标题失败:', error);
       return false;
+    }
+  });
+
+  // 获取开支计划列表
+  ipcMain.handle('finance:get-expense-plans', async () => {
+    try {
+      const stmt = getDatabase().prepare('SELECT * FROM expense_plans ORDER BY created_at DESC');
+      return stmt.all();
+    } catch (error) {
+      log.error('获取开支计划失败:', error);
+      throw error;
+    }
+  });
+
+  // 创建开支计划
+  ipcMain.handle('finance:create-expense-plan', async (_event, plan: { name: string; amount: number; period: string }) => {
+    try {
+      const stmt = getDatabase().prepare(`
+        INSERT INTO expense_plans (name, amount, period)
+        VALUES (?, ?, ?)
+      `);
+      const result = stmt.run(plan.name, plan.amount, plan.period);
+      return { id: result.lastInsertRowid, ...plan };
+    } catch (error) {
+      log.error('创建开支计划失败:', error);
+      throw error;
+    }
+  });
+
+  // 删除开支计划
+  ipcMain.handle('finance:delete-expense-plan', async (_event, id: number) => {
+    try {
+      const stmt = getDatabase().prepare('DELETE FROM expense_plans WHERE id = ?');
+      stmt.run(id);
+    } catch (error) {
+      log.error('删除开支计划失败:', error);
+      throw error;
     }
   });
 } 

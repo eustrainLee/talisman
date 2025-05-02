@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Table, Select, DatePicker, Card } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import ExpensePlan from './ExpensePlan';
 
 const { Option } = Select;
 
@@ -87,32 +88,38 @@ const Expense: React.FC = () => {
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <Select
-            value={periodType}
-            onChange={setPeriodType}
-            style={{ width: 120 }}
-          >
-            {periodTypes.map(type => (
-              <Option key={type.value} value={type.value}>{type.label}</Option>
-            ))}
-          </Select>
-          <DatePicker
-            value={selectedDate}
-            onChange={setSelectedDate}
-            picker={periodType.toLowerCase() as any}
-            style={{ width: 200 }}
-          />
-        </div>
-      </Card>
+      <Tabs defaultActiveKey="1">
+        <Tabs.TabPane tab="开支记录" key="1">
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <Select
+                value={periodType}
+                onChange={setPeriodType}
+                style={{ width: 120 }}
+              >
+                {periodTypes.map(type => (
+                  <Option key={type.value} value={type.value}>{type.label}</Option>
+                ))}
+              </Select>
+              <DatePicker
+                value={selectedDate}
+                onChange={setSelectedDate}
+                picker={periodType.toLowerCase() as any}
+                style={{ width: 200 }}
+              />
+            </div>
+          </Card>
 
-      <Table<ExpenseRecord>
-        columns={columns}
-        // 数据将从数据库获取
-        dataSource={[]}
-        pagination={false}
-      />
+          <Table<ExpenseRecord>
+            columns={columns}
+            dataSource={[]}
+            pagination={false}
+          />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="开支计划" key="2">
+          <ExpensePlan />
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };
