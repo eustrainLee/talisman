@@ -131,10 +131,14 @@ export function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS expense_plans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        period TEXT NOT NULL CHECK (period IN ('WEEK', 'MONTH', 'QUARTER', 'YEAR')),
+        amount INTEGER NOT NULL,  -- 总预算（分）
+        period TEXT NOT NULL,     -- 周期类型：WEEK/MONTH/QUARTER/YEAR
+        parent_id INTEGER,        -- 父计划ID
+        sub_period TEXT,          -- 子周期类型（如果是一级计划）
+        budget_allocation TEXT NOT NULL DEFAULT 'NONE',  -- 预算分配方式：NONE/AVERAGE
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES expense_plans (id)
       )
     `)
 
@@ -143,17 +147,21 @@ export function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS expense_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         plan_id INTEGER NOT NULL,
-        date TEXT NOT NULL,
-        budget_amount INTEGER NOT NULL,
-        actual_amount INTEGER NOT NULL,
-        balance INTEGER NOT NULL,
-        opening_cumulative_balance INTEGER NOT NULL,
-        closing_cumulative_balance INTEGER NOT NULL,
-        opening_cumulative_expense INTEGER NOT NULL,
-        closing_cumulative_expense INTEGER NOT NULL,
+        parent_record_id INTEGER,  -- 父记录ID
+        date TEXT NOT NULL,        -- 记录日期
+        budget_amount INTEGER NOT NULL,  -- 预算额度（分）
+        actual_amount INTEGER NOT NULL,  -- 实际支出（分）
+        balance INTEGER NOT NULL,        -- 结余（分）
+        opening_cumulative_balance INTEGER NOT NULL,  -- 期初累计结余（分）
+        closing_cumulative_balance INTEGER NOT NULL,  -- 期末累计结余（分）
+        opening_cumulative_expense INTEGER NOT NULL,  -- 期初累计支出（分）
+        closing_cumulative_expense INTEGER NOT NULL,  -- 期末累计支出（分）
+        is_sub_record BOOLEAN NOT NULL DEFAULT 0,     -- 是否是子记录
+        sub_period_index INTEGER,                     -- 子周期索引，从1开始递增，表示这是第几个子周期
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (plan_id) REFERENCES expense_plans (id) ON DELETE CASCADE
+        FOREIGN KEY (plan_id) REFERENCES expense_plans (id),
+        FOREIGN KEY (parent_record_id) REFERENCES expense_records (id)
       )
     `)
   
