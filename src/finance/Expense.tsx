@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Input, message } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Input, message, Switch } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
@@ -180,6 +180,8 @@ const Expense: React.FC = () => {
       closing_cumulative_balance: record.closing_cumulative_balance / 100,
       opening_cumulative_expense: record.opening_cumulative_expense / 100,
       closing_cumulative_expense: record.closing_cumulative_expense / 100,
+      is_sub_record: record.is_sub_record,
+      sub_period_index: record.sub_period_index || 0,
     });
     setIsEditModalVisible(true);
     setIsFormDisabled(false);
@@ -277,6 +279,8 @@ const Expense: React.FC = () => {
           closing_cumulative_balance: values.closing_cumulative_balance * 100, // 转换为分
           opening_cumulative_expense: values.opening_cumulative_expense * 100, // 转换为分
           closing_cumulative_expense: values.closing_cumulative_expense * 100, // 转换为分
+          is_sub_record: values.is_sub_record || false,
+          sub_period_index: values.sub_period_index || 0,
         });
         message.success('更新成功');
         setIsEditModalVisible(false);
@@ -362,6 +366,18 @@ const Expense: React.FC = () => {
       dataIndex: 'closing_cumulative_expense',
       key: 'closing_cumulative_expense',
       render: (value: number) => (value / 100).toFixed(2),
+    },
+    {
+      title: '子记录',
+      dataIndex: 'is_sub_record',
+      key: 'is_sub_record',
+      render: (value: boolean) => value ? '是' : '否',
+    },
+    {
+      title: '子周期索引',
+      dataIndex: 'sub_period_index',
+      key: 'sub_period_index',
+      render: (value: number) => value || '-',
     },
     {
       title: '操作',
@@ -500,6 +516,19 @@ const Expense: React.FC = () => {
                 name="closing_cumulative_expense"
                 label="期末累计开支"
                 rules={[{ required: true, message: '请输入期末累计开支' }]}
+              >
+                <Input type="number" disabled={isFormDisabled} />
+              </Form.Item>
+              <Form.Item
+                name="is_sub_record"
+                label="是否是子记录"
+                valuePropName="checked"
+              >
+                <Switch disabled={isFormDisabled} />
+              </Form.Item>
+              <Form.Item
+                name="sub_period_index"
+                label="子周期索引"
               >
                 <Input type="number" disabled={isFormDisabled} />
               </Form.Item>

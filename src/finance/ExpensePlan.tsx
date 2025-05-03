@@ -259,17 +259,19 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         return;
       }
 
-      await financeAPI.createExpenseRecord(
-        selectedPlan.id,
-        values.date.format('YYYY-MM-DD'),
-        values.budget_amount * 100,
-        values.actual_amount * 100,
-        values.balance * 100,
-        values.opening_cumulative_balance * 100,
-        values.closing_cumulative_balance * 100,
-        values.opening_cumulative_expense * 100,
-        values.closing_cumulative_expense * 100,
-      );
+      await financeAPI.createExpenseRecord({
+        plan_id: selectedPlan.id,
+        date: values.date.format('YYYY-MM-DD'),
+        budget_amount: values.budget_amount * 100,
+        actual_amount: values.actual_amount * 100,
+        balance: values.balance * 100,
+        opening_cumulative_balance: values.opening_cumulative_balance * 100,
+        closing_cumulative_balance: values.closing_cumulative_balance * 100,
+        opening_cumulative_expense: values.opening_cumulative_expense * 100,
+        closing_cumulative_expense: values.closing_cumulative_expense * 100,
+        is_sub_record: false,
+        sub_period_index: 0,
+      });
       message.success('创建成功');
       setIsCreateModalVisible(false);
       onRecordCreated?.();

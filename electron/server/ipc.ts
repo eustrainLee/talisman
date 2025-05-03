@@ -47,9 +47,22 @@ interface UserSettings {
   lastFilePath?: string;
 }
 
+interface ExpensePlan {
+  id: number;
+  name: string;
+  amount: number;
+  period: string;
+  parent_id?: number;
+  sub_period?: string;
+  budget_allocation: string;
+  created_at: string;
+  updated_at: string;
+}
+
 interface ExpenseRecord {
   id: number;
   plan_id: number;
+  parent_record_id?: number;
   date: string;
   budget_amount: number;
   actual_amount: number;
@@ -58,6 +71,8 @@ interface ExpenseRecord {
   closing_cumulative_balance: number;
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
+  is_sub_record: boolean;
+  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -752,7 +767,10 @@ export function setupIpcHandlers() {
   // 获取开支计划列表
   ipcMain.handle('finance:get-expense-plans', async () => {
     try {
-      const stmt = getDatabase().prepare('SELECT * FROM expense_plans ORDER BY created_at DESC');
+      const stmt = getDatabase().prepare(`
+        SELECT * FROM expense_plans 
+        ORDER BY parent_id IS NULL DESC, created_at DESC
+      `);
       return stmt.all();
     } catch (error) {
       log.error('获取开支计划失败:', error);
@@ -761,13 +779,28 @@ export function setupIpcHandlers() {
   });
 
   // 创建开支计划
-  ipcMain.handle('finance:create-expense-plan', async (_event, plan: { name: string; amount: number; period: string }) => {
+  ipcMain.handle('finance:create-expense-plan', async (_event, plan: { 
+    name: string; 
+    amount: number; 
+    period: string;
+    parent_id?: number;
+    sub_period?: string;
+    budget_allocation?: string;
+  }) => {
     try {
       const stmt = getDatabase().prepare(`
-        INSERT INTO expense_plans (name, amount, period)
-        VALUES (?, ?, ?)
+        INSERT INTO expense_plans (
+          name, amount, period, parent_id, sub_period, budget_allocation
+        ) VALUES (?, ?, ?, ?, ?, ?)
       `);
-      const result = stmt.run(plan.name, plan.amount, plan.period);
+      const result = stmt.run(
+        plan.name,
+        plan.amount,
+        plan.period,
+        plan.parent_id || null,
+        plan.sub_period || null,
+        plan.budget_allocation || 'NONE'
+      );
       return { id: result.lastInsertRowid, ...plan };
     } catch (error) {
       log.error('创建开支计划失败:', error);
@@ -775,13 +808,85 @@ export function setupIpcHandlers() {
     }
   });
 
+  // 更新开支计划
+  ipcMain.handle('finance:update-expense-plan', async (_event, id: number, data: Partial<ExpensePlan>) => {
+    try {
+      const db = getDatabase();
+      const plan = db.prepare('SELECT * FROM expense_plans WHERE id = ?').get(id) as ExpensePlan | undefined;
+      if (!plan) {
+        throw new Error('计划不存在');
+      }
+
+      // 检查是否可以修改子周期类型
+      if (data.sub_period && plan.sub_period !== data.sub_period) {
+        const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
+        if (hasSubPlans.count > 0) {
+          throw new Error('已存在子计划，不能修改子周期类型');
+        }
+      }
+
+      // 更新计划
+      db.prepare(`
+        UPDATE expense_plans 
+        SET name = ?, 
+            amount = ?, 
+            period = ?,
+            sub_period = ?,
+            budget_allocation = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        data.name || plan.name,
+        data.amount || plan.amount,
+        data.period || plan.period,
+        data.sub_period || plan.sub_period,
+        data.budget_allocation || plan.budget_allocation,
+        id
+      );
+      return true;
+    } catch (error) {
+      log.error('更新开支计划失败:', error);
+      throw error;
+    }
+  });
+
   // 删除开支计划
   ipcMain.handle('finance:delete-expense-plan', async (_event, id: number) => {
     try {
-      const stmt = getDatabase().prepare('DELETE FROM expense_plans WHERE id = ?');
+      const db = getDatabase();
+      
+      // 检查是否存在子计划
+      const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
+      if (hasSubPlans.count > 0) {
+        throw new Error('请先删除子计划');
+      }
+      
+      // 检查是否存在记录
+      const hasRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE plan_id = ?').get(id) as { count: number };
+      if (hasRecords.count > 0) {
+        throw new Error('请先删除相关记录');
+      }
+      
+      const stmt = db.prepare('DELETE FROM expense_plans WHERE id = ?');
       stmt.run(id);
+      return true;
     } catch (error) {
       log.error('删除开支计划失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取开支记录列表
+  ipcMain.handle('finance:get-expense-records', async (_event, planId: number) => {
+    try {
+      const stmt = getDatabase().prepare(`
+        SELECT * FROM expense_records 
+        WHERE plan_id = ? 
+        ORDER BY is_sub_record ASC, date DESC
+      `);
+      return stmt.all(planId);
+    } catch (error) {
+      log.error('获取开支记录失败:', error);
       throw error;
     }
   });
@@ -789,6 +894,7 @@ export function setupIpcHandlers() {
   // 创建开支记录
   ipcMain.handle('finance:create-expense-record', async (_event, record: {
     plan_id: number;
+    parent_record_id?: number;
     date: string;
     budget_amount: number;
     actual_amount: number;
@@ -797,11 +903,35 @@ export function setupIpcHandlers() {
     closing_cumulative_balance: number;
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
+    is_sub_record: boolean;
+    sub_period_index?: number;
   }) => {
     try {
-      const stmt = getDatabase().prepare(`
+      const db = getDatabase();
+      
+      // 如果是子记录，检查父记录是否存在
+      if (record.is_sub_record && record.parent_record_id) {
+        const parentRecord = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(record.parent_record_id) as ExpenseRecord | undefined;
+        if (!parentRecord) {
+          throw new Error('父记录不存在');
+        }
+      }
+      
+      // 如果是子记录，检查时间是否重叠
+      if (record.is_sub_record) {
+        const overlappingRecord = db.prepare(`
+          SELECT * FROM expense_records 
+          WHERE plan_id = ? AND is_sub_record = 1 AND date = ?
+        `).get(record.plan_id, record.date) as ExpenseRecord | undefined;
+        if (overlappingRecord) {
+          throw new Error('该时间已存在子记录');
+        }
+      }
+      
+      const stmt = db.prepare(`
         INSERT INTO expense_records (
           plan_id,
+          parent_record_id,
           date,
           budget_amount,
           actual_amount,
@@ -809,11 +939,14 @@ export function setupIpcHandlers() {
           opening_cumulative_balance,
           closing_cumulative_balance,
           opening_cumulative_expense,
-          closing_cumulative_expense
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          closing_cumulative_expense,
+          is_sub_record,
+          sub_period_index
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         record.plan_id,
+        record.parent_record_id || null,
         record.date,
         record.budget_amount,
         record.actual_amount,
@@ -821,8 +954,16 @@ export function setupIpcHandlers() {
         record.opening_cumulative_balance,
         record.closing_cumulative_balance,
         record.opening_cumulative_expense,
-        record.closing_cumulative_expense
+        record.closing_cumulative_expense,
+        record.is_sub_record ? 1 : 0,
+        record.sub_period_index || null
       );
+      
+      // 如果是子记录，更新父记录的汇总数据
+      if (record.is_sub_record && record.parent_record_id) {
+        updateParentRecordSummary(record.parent_record_id);
+      }
+      
       return {
         id: result.lastInsertRowid,
         ...record,
@@ -835,28 +976,24 @@ export function setupIpcHandlers() {
     }
   });
 
-  // 获取开支记录列表
-  ipcMain.handle('finance:get-expense-records', async (_event, planId: number) => {
-    try {
-      const stmt = getDatabase().prepare(`
-        SELECT * FROM expense_records 
-        WHERE plan_id = ? 
-        ORDER BY date DESC
-      `);
-      return stmt.all(planId);
-    } catch (error) {
-      log.error('获取开支记录失败:', error);
-      throw error;
-    }
-  });
-
   // 更新开支记录
-  ipcMain.handle('finance:update-expense-record', async (_, recordId: number, data: Partial<ExpenseRecord>) => {
+  ipcMain.handle('finance:update-expense-record', async (_event, recordId: number, data: Partial<ExpenseRecord>) => {
     try {
       const db = getDatabase();
-      const record = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(recordId) as ExpenseRecord;
+      const record = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(recordId) as ExpenseRecord | undefined;
       if (!record) {
         throw new Error('记录不存在');
+      }
+
+      // 如果是子记录，检查时间是否重叠
+      if (record.is_sub_record && data.date && data.date !== record.date) {
+        const overlappingRecord = db.prepare(`
+          SELECT * FROM expense_records 
+          WHERE plan_id = ? AND is_sub_record = 1 AND date = ? AND id != ?
+        `).get(record.plan_id, data.date, recordId) as ExpenseRecord | undefined;
+        if (overlappingRecord) {
+          throw new Error('该时间已存在子记录');
+        }
       }
 
       // 更新记录
@@ -869,7 +1006,8 @@ export function setupIpcHandlers() {
             opening_cumulative_balance = ?,
             closing_cumulative_balance = ?,
             opening_cumulative_expense = ?,
-            closing_cumulative_expense = ?
+            closing_cumulative_expense = ?,
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
         data.date || record.date,
@@ -882,29 +1020,72 @@ export function setupIpcHandlers() {
         data.closing_cumulative_expense || record.closing_cumulative_expense,
         recordId
       );
+
+      // 如果是子记录，更新父记录的汇总数据
+      if (record.is_sub_record && record.parent_record_id) {
+        updateParentRecordSummary(record.parent_record_id);
+      }
+
       return true;
     } catch (error) {
-      console.error('更新开支记录失败:', error);
+      log.error('更新开支记录失败:', error);
       throw error;
     }
   });
 
   // 删除开支记录
-  ipcMain.handle('finance:delete-expense-record', async (_, recordId: number) => {
+  ipcMain.handle('finance:delete-expense-record', async (_event, recordId: number) => {
     try {
       const db = getDatabase();
+      
+      // 检查是否是父记录
+      const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE parent_record_id = ?').get(recordId) as { count: number };
+      if (hasSubRecords.count > 0) {
+        throw new Error('请先删除子记录');
+      }
+      
       const stmt = db.prepare('DELETE FROM expense_records WHERE id = ?');
-      const result = stmt.run(recordId);
+      const result = stmt.run(recordId) as { changes: number };
       
       if (result.changes === 0) {
-        log.error('删除开支记录失败: 记录不存在', { recordId });
         throw new Error('记录不存在');
       }
       
-      log.info('删除开支记录成功', { recordId });
+      return true;
     } catch (error) {
       log.error('删除开支记录失败:', error);
       throw error;
     }
   });
+
+  // 更新父记录汇总数据
+  function updateParentRecordSummary(parentRecordId: number) {
+    const db = getDatabase();
+    const subRecords = db.prepare(`
+      SELECT * FROM expense_records 
+      WHERE parent_record_id = ? 
+      ORDER BY date ASC
+    `).all(parentRecordId) as ExpenseRecord[];
+    
+    if (subRecords.length > 0) {
+      const firstRecord = subRecords[0];
+      const lastRecord = subRecords[subRecords.length - 1];
+      
+      db.prepare(`
+        UPDATE expense_records 
+        SET opening_cumulative_balance = ?,
+            closing_cumulative_balance = ?,
+            opening_cumulative_expense = ?,
+            closing_cumulative_expense = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        firstRecord.opening_cumulative_balance,
+        lastRecord.closing_cumulative_balance,
+        firstRecord.opening_cumulative_expense,
+        lastRecord.closing_cumulative_expense,
+        parentRecordId
+      );
+    }
+  }
 } 

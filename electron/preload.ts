@@ -50,6 +50,7 @@ interface ExpensePlan {
 interface ExpenseRecord {
   id: number;
   plan_id: number;
+  parent_record_id?: number;
   date: string;
   budget_amount: number;
   actual_amount: number;
@@ -58,6 +59,8 @@ interface ExpenseRecord {
   closing_cumulative_balance: number;
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
+  is_sub_record: boolean;
+  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +97,7 @@ interface IElectronAPI {
   // 财务相关 API
   getExpensePlans: () => Promise<ExpensePlan[]>;
   createExpensePlan: (plan: { name: string; amount: number; period: string }) => Promise<ExpensePlan>;
+  updateExpensePlan: (id: number, plan: { name?: string; amount?: number; period?: string }) => Promise<ExpensePlan>;
   deleteExpensePlan: (id: number) => Promise<void>;
   getExpenseRecords: (planId: number) => Promise<ExpenseRecord[]>;
   createExpenseRecord: (record: {
@@ -106,7 +110,24 @@ interface IElectronAPI {
     closing_cumulative_balance: number;
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
+    parent_record_id?: number;
+    is_sub_record?: boolean;
+    sub_period_index?: number;
   }) => Promise<ExpenseRecord>;
+  updateExpenseRecord: (id: number, record: {
+    date?: string;
+    budget_amount?: number;
+    actual_amount?: number;
+    balance?: number;
+    opening_cumulative_balance?: number;
+    closing_cumulative_balance?: number;
+    opening_cumulative_expense?: number;
+    closing_cumulative_expense?: number;
+    parent_record_id?: number;
+    is_sub_record?: boolean;
+    sub_period_index?: number;
+  }) => Promise<void>;
+  deleteExpenseRecord: (id: number) => Promise<void>;
   invoke: (channel: string, ...args: any[]) => Promise<void>;
 }
 
@@ -138,6 +159,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 财务相关 API
   getExpensePlans: () => ipcRenderer.invoke('finance:get-expense-plans'),
   createExpensePlan: (plan: { name: string; amount: number; period: string }) => ipcRenderer.invoke('finance:create-expense-plan', plan),
+  updateExpensePlan: (id: number, plan: { name?: string; amount?: number; period?: string }) => ipcRenderer.invoke('finance:update-expense-plan', id, plan),
   deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id),
   getExpenseRecords: (planId: number) => ipcRenderer.invoke('finance:get-expense-records', planId),
   createExpenseRecord: (record: {
@@ -150,7 +172,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closing_cumulative_balance: number;
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
+    parent_record_id?: number;
+    is_sub_record?: boolean;
+    sub_period_index?: number;
   }) => ipcRenderer.invoke('finance:create-expense-record', record),
+  updateExpenseRecord: (id: number, record: {
+    date?: string;
+    budget_amount?: number;
+    actual_amount?: number;
+    balance?: number;
+    opening_cumulative_balance?: number;
+    closing_cumulative_balance?: number;
+    opening_cumulative_expense?: number;
+    closing_cumulative_expense?: number;
+    parent_record_id?: number;
+    is_sub_record?: boolean;
+    sub_period_index?: number;
+  }) => ipcRenderer.invoke('finance:update-expense-record', id, record),
+  deleteExpenseRecord: (id: number) => ipcRenderer.invoke('finance:delete-expense-record', id),
   invoke: (channel: string, ...args: any[]) => {
     return ipcRenderer.invoke(channel, ...args);
   },

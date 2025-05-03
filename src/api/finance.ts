@@ -6,7 +6,7 @@ export interface ExpensePlan {
   id: number;
   name: string;
   amount: number;
-  period: PeriodType;
+  period: string;
   created_at: string;
   updated_at: string;
 }
@@ -14,6 +14,7 @@ export interface ExpensePlan {
 export interface ExpenseRecord {
   id: number;
   plan_id: number;
+  parent_record_id?: number;
   date: string;
   budget_amount: number;
   actual_amount: number;
@@ -22,6 +23,8 @@ export interface ExpenseRecord {
   closing_cumulative_balance: number;
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
+  is_sub_record: boolean;
+  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -29,22 +32,21 @@ export interface ExpenseRecord {
 class FinanceAPI {
   async getExpensePlans(): Promise<ExpensePlan[]> {
     if (USE_IPC) {
-      const plans = await window.electronAPI.getExpensePlans();
-      return plans.map(plan => ({
-        ...plan,
-        period: plan.period as PeriodType
-      }));
+      return window.electronAPI.getExpensePlans();
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
   async createExpensePlan(name: string, amount: number, period: PeriodType): Promise<ExpensePlan> {
     if (USE_IPC) {
-      const plan = await window.electronAPI.createExpensePlan({ name, amount, period });
-      return {
-        ...plan,
-        period: plan.period as PeriodType
-      };
+      return window.electronAPI.createExpensePlan({ name, amount, period });
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async updateExpensePlan(id: number, plan: { name?: string; amount?: number; period?: PeriodType }): Promise<ExpensePlan> {
+    if (USE_IPC) {
+      return window.electronAPI.updateExpensePlan(id, plan);
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
@@ -59,33 +61,22 @@ class FinanceAPI {
 
   async getExpenseRecords(planId: number): Promise<ExpenseRecord[]> {
     if (USE_IPC) {
-      return window.electronAPI.getExpenseRecords(planId);
+      const records = await window.electronAPI.getExpenseRecords(planId);
+      return records.map(record => ({
+        ...record,
+        is_sub_record: record.is_sub_record || false,
+        sub_period_index: record.sub_period_index || 0,
+      }));
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
-  async createExpenseRecord(
-    planId: number,
-    date: string,
-    budgetAmount: number,
-    actualAmount: number,
-    balance: number,
-    openingCumulativeBalance: number,
-    closingCumulativeBalance: number,
-    openingCumulativeExpense: number,
-    closingCumulativeExpense: number
-  ): Promise<ExpenseRecord> {
+  async createExpenseRecord(record: Omit<ExpenseRecord, 'id' | 'created_at' | 'updated_at'>): Promise<ExpenseRecord> {
     if (USE_IPC) {
       return window.electronAPI.createExpenseRecord({
-        plan_id: planId,
-        date,
-        budget_amount: budgetAmount,
-        actual_amount: actualAmount,
-        balance,
-        opening_cumulative_balance: openingCumulativeBalance,
-        closing_cumulative_balance: closingCumulativeBalance,
-        opening_cumulative_expense: openingCumulativeExpense,
-        closing_cumulative_expense: closingCumulativeExpense,
+        ...record,
+        is_sub_record: record.is_sub_record || false,
+        sub_period_index: record.sub_period_index || 0,
       });
     }
     throw new Error('非 Electron 环境不支持财务功能');
@@ -93,7 +84,11 @@ class FinanceAPI {
 
   async updateExpenseRecord(recordId: number, data: Partial<ExpenseRecord>): Promise<void> {
     if (USE_IPC) {
-      await window.electronAPI.invoke('finance:update-expense-record', recordId, data);
+      await window.electronAPI.updateExpenseRecord(recordId, {
+        ...data,
+        is_sub_record: data.is_sub_record || false,
+        sub_period_index: data.sub_period_index || 0,
+      });
       return;
     }
     throw new Error('非 Electron 环境不支持财务功能');
@@ -101,7 +96,7 @@ class FinanceAPI {
 
   async deleteExpenseRecord(recordId: number): Promise<void> {
     if (USE_IPC) {
-      await window.electronAPI.invoke('finance:delete-expense-record', recordId);
+      await window.electronAPI.deleteExpenseRecord(recordId);
       return;
     }
     throw new Error('非 Electron 环境不支持财务功能');
