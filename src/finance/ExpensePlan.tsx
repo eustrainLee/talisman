@@ -41,6 +41,8 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
   const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
   const [isFormDisabled, setIsFormDisabled] = useState(false);
+  const [parentRecordError, setParentRecordError] = useState<string | null>(null);
+  const [subRecordError, setSubRecordError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPlans();
@@ -257,6 +259,87 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       const date = createForm.getFieldValue('date');
       if (date) {
         checkExistingRecord(selectedPlan.id, date);
+        
+        // 如果是子计划，检查父计划是否有对应时间段的记录
+        if (selectedPlan.parent_id) {
+          const parentPlan = plans.find(p => p.id === selectedPlan.parent_id);
+          if (!parentPlan) {
+            // 如果找不到父计划，尝试从API获取
+            financeAPI.getExpensePlans()
+              .then(allPlans => {
+                const parentPlanData = allPlans.find(p => p.id === selectedPlan.parent_id);
+                if (parentPlanData) {
+                  setParentRecordError(`找不到计划 <strong>${parentPlanData.name}</strong>`);
+                } else {
+                  setParentRecordError(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+                }
+              })
+              .catch(() => {
+                setParentRecordError(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+              });
+            return;
+          }
+
+          // 获取父计划的记录
+          financeAPI.getExpenseRecords(parentPlan.id).then(parentRecords => {
+            let parentRecord = null;
+
+            // 根据父计划的周期类型查找对应的父记录
+            switch (parentPlan.period) {
+              case 'YEAR':
+                parentRecord = parentRecords.find(r => dayjs(r.date).year() === dayjs(date).year());
+                break;
+              case 'QUARTER':
+                parentRecord = parentRecords.find(r => 
+                  dayjs(r.date).year() === dayjs(date).year() && 
+                  Math.floor(dayjs(r.date).month() / 3) === Math.floor(dayjs(date).month() / 3)
+                );
+                break;
+              case 'MONTH':
+                parentRecord = parentRecords.find(r => 
+                  dayjs(r.date).year() === dayjs(date).year() && 
+                  dayjs(r.date).month() === dayjs(date).month()
+                );
+                break;
+              case 'WEEK':
+                parentRecord = parentRecords.find(r => 
+                  dayjs(r.date).year() === dayjs(date).year() && 
+                  dayjs(r.date).week() === dayjs(date).week()
+                );
+                break;
+            }
+
+            if (!parentRecord) {
+              setParentRecordError(`计划 <strong>${parentPlan.name}</strong> 在该时间段没有记录，请先创建记录`);
+              return;
+            }
+
+            // 检查是否有时间冲突的子记录
+            financeAPI.getExpenseRecords(selectedPlan.id).then(subRecords => {
+              const hasOverlappingRecord = subRecords.some(r => r.date === dayjs(date).format('YYYY-MM-DD'));
+              if (hasOverlappingRecord) {
+                setSubRecordError('该时间已存在子记录');
+                return;
+              }
+
+              // 更新预算额度
+              let budgetAmount = selectedPlan.amount;
+              if (selectedPlan.budget_allocation === 'AVERAGE') {
+                const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
+                budgetAmount = parentRecord.budget_amount / subPeriodCount;
+              }
+
+              createForm.setFieldsValue({
+                budget_amount: budgetAmount / 100,
+                balance: (budgetAmount - (createForm.getFieldValue('actual_amount') || 0) * 100) / 100,
+              });
+
+              // 清除错误信息
+              setParentRecordError(null);
+              setSubRecordError(null);
+            });
+          });
+        }
       }
     }
   }, [isCreateModalVisible, selectedPlan]);
@@ -271,6 +354,85 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     const hasExisting = await checkExistingRecord(selectedPlan.id, startDate);
     if (hasExisting) {
       message.error('该周期已存在记录');
+      return;
+    }
+
+    // 如果是子计划，检查父计划是否有对应时间段的记录
+    if (selectedPlan.parent_id) {
+      const parentPlan = plans.find(p => p.id === selectedPlan.parent_id);
+      if (!parentPlan) {
+        // 如果找不到父计划，尝试从API获取
+        try {
+          const allPlans = await financeAPI.getExpensePlans();
+          const parentPlanData = allPlans.find(p => p.id === selectedPlan.parent_id);
+          if (parentPlanData) {
+            setParentRecordError(`找不到计划 <strong>${parentPlanData.name}</strong>`);
+          } else {
+            setParentRecordError(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+          }
+        } catch (error) {
+          setParentRecordError(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+        }
+        return;
+      }
+
+      // 获取父计划的记录
+      const parentRecords = await financeAPI.getExpenseRecords(parentPlan.id);
+      let parentRecord = null;
+
+      // 根据父计划的周期类型查找对应的父记录
+      switch (parentPlan.period) {
+        case 'YEAR':
+          parentRecord = parentRecords.find(r => dayjs(r.date).year() === startDate.year());
+          break;
+        case 'QUARTER':
+          parentRecord = parentRecords.find(r => 
+            dayjs(r.date).year() === startDate.year() && 
+            Math.floor(dayjs(r.date).month() / 3) === Math.floor(startDate.month() / 3)
+          );
+          break;
+        case 'MONTH':
+          parentRecord = parentRecords.find(r => 
+            dayjs(r.date).year() === startDate.year() && 
+            dayjs(r.date).month() === startDate.month()
+          );
+          break;
+        case 'WEEK':
+          parentRecord = parentRecords.find(r => 
+            dayjs(r.date).year() === startDate.year() && 
+            dayjs(r.date).week() === startDate.week()
+          );
+          break;
+      }
+
+      if (!parentRecord) {
+        setParentRecordError(`计划 <strong>${parentPlan.name}</strong> 在该时间段没有记录，请先创建记录`);
+        return;
+      }
+
+      // 检查是否有时间冲突的子记录
+      const subRecords = await financeAPI.getExpenseRecords(selectedPlan.id);
+      const hasOverlappingRecord = subRecords.some(r => r.date === startDate.format('YYYY-MM-DD'));
+      if (hasOverlappingRecord) {
+        setSubRecordError('该时间已存在子记录');
+        return;
+      }
+
+      // 更新预算额度
+      let budgetAmount = selectedPlan.amount;
+      if (selectedPlan.budget_allocation === 'AVERAGE') {
+        const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
+        budgetAmount = parentRecord.budget_amount / subPeriodCount;
+      }
+
+      createForm.setFieldsValue({
+        budget_amount: budgetAmount / 100,
+        balance: (budgetAmount - (createForm.getFieldValue('actual_amount') || 0) * 100) / 100,
+      });
+
+      // 清除错误信息
+      setParentRecordError(null);
+      setSubRecordError(null);
     }
   };
 
@@ -286,19 +448,105 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         return;
       }
 
-      await financeAPI.createExpenseRecord({
-        plan_id: selectedPlan.id,
-        date: values.date.format('YYYY-MM-DD'),
-        budget_amount: values.budget_amount * 100,
-        actual_amount: values.actual_amount * 100,
-        balance: values.balance * 100,
-        opening_cumulative_balance: values.opening_cumulative_balance * 100,
-        closing_cumulative_balance: values.closing_cumulative_balance * 100,
-        opening_cumulative_expense: values.opening_cumulative_expense * 100,
-        closing_cumulative_expense: values.closing_cumulative_expense * 100,
-        is_sub_record: false,
-        sub_period_index: 0,
-      });
+      // 如果是子计划，需要检查父计划是否有对应时间段的记录
+      if (selectedPlan.parent_id) {
+        const parentPlan = plans.find(p => p.id === selectedPlan.parent_id);
+        if (!parentPlan) {
+          // 如果找不到父计划，尝试从API获取
+          try {
+            const allPlans = await financeAPI.getExpensePlans();
+            const parentPlanData = allPlans.find(p => p.id === selectedPlan.parent_id);
+            if (parentPlanData) {
+              message.error(`找不到计划 <strong>${parentPlanData.name}</strong>`);
+            } else {
+              message.error(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+            }
+          } catch (error) {
+            message.error(`找不到计划 <strong>${selectedPlan.parent_id}</strong>`);
+          }
+          return;
+        }
+
+        // 获取父计划的记录
+        const parentRecords = await financeAPI.getExpenseRecords(parentPlan.id);
+        const recordDate = dayjs(values.date);
+        let parentRecord = null;
+
+        // 根据父计划的周期类型查找对应的父记录
+        switch (parentPlan.period) {
+          case 'YEAR':
+            parentRecord = parentRecords.find(r => dayjs(r.date).year() === recordDate.year());
+            break;
+          case 'QUARTER':
+            parentRecord = parentRecords.find(r => 
+              dayjs(r.date).year() === recordDate.year() && 
+              Math.floor(dayjs(r.date).month() / 3) === Math.floor(recordDate.month() / 3)
+            );
+            break;
+          case 'MONTH':
+            parentRecord = parentRecords.find(r => 
+              dayjs(r.date).year() === recordDate.year() && 
+              dayjs(r.date).month() === recordDate.month()
+            );
+            break;
+          case 'WEEK':
+            parentRecord = parentRecords.find(r => 
+              dayjs(r.date).year() === recordDate.year() && 
+              dayjs(r.date).week() === recordDate.week()
+            );
+            break;
+        }
+
+        if (!parentRecord) {
+          message.error(`计划 <strong>${parentPlan.name}</strong> 在该时间段没有记录，请先创建记录`);
+          return;
+        }
+
+        // 检查是否有时间冲突的子记录
+        const subRecords = await financeAPI.getExpenseRecords(selectedPlan.id);
+        const hasOverlappingRecord = subRecords.some(r => r.date === values.date.format('YYYY-MM-DD'));
+        if (hasOverlappingRecord) {
+          message.error('该时间已存在子记录');
+          return;
+        }
+
+        // 计算预算额度
+        let budgetAmount = values.budget_amount;
+        if (selectedPlan.budget_allocation === 'AVERAGE') {
+          const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
+          budgetAmount = parentRecord.budget_amount / subPeriodCount;
+        }
+
+        await financeAPI.createExpenseRecord({
+          plan_id: selectedPlan.id,
+          date: values.date.format('YYYY-MM-DD'),
+          budget_amount: budgetAmount,
+          actual_amount: values.actual_amount * 100,
+          balance: (budgetAmount - values.actual_amount * 100),
+          opening_cumulative_balance: values.opening_cumulative_balance * 100,
+          closing_cumulative_balance: values.closing_cumulative_balance * 100,
+          opening_cumulative_expense: values.opening_cumulative_expense * 100,
+          closing_cumulative_expense: values.closing_cumulative_expense * 100,
+          is_sub_record: true,
+          parent_record_id: parentRecord.id,
+          sub_period_index: 0,
+        });
+      } else {
+        await financeAPI.createExpenseRecord({
+          plan_id: selectedPlan.id,
+          date: values.date.format('YYYY-MM-DD'),
+          budget_amount: values.budget_amount * 100,
+          actual_amount: values.actual_amount * 100,
+          balance: values.balance * 100,
+          opening_cumulative_balance: values.opening_cumulative_balance * 100,
+          closing_cumulative_balance: values.closing_cumulative_balance * 100,
+          opening_cumulative_expense: values.opening_cumulative_expense * 100,
+          closing_cumulative_expense: values.closing_cumulative_expense * 100,
+          is_sub_record: false,
+          sub_period_index: 0,
+        });
+      }
+
       message.success('创建成功');
       setIsCreateModalVisible(false);
       onRecordCreated?.();
@@ -369,15 +617,11 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const handleCreateSubPlanSubmit = async () => {
     try {
       const values = await createSubPlanForm.validateFields();
-      if (!selectedPlan) {
-        message.error('请先选择父计划');
-        return;
-      }
       await financeAPI.createExpensePlan({
         name: values.name,
         amount: values.amount * 100,
         period: values.period as PeriodType,
-        parent_id: selectedPlan.id,
+        parent_id: selectedPlan!.id,
         budget_allocation: values.budget_allocation as 'NONE' | 'AVERAGE',
       });
       message.success('创建成功');
@@ -541,11 +785,23 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             name="date"
             label="时间"
             rules={[{ required: true, message: '请选择时间' }]}
-            extra={existingRecord && (
-              <span style={{ color: 'red' }}>
-                该周期已存在记录
-              </span>
-            )}
+            extra={
+              <div>
+                {existingRecord && (
+                  <span style={{ color: 'red' }}>
+                    该周期已存在记录
+                  </span>
+                )}
+                {parentRecordError && (
+                  <span style={{ color: 'red' }} dangerouslySetInnerHTML={{ __html: parentRecordError }} />
+                )}
+                {subRecordError && (
+                  <span style={{ color: 'red' }}>
+                    {subRecordError}
+                  </span>
+                )}
+              </div>
+            }
           >
             <DatePicker
               picker={selectedPlan?.period.toLowerCase() as any}
