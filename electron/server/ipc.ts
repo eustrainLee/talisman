@@ -104,7 +104,7 @@ const getUserSettings = (): UserSettings => {
             return JSON.parse(settingsData);
         }
     } catch (error) {
-        log.error('读取用户设置失败:', error);
+        log.error('Failed to read user settings:', error);
     }
     
     // 默认返回空对象
@@ -126,7 +126,7 @@ const saveUserSettings = (settings: UserSettings): boolean => {
         fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
         return true;
     } catch (error) {
-        log.error('保存用户设置失败:', error);
+        log.error('Failed to save user settings:', error);
         return false;
     }
 };
@@ -735,7 +735,7 @@ export function setupIpcHandlers() {
     try {
       return getUserSettings();
     } catch (error) {
-      log.error('获取用户设置失败:', error);
+      log.error('Failed to get user settings:', error);
       return {};
     }
   });
@@ -745,7 +745,7 @@ export function setupIpcHandlers() {
     try {
       return saveUserSettings(settings);
     } catch (error) {
-      log.error('保存用户设置失败:', error);
+      log.error('Failed to save user settings:', error);
       return false;
     }
   });
@@ -759,7 +759,7 @@ export function setupIpcHandlers() {
       }
       return true;
     } catch (error) {
-      log.error('设置窗口标题失败:', error);
+      log.error('Failed to set window title:', error);
       return false;
     }
   });
@@ -773,7 +773,7 @@ export function setupIpcHandlers() {
       `);
       return stmt.all();
     } catch (error) {
-      log.error('获取开支计划失败:', error);
+      log.error('Failed to fetch expense plans:', error);
       throw error;
     }
   });
@@ -803,7 +803,7 @@ export function setupIpcHandlers() {
       );
       return { id: result.lastInsertRowid, ...plan };
     } catch (error) {
-      log.error('创建开支计划失败:', error);
+      log.error('Failed to create expense plan:', error);
       throw error;
     }
   });
@@ -817,7 +817,6 @@ export function setupIpcHandlers() {
         throw new Error('计划不存在');
       }
 
-      // 检查是否可以修改子周期类型
       if (data.sub_period && plan.sub_period !== data.sub_period) {
         const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
         if (hasSubPlans.count > 0) {
@@ -825,7 +824,6 @@ export function setupIpcHandlers() {
         }
       }
 
-      // 更新计划
       db.prepare(`
         UPDATE expense_plans 
         SET name = ?, 
@@ -845,7 +843,7 @@ export function setupIpcHandlers() {
       );
       return true;
     } catch (error) {
-      log.error('更新开支计划失败:', error);
+      log.error('Failed to update expense plan:', error);
       throw error;
     }
   });
@@ -855,13 +853,11 @@ export function setupIpcHandlers() {
     try {
       const db = getDatabase();
       
-      // 检查是否存在子计划
       const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
       if (hasSubPlans.count > 0) {
         throw new Error('请先删除子计划');
       }
       
-      // 检查是否存在记录
       const hasRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE plan_id = ?').get(id) as { count: number };
       if (hasRecords.count > 0) {
         throw new Error('请先删除相关记录');
@@ -871,7 +867,7 @@ export function setupIpcHandlers() {
       stmt.run(id);
       return true;
     } catch (error) {
-      log.error('删除开支计划失败:', error);
+      log.error('Failed to delete expense plan:', error);
       throw error;
     }
   });
@@ -886,7 +882,7 @@ export function setupIpcHandlers() {
       `);
       return stmt.all(planId);
     } catch (error) {
-      log.error('获取开支记录失败:', error);
+      log.error('Failed to fetch expense records:', error);
       throw error;
     }
   });
@@ -909,7 +905,6 @@ export function setupIpcHandlers() {
     try {
       const db = getDatabase();
       
-      // 如果是子记录，检查父记录是否存在
       if (record.is_sub_record && record.parent_record_id) {
         const parentRecord = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(record.parent_record_id) as ExpenseRecord | undefined;
         if (!parentRecord) {
@@ -917,7 +912,6 @@ export function setupIpcHandlers() {
         }
       }
       
-      // 如果是子记录，检查时间是否重叠
       if (record.is_sub_record) {
         const overlappingRecord = db.prepare(`
           SELECT * FROM expense_records 
@@ -959,7 +953,6 @@ export function setupIpcHandlers() {
         record.sub_period_index || null
       );
       
-      // 如果是子记录，更新父记录的汇总数据
       if (record.is_sub_record && record.parent_record_id) {
         updateParentRecordSummary(record.parent_record_id);
       }
@@ -971,7 +964,7 @@ export function setupIpcHandlers() {
         updated_at: new Date().toISOString()
       };
     } catch (error) {
-      log.error('创建开支记录失败:', error);
+      log.error('Failed to create expense record:', error);
       throw error;
     }
   });
@@ -985,7 +978,6 @@ export function setupIpcHandlers() {
         throw new Error('记录不存在');
       }
 
-      // 如果是子记录，检查时间是否重叠
       if (record.is_sub_record && data.date && data.date !== record.date) {
         const overlappingRecord = db.prepare(`
           SELECT * FROM expense_records 
@@ -996,7 +988,6 @@ export function setupIpcHandlers() {
         }
       }
 
-      // 更新记录
       db.prepare(`
         UPDATE expense_records 
         SET date = ?, 
@@ -1021,14 +1012,13 @@ export function setupIpcHandlers() {
         recordId
       );
 
-      // 如果是子记录，更新父记录的汇总数据
       if (record.is_sub_record && record.parent_record_id) {
         updateParentRecordSummary(record.parent_record_id);
       }
 
       return true;
     } catch (error) {
-      log.error('更新开支记录失败:', error);
+      log.error('Failed to update expense record:', error);
       throw error;
     }
   });
@@ -1038,7 +1028,6 @@ export function setupIpcHandlers() {
     try {
       const db = getDatabase();
       
-      // 检查是否是父记录
       const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE parent_record_id = ?').get(recordId) as { count: number };
       if (hasSubRecords.count > 0) {
         throw new Error('请先删除子记录');
@@ -1053,7 +1042,7 @@ export function setupIpcHandlers() {
       
       return true;
     } catch (error) {
-      log.error('删除开支记录失败:', error);
+      log.error('Failed to delete expense record:', error);
       throw error;
     }
   });

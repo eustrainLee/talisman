@@ -52,6 +52,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       const data = await financeAPI.getExpensePlans();
       setPlans(data);
     } catch (error) {
+      console.error('Failed to fetch expense plans:', error);
       message.error('获取开支计划失败');
     } finally {
       setLoading(false);
@@ -139,6 +140,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           message.success('删除成功');
           fetchPlans();
         } catch (error) {
+          console.error('Failed to delete expense plan:', error);
           message.error('删除失败');
         }
       }
@@ -210,7 +212,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
       return !!existing;
     } catch (error) {
-      console.error('检查记录失败:', error);
+      console.error('Failed to check existing record:', error);
       return false;
     }
   };
@@ -304,6 +306,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       setIsCreateModalVisible(false);
       onRecordCreated?.();
     } catch (error) {
+      console.error('Failed to create expense record:', error);
       message.error('创建失败');
     }
   };
@@ -370,12 +373,12 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     try {
       const values = await createSubPlanForm.validateFields();
       if (!selectedPlan) {
-        console.error('创建子计划失败：未选择父计划');
+        console.error('Failed to create sub-plan: No parent plan selected');
         message.error('创建失败：未选择父计划');
         return;
       }
 
-      console.log('创建子计划参数：', {
+      console.log('Creating sub-plan with parameters:', {
         name: values.name,
         amount: values.amount * 100,
         period: values.period,
@@ -385,7 +388,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
       await financeAPI.createExpensePlan({
         name: values.name,
-        amount: values.amount * 100, // 转换为分
+        amount: values.amount * 100,
         period: values.period,
         parent_id: selectedPlan.id,
         budget_allocation: values.budget_allocation || 'NONE',
@@ -394,9 +397,9 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       setIsCreateSubPlanModalVisible(false);
       fetchPlans();
     } catch (error: any) {
-      console.error('创建子计划失败：', error);
+      console.error('Failed to create sub-plan:', error);
       if (error.errorFields) {
-        console.error('表单验证错误：', error.errorFields);
+        console.error('Form validation errors:', error.errorFields);
         message.error('创建失败：请检查表单填写是否正确');
       } else {
         message.error('创建失败：' + (error instanceof Error ? error.message : '未知错误'));
@@ -460,7 +463,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       const values = await createPlanForm.validateFields();
       await financeAPI.createExpensePlan({
         name: values.name,
-        amount: values.amount * 100, // 转换为分
+        amount: values.amount * 100,
         period: values.period,
         sub_period: values.sub_period || null,
         budget_allocation: values.budget_allocation || 'NONE',
@@ -469,6 +472,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       setIsCreatePlanModalVisible(false);
       fetchPlans();
     } catch (error) {
+      console.error('Failed to create expense plan:', error);
       message.error('创建失败');
     }
   };
