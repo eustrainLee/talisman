@@ -3,7 +3,7 @@ import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Inpu
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
-import { financeAPI, ExpenseRecord, ExpensePlan } from '../api/finance';
+import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord } from '../api/finance';
 
 const { Option } = Select;
 
@@ -243,6 +243,94 @@ const Expense: React.FC = () => {
     }
   };
 
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      if (selectedRecord) {
+        const plan = plans.find(p => p.id === selectedRecord.plan_id);
+        if (!plan) return;
+
+        // 如果是子记录，需要更新父记录
+        if (selectedRecord.is_sub_record) {
+          // 找到父记录对应的计划
+          const parentPlan = plans.find(p => p.id === selectedRecord.plan_id)?.parent_id;
+          if (!parentPlan) {
+            message.error('找不到父计划');
+            return;
+          }
+
+          // 获取父计划的所有记录
+          const parentRecords = await financeAPI.getExpenseRecords(parentPlan);
+          
+          // 找到与子记录时间匹配的父记录
+          const parentRecord = parentRecords.find(r => {
+            const recordDate = dayjs(selectedRecord.date);
+            const parentDate = dayjs(r.date);
+            const plan = plans.find(p => p.id === parentPlan);
+            
+            if (!plan) return false;
+            
+            switch (plan.period) {
+              case 'YEAR':
+                return parentDate.year() === recordDate.year();
+              case 'QUARTER':
+                return parentDate.year() === recordDate.year() && 
+                       Math.floor(parentDate.month() / 3) === Math.floor(recordDate.month() / 3);
+              case 'MONTH':
+                return parentDate.year() === recordDate.year() && 
+                       parentDate.month() === recordDate.month();
+              case 'WEEK':
+                return parentDate.year() === recordDate.year() && 
+                       parentDate.week() === recordDate.week();
+              default:
+                return false;
+            }
+          });
+
+          if (!parentRecord) {
+            message.error('找不到父记录');
+            return;
+          }
+
+          // 更新子记录
+          await financeAPI.updateExpenseRecord(selectedRecord.id, {
+            ...values,
+            date: values.date.format('YYYY-MM-DD'),
+            budget_amount: values.budget_amount * 100,
+            actual_amount: values.actual_amount * 100,
+            balance: values.balance * 100,
+            opening_cumulative_balance: values.opening_cumulative_balance * 100,
+            closing_cumulative_balance: values.closing_cumulative_balance * 100,
+            opening_cumulative_expense: values.opening_cumulative_expense * 100,
+            closing_cumulative_expense: values.closing_cumulative_expense * 100,
+          });
+
+          // 更新父记录
+          const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
+          await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+
+        } else {
+          await financeAPI.updateExpenseRecord(selectedRecord.id, {
+            ...values,
+            date: values.date.format('YYYY-MM-DD'),
+            budget_amount: values.budget_amount * 100,
+            actual_amount: values.actual_amount * 100,
+            balance: values.balance * 100,
+            opening_cumulative_balance: values.opening_cumulative_balance * 100,
+            closing_cumulative_balance: values.closing_cumulative_balance * 100,
+            opening_cumulative_expense: values.opening_cumulative_expense * 100,
+            closing_cumulative_expense: values.closing_cumulative_expense * 100,
+          });
+        }
+        message.success('更新成功');
+        setIsEditModalVisible(false);
+        fetchRecords();
+      }
+    } catch (error) {
+      message.error('更新失败');
+    }
+  };
+
   const handleDelete = (record: ExpenseRecord) => {
     Modal.confirm({
       title: '确认删除',
@@ -251,7 +339,57 @@ const Expense: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await financeAPI.deleteExpenseRecord(record.id);
+          // 如果是子记录，需要更新父记录
+          if (record.is_sub_record) {
+            // 找到父记录对应的计划
+            const parentPlan = plans.find(p => p.id === record.plan_id)?.parent_id;
+            if (!parentPlan) {
+              message.error('找不到父计划');
+              return;
+            }
+
+            // 获取父计划的所有记录
+            const parentRecords = await financeAPI.getExpenseRecords(parentPlan);
+            
+            // 找到与子记录时间匹配的父记录
+            const parentRecord = parentRecords.find(r => {
+              const recordDate = dayjs(record.date);
+              const parentDate = dayjs(r.date);
+              const plan = plans.find(p => p.id === parentPlan);
+              
+              if (!plan) return false;
+              
+              switch (plan.period) {
+                case 'YEAR':
+                  return parentDate.year() === recordDate.year();
+                case 'QUARTER':
+                  return parentDate.year() === recordDate.year() && 
+                         Math.floor(parentDate.month() / 3) === Math.floor(recordDate.month() / 3);
+                case 'MONTH':
+                  return parentDate.year() === recordDate.year() && 
+                         parentDate.month() === recordDate.month();
+                case 'WEEK':
+                  return parentDate.year() === recordDate.year() && 
+                         parentDate.week() === recordDate.week();
+                default:
+                  return false;
+              }
+            });
+
+            if (!parentRecord) {
+              message.error('找不到父记录');
+              return;
+            }
+
+            // 删除子记录
+            await financeAPI.deleteExpenseRecord(record.id);
+            
+            // 更新父记录
+            const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
+            await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+          } else {
+            await financeAPI.deleteExpenseRecord(record.id);
+          }
           message.success('删除成功');
           fetchRecords();
         } catch (error) {
@@ -260,35 +398,6 @@ const Expense: React.FC = () => {
         }
       },
     });
-  };
-
-  const handleEditSubmit = async () => {
-    try {
-      const values = await editForm.validateFields();
-      if (selectedRecord) {
-        const plan = plans.find(p => p.id === selectedRecord.plan_id);
-        if (!plan) return;
-
-        await financeAPI.updateExpenseRecord(selectedRecord.id, {
-          ...values,
-          date: values.date.format('YYYY-MM-DD'),
-          budget_amount: values.budget_amount * 100, // 转换为分
-          actual_amount: values.actual_amount * 100, // 转换为分
-          balance: values.balance * 100, // 转换为分
-          opening_cumulative_balance: values.opening_cumulative_balance * 100, // 转换为分
-          closing_cumulative_balance: values.closing_cumulative_balance * 100, // 转换为分
-          opening_cumulative_expense: values.opening_cumulative_expense * 100, // 转换为分
-          closing_cumulative_expense: values.closing_cumulative_expense * 100, // 转换为分
-          is_sub_record: values.is_sub_record || false,
-          sub_period_index: values.sub_period_index || 0,
-        });
-        message.success('更新成功');
-        setIsEditModalVisible(false);
-        fetchRecords();
-      }
-    } catch (error) {
-      message.error('更新失败');
-    }
   };
 
   // 根据周期筛选可用的开支计划

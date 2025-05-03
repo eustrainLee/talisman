@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType } from '../api/finance';
+import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType, updateExpenseRecord } from '../api/finance';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
@@ -322,16 +322,43 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
                 return;
               }
 
-              // 更新预算额度
-              let budgetAmount = selectedPlan.amount;
+              // 获取当前日期之前的所有子记录，按日期排序
+              const previousSubRecords = subRecords
+                .filter(r => dayjs(r.date).isBefore(dayjs(date)))
+                .sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+              // 计算预算额度
+              let budgetAmount = 0;
               if (selectedPlan.budget_allocation === 'AVERAGE') {
                 const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
                 budgetAmount = parentRecord.budget_amount / subPeriodCount;
+              } else {
+                budgetAmount = parentRecord.balance;
               }
 
+              // 计算期初累计值
+              let openingCumulativeBalance = 0;
+              let openingCumulativeExpense = 0;
+
+              if (previousSubRecords.length > 0) {
+                // 如果有之前的子记录，使用最后一个子记录的期末累计值
+                const lastRecord = previousSubRecords[0];
+                openingCumulativeBalance = lastRecord.closing_cumulative_balance;
+                openingCumulativeExpense = lastRecord.closing_cumulative_expense;
+              } else {
+                // 如果没有之前的子记录，使用父记录的期初累计值
+                openingCumulativeBalance = parentRecord.opening_cumulative_balance;
+                openingCumulativeExpense = parentRecord.opening_cumulative_expense;
+              }
+
+              // 更新表单值
               createForm.setFieldsValue({
                 budget_amount: budgetAmount / 100,
-                balance: (budgetAmount - (createForm.getFieldValue('actual_amount') || 0) * 100) / 100,
+                opening_cumulative_balance: openingCumulativeBalance / 100,
+                opening_cumulative_expense: openingCumulativeExpense / 100,
+                balance: budgetAmount / 100,
+                closing_cumulative_balance: (openingCumulativeBalance + budgetAmount) / 100,
+                closing_cumulative_expense: openingCumulativeExpense / 100,
               });
 
               // 清除错误信息
@@ -418,16 +445,43 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         return;
       }
 
-      // 更新预算额度
-      let budgetAmount = selectedPlan.amount;
+      // 获取当前日期之前的所有子记录，按日期排序
+      const previousSubRecords = subRecords
+        .filter(r => dayjs(r.date).isBefore(startDate))
+        .sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+
+      // 计算预算额度
+      let budgetAmount = 0;
       if (selectedPlan.budget_allocation === 'AVERAGE') {
         const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
         budgetAmount = parentRecord.budget_amount / subPeriodCount;
+      } else {
+        budgetAmount = parentRecord.balance;
       }
 
+      // 计算期初累计值
+      let openingCumulativeBalance = 0;
+      let openingCumulativeExpense = 0;
+
+      if (previousSubRecords.length > 0) {
+        // 如果有之前的子记录，使用最后一个子记录的期末累计值
+        const lastRecord = previousSubRecords[0];
+        openingCumulativeBalance = lastRecord.closing_cumulative_balance;
+        openingCumulativeExpense = lastRecord.closing_cumulative_expense;
+      } else {
+        // 如果没有之前的子记录，使用父记录的期初累计值
+        openingCumulativeBalance = parentRecord.opening_cumulative_balance;
+        openingCumulativeExpense = parentRecord.opening_cumulative_expense;
+      }
+
+      // 更新表单值
       createForm.setFieldsValue({
         budget_amount: budgetAmount / 100,
-        balance: (budgetAmount - (createForm.getFieldValue('actual_amount') || 0) * 100) / 100,
+        opening_cumulative_balance: openingCumulativeBalance / 100,
+        opening_cumulative_expense: openingCumulativeExpense / 100,
+        balance: budgetAmount / 100,
+        closing_cumulative_balance: (openingCumulativeBalance + budgetAmount) / 100,
+        closing_cumulative_expense: openingCumulativeExpense / 100,
       });
 
       // 清除错误信息
@@ -510,19 +564,13 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           return;
         }
 
-        // 计算预算额度
-        let budgetAmount = values.budget_amount;
-        if (selectedPlan.budget_allocation === 'AVERAGE') {
-          const subPeriodCount = getSubPeriodCount(parentPlan.period, selectedPlan.period);
-          budgetAmount = parentRecord.budget_amount / subPeriodCount;
-        }
-
-        await financeAPI.createExpenseRecord({
+        // 创建子记录
+        const subRecord = await financeAPI.createExpenseRecord({
           plan_id: selectedPlan.id,
           date: values.date.format('YYYY-MM-DD'),
-          budget_amount: budgetAmount,
+          budget_amount: values.budget_amount * 100,
           actual_amount: values.actual_amount * 100,
-          balance: (budgetAmount - values.actual_amount * 100),
+          balance: values.balance * 100,
           opening_cumulative_balance: values.opening_cumulative_balance * 100,
           closing_cumulative_balance: values.closing_cumulative_balance * 100,
           opening_cumulative_expense: values.opening_cumulative_expense * 100,
@@ -531,6 +579,11 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           parent_record_id: parentRecord.id,
           sub_period_index: 0,
         });
+
+        // 更新父记录
+        const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
+        await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+
       } else {
         await financeAPI.createExpenseRecord({
           plan_id: selectedPlan.id,
@@ -683,6 +736,126 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       default:
         return [];
     }
+  };
+
+  // 自省函数：更新结余和累计值
+  const introspectionExpenseRecord = (record: ExpenseRecord) => {
+    // 计算结余
+    const balance = record.budget_amount - record.actual_amount;
+    
+    // 计算期末累计值
+    const closingCumulativeBalance = record.opening_cumulative_balance + balance;
+    const closingCumulativeExpense = record.opening_cumulative_expense + record.actual_amount;
+
+    return {
+      ...record,
+      balance,
+      closing_cumulative_balance: closingCumulativeBalance,
+      closing_cumulative_expense: closingCumulativeExpense,
+    };
+  };
+
+  // 更新函数：处理记录及其子记录
+  const updateExpenseRecord = async (record: ExpenseRecord, plans: ExpensePlan[]) => {
+    // 获取记录对应的计划
+    const plan = plans.find(p => p.id === record.plan_id);
+    if (!plan) return record;
+
+    // 检查是否有子计划
+    const subPlan = plans.find(p => p.parent_id === plan.id);
+    if (!subPlan) {
+      // 如果没有子计划，直接自省
+      return introspectionExpenseRecord(record);
+    }
+
+    // 获取所有子记录
+    const subRecords = await financeAPI.getExpenseRecords(subPlan.id);
+    
+    // 筛选出与当前记录在同一时间段的子记录
+    const matchingSubRecords = subRecords.filter(subRecord => {
+      const recordDate = dayjs(record.date);
+      const subRecordDate = dayjs(subRecord.date);
+      
+      switch (plan.period) {
+        case 'YEAR':
+          return subRecordDate.year() === recordDate.year();
+        case 'QUARTER':
+          return subRecordDate.year() === recordDate.year() && 
+                 Math.floor(subRecordDate.month() / 3) === Math.floor(recordDate.month() / 3);
+        case 'MONTH':
+          return subRecordDate.year() === recordDate.year() && 
+                 subRecordDate.month() === recordDate.month();
+        case 'WEEK':
+          return subRecordDate.year() === recordDate.year() && 
+                 subRecordDate.week() === recordDate.week();
+        default:
+          return false;
+      }
+    });
+
+    let totalExpense = 0;
+    let totalBalance = 0;
+
+    if (subPlan.budget_allocation === 'AVERAGE') {
+      // 平均分配策略
+      const subPeriodCount = getSubPeriodCount(plan.period, subPlan.period);
+      const averageBudget = record.budget_amount / subPeriodCount;
+
+      // 更新每个子记录
+      for (const subRecord of matchingSubRecords) {
+        // 更新子记录的预算和期初累计值
+        const updatedSubRecord = {
+          ...subRecord,
+          budget_amount: averageBudget,
+          opening_cumulative_expense: record.opening_cumulative_expense + totalExpense,
+          opening_cumulative_balance: record.opening_cumulative_balance + totalBalance,
+        };
+
+        // 递归更新子记录
+        const introspectedSubRecord = await updateExpenseRecord(updatedSubRecord, plans);
+        
+        // 更新子记录
+        await financeAPI.updateExpenseRecord(subRecord.id, introspectedSubRecord);
+
+        // 累加实际开销和结余
+        totalExpense += introspectedSubRecord.actual_amount;
+        totalBalance += introspectedSubRecord.balance;
+      }
+    } else {
+      // 不分配策略
+      let remainingBudget = record.budget_amount;
+
+      // 更新每个子记录
+      for (const subRecord of matchingSubRecords) {
+        // 更新子记录的预算和期初累计值
+        const updatedSubRecord = {
+          ...subRecord,
+          budget_amount: remainingBudget,
+          opening_cumulative_expense: totalExpense,
+          opening_cumulative_balance: record.opening_cumulative_balance + remainingBudget,
+        };
+
+        // 递归更新子记录
+        const introspectedSubRecord = await updateExpenseRecord(updatedSubRecord, plans);
+        
+        // 更新子记录
+        await financeAPI.updateExpenseRecord(subRecord.id, introspectedSubRecord);
+
+        // 累加实际开销和结余
+        totalExpense += introspectedSubRecord.actual_amount;
+        totalBalance += introspectedSubRecord.balance;
+        remainingBudget = introspectedSubRecord.balance;
+      }
+    }
+
+    // 更新当前记录的实际开销
+    const updatedRecord = {
+      ...record,
+      actual_amount: totalExpense,
+    };
+
+    // 自省当前记录
+    return introspectionExpenseRecord(updatedRecord);
   };
 
   const handleCreatePlanSubmit = async () => {
