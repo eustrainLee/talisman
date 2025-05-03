@@ -465,7 +465,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         name: values.name,
         amount: values.amount * 100,
         period: values.period,
-        sub_period: values.sub_period || null,
         budget_allocation: values.budget_allocation || 'NONE',
       });
       message.success('创建成功');
@@ -657,82 +656,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
                 <Option key={type.value} value={type.value}>{type.label}</Option>
               ))}
             </Select>
-          </Form.Item>
-          <Form.Item
-            noStyle
-            shouldUpdate={(prevValues, currentValues) => prevValues.period !== currentValues.period}
-          >
-            {({ getFieldValue }) => {
-              const period = getFieldValue('period');
-              const hasSubPeriod = subPeriodTypes.some(type => {
-                switch (period) {
-                  case 'YEAR':
-                    return type.value === 'QUARTER' || type.value === 'MONTH' || type.value === 'WEEK';
-                  case 'QUARTER':
-                    return type.value === 'MONTH' || type.value === 'WEEK';
-                  case 'MONTH':
-                    return type.value === 'WEEK';
-                  default:
-                    return false;
-                }
-              });
-
-              if (!hasSubPeriod) return null;
-
-              return (
-                <>
-                  <Form.Item
-                    name="sub_period"
-                    label="子周期"
-                  >
-                    <Select 
-                      style={{ width: '100%' }}
-                      allowClear
-                      onChange={handleSubPeriodChange}
-                    >
-                      {subPeriodTypes
-                        .filter(type => {
-                          switch (period) {
-                            case 'YEAR':
-                              return type.value === 'QUARTER' || type.value === 'MONTH' || type.value === 'WEEK';
-                            case 'QUARTER':
-                              return type.value === 'MONTH' || type.value === 'WEEK';
-                            case 'MONTH':
-                              return type.value === 'WEEK';
-                            default:
-                              return false;
-                          }
-                        })
-                        .map(type => (
-                          <Option key={type.value} value={type.value}>{type.label}</Option>
-                        ))}
-                    </Select>
-                  </Form.Item>
-                  <Form.Item
-                    noStyle
-                    shouldUpdate={(prevValues, currentValues) => prevValues.sub_period !== currentValues.sub_period}
-                  >
-                    {({ getFieldValue }) => {
-                      const subPeriod = getFieldValue('sub_period');
-                      if (!subPeriod) return null;
-
-                      return (
-                        <Form.Item
-                          name="budget_allocation"
-                          label="预算分配方式"
-                          initialValue="NONE"
-                        >
-                          <Select style={{ width: '100%' }}>
-                            <Option value="NONE">不分配</Option>
-                            <Option value="AVERAGE">平均分配</Option>
-                          </Select>
-                        </Form.Item>
-                      );
-                    }}
-                  </Form.Item>
-                </>
-              );
-            }}
           </Form.Item>
         </Form>
       </Modal>
