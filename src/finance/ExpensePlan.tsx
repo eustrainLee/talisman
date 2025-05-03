@@ -19,16 +19,24 @@ const periodTypes = [
   { value: 'YEAR', label: '年' },
 ];
 
+const subPeriodTypes = [
+  { value: 'WEEK', label: '周' },
+  { value: 'MONTH', label: '月' },
+  { value: 'QUARTER', label: '季' },
+];
+
 interface ExpensePlanComponentProps {
   onRecordCreated?: () => void;
 }
 
 const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCreated }) => {
-  const [form] = Form.useForm();
+  const [createPlanForm] = Form.useForm();
   const [createForm] = Form.useForm();
   const [plans, setPlans] = useState<ExpensePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
+  const [isCreatePlanModalVisible, setIsCreatePlanModalVisible] = useState(false);
+  const [isCreateSubPlanModalVisible, setIsCreateSubPlanModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
   const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
   const [isFormDisabled, setIsFormDisabled] = useState(false);
@@ -68,36 +76,60 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       render: (value: string) => periodTypes.find(type => type.value === value)?.label,
     },
     {
+      title: '属于',
+      dataIndex: 'parent_id',
+      key: 'parent_id',
+      render: (value: number | null) => {
+        if (!value) return '-';
+        const parent = plans.find(p => p.id === value);
+        return parent ? parent.name : '未知计划';
+      },
+    },
+    {
+      title: '子周期',
+      dataIndex: 'sub_period',
+      key: 'sub_period',
+      render: (value: string | null) => {
+        if (!value) return '-';
+        return subPeriodTypes.find(type => type.value === value)?.label;
+      },
+    },
+    {
+      title: '预算分配',
+      dataIndex: 'budget_allocation',
+      key: 'budget_allocation',
+      render: (value: string | null) => {
+        if (!value) return '-';
+        return value === 'NONE' ? '不分配' : '平均分配';
+      },
+    },
+    {
       title: '操作',
       key: 'action',
-      render: (_, record) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => handleCreate(record)}>
-            创建
-          </Button>
-          <Button type="link" danger onClick={() => handleDelete(record.id)}>
-            删除
-          </Button>
-        </Space>
-      ),
+      render: (_, record) => {
+        const hasSubPlan = plans.some(p => p.parent_id === record.id);
+        return (
+          <Space size="middle">
+            <Button type="link" onClick={() => handleCreate(record)}>
+              创建记录
+            </Button>
+            {!record.parent_id && (
+              <Button 
+                type="link" 
+                onClick={() => handleCreateSubPlan(record)}
+                disabled={hasSubPlan}
+              >
+                创建子计划
+              </Button>
+            )}
+            <Button type="link" danger onClick={() => handleDelete(record.id)}>
+              删除
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
-
-  const handleAdd = async () => {
-    try {
-      const values = await form.validateFields();
-      await financeAPI.createExpensePlan(
-        values.name,
-        values.amount * 100, // 转换为分
-        values.period
-      );
-      message.success('添加成功');
-      form.resetFields();
-      fetchPlans();
-    } catch (error) {
-      message.error('添加失败');
-    }
-  };
 
   const handleDelete = async (id: number) => {
     Modal.confirm({
@@ -322,41 +354,134 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     }
   };
 
+  const handleCreateSubPlan = (plan: ExpensePlan) => {
+    setSelectedPlan(plan);
+    createForm.resetFields();
+    setIsCreateSubPlanModalVisible(true);
+    
+    // 设置默认值
+    const defaultPeriod = getAvailablePeriods(plan.period)[0];
+    const defaultAmount = plan.amount / 100; // 转换为元
+    
+    createForm.setFieldsValue({
+      period: defaultPeriod,
+      budget_allocation: 'NONE',
+      amount: defaultAmount,
+    });
+  };
+
+  const handleCreateSubPlanSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      if (!selectedPlan) return;
+
+      await financeAPI.createExpensePlan({
+        name: values.name,
+        amount: values.amount * 100, // 转换为分
+        period: values.period,
+        parent_id: selectedPlan.id,
+        budget_allocation: values.budget_allocation || 'NONE',
+      });
+      message.success('创建成功');
+      setIsCreateSubPlanModalVisible(false);
+      fetchPlans();
+    } catch (error) {
+      message.error('创建失败');
+    }
+  };
+
+  const handleBudgetAllocationChange = (value: string) => {
+    if (!selectedPlan) return;
+    
+    const period = createForm.getFieldValue('period');
+    const amount = value === 'AVERAGE' 
+      ? selectedPlan.amount / getSubPeriodCount(selectedPlan.period, period)
+      : selectedPlan.amount;
+    
+    createForm.setFieldsValue({
+      amount: amount / 100, // 转换为元
+    });
+  };
+
+  const getSubPeriodCount = (parentPeriod: string, subPeriod: string): number => {
+    switch (parentPeriod) {
+      case 'YEAR':
+        switch (subPeriod) {
+          case 'QUARTER': return 4;
+          case 'MONTH': return 12;
+          case 'WEEK': return 52;
+          default: return 1;
+        }
+      case 'QUARTER':
+        switch (subPeriod) {
+          case 'MONTH': return 3;
+          case 'WEEK': return 13;
+          default: return 1;
+        }
+      case 'MONTH':
+        switch (subPeriod) {
+          case 'WEEK': return 4;
+          default: return 1;
+        }
+      default:
+        return 1;
+    }
+  };
+
+  const getAvailablePeriods = (parentPeriod: string): string[] => {
+    switch (parentPeriod) {
+      case 'YEAR':
+        return ['QUARTER', 'MONTH', 'WEEK'];
+      case 'QUARTER':
+        return ['MONTH', 'WEEK'];
+      case 'MONTH':
+        return ['WEEK'];
+      default:
+        return [];
+    }
+  };
+
+  const handleCreatePlanSubmit = async () => {
+    try {
+      const values = await createPlanForm.validateFields();
+      await financeAPI.createExpensePlan({
+        name: values.name,
+        amount: values.amount * 100, // 转换为分
+        period: values.period,
+        sub_period: values.sub_period || null,
+        budget_allocation: values.budget_allocation || 'NONE',
+      });
+      message.success('创建成功');
+      setIsCreatePlanModalVisible(false);
+      fetchPlans();
+    } catch (error) {
+      message.error('创建失败');
+    }
+  };
+
+  const handlePeriodChange = (value: string) => {
+    if (!selectedPlan) return;
+    
+    // 重置额度
+    createForm.setFieldsValue({
+      amount: null,
+    });
+  };
+
+  const handleSubPeriodChange = (value: string | null) => {
+    if (!value) {
+      createPlanForm.setFieldsValue({
+        budget_allocation: 'NONE',
+      });
+    }
+  };
+
   return (
     <div>
       <Card style={{ marginBottom: 16 }}>
-        <Form form={form} layout="inline">
-          <Form.Item
-            name="name"
-            label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
-          >
-            <Input placeholder="请输入名称" />
-          </Form.Item>
-          <Form.Item
-            name="amount"
-            label="额度"
-            rules={[{ required: true, message: '请输入额度' }]}
-          >
-            <Input type="number" placeholder="请输入额度" />
-          </Form.Item>
-          <Form.Item
-            name="period"
-            label="周期"
-            rules={[{ required: true, message: '请选择周期' }]}
-          >
-            <Select style={{ width: 120 }}>
-              {periodTypes.map(type => (
-                <Option key={type.value} value={type.value}>{type.label}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" onClick={handleAdd}>
-              添加
-            </Button>
-          </Form.Item>
-        </Form>
+        <Button type="primary" onClick={() => setIsCreatePlanModalVisible(true)}>
+          创建计划
+        </Button>
       </Card>
 
       <Table<ExpensePlan>
@@ -444,6 +569,184 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             rules={[{ required: true, message: '请输入期末累计开支' }]}
           >
             <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="创建开支计划"
+        open={isCreatePlanModalVisible}
+        onOk={handleCreatePlanSubmit}
+        onCancel={() => setIsCreatePlanModalVisible(false)}
+        width={600}
+      >
+        <Form
+          form={createPlanForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="name"
+            label="名称"
+            rules={[{ required: true, message: '请输入名称' }]}
+          >
+            <Input placeholder="请输入名称" />
+          </Form.Item>
+          <Form.Item
+            name="amount"
+            label="额度"
+            rules={[{ required: true, message: '请输入额度' }]}
+          >
+            <Input type="number" placeholder="请输入额度" />
+          </Form.Item>
+          <Form.Item
+            name="period"
+            label="周期"
+            rules={[{ required: true, message: '请选择周期' }]}
+          >
+            <Select 
+              style={{ width: '100%' }}
+              onChange={handlePeriodChange}
+            >
+              {periodTypes.map(type => (
+                <Option key={type.value} value={type.value}>{type.label}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.period !== currentValues.period}
+          >
+            {({ getFieldValue }) => {
+              const period = getFieldValue('period');
+              const hasSubPeriod = subPeriodTypes.some(type => {
+                switch (period) {
+                  case 'YEAR':
+                    return type.value === 'QUARTER' || type.value === 'MONTH' || type.value === 'WEEK';
+                  case 'QUARTER':
+                    return type.value === 'MONTH' || type.value === 'WEEK';
+                  case 'MONTH':
+                    return type.value === 'WEEK';
+                  default:
+                    return false;
+                }
+              });
+
+              if (!hasSubPeriod) return null;
+
+              return (
+                <>
+                  <Form.Item
+                    name="sub_period"
+                    label="子周期"
+                  >
+                    <Select 
+                      style={{ width: '100%' }}
+                      allowClear
+                      onChange={handleSubPeriodChange}
+                    >
+                      {subPeriodTypes
+                        .filter(type => {
+                          switch (period) {
+                            case 'YEAR':
+                              return type.value === 'QUARTER' || type.value === 'MONTH' || type.value === 'WEEK';
+                            case 'QUARTER':
+                              return type.value === 'MONTH' || type.value === 'WEEK';
+                            case 'MONTH':
+                              return type.value === 'WEEK';
+                            default:
+                              return false;
+                          }
+                        })
+                        .map(type => (
+                          <Option key={type.value} value={type.value}>{type.label}</Option>
+                        ))}
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    noStyle
+                    shouldUpdate={(prevValues, currentValues) => prevValues.sub_period !== currentValues.sub_period}
+                  >
+                    {({ getFieldValue }) => {
+                      const subPeriod = getFieldValue('sub_period');
+                      if (!subPeriod) return null;
+
+                      return (
+                        <Form.Item
+                          name="budget_allocation"
+                          label="预算分配方式"
+                          initialValue="NONE"
+                        >
+                          <Select style={{ width: '100%' }}>
+                            <Option value="NONE">不分配</Option>
+                            <Option value="AVERAGE">平均分配</Option>
+                          </Select>
+                        </Form.Item>
+                      );
+                    }}
+                  </Form.Item>
+                </>
+              );
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="创建子计划"
+        open={isCreateSubPlanModalVisible}
+        onOk={handleCreateSubPlanSubmit}
+        onCancel={() => setIsCreateSubPlanModalVisible(false)}
+        width={600}
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="属于"
+          >
+            <Input value={selectedPlan?.name} disabled />
+          </Form.Item>
+          <Form.Item
+            name="name"
+            label="名称"
+            rules={[{ required: true, message: '请输入名称' }]}
+          >
+            <Input placeholder="请输入名称" />
+          </Form.Item>
+          <Form.Item
+            name="period"
+            label="周期"
+            rules={[{ required: true, message: '请选择周期' }]}
+          >
+            <Select 
+              style={{ width: '100%' }}
+              onChange={handlePeriodChange}
+            >
+              {selectedPlan && getAvailablePeriods(selectedPlan.period).map(period => {
+                const type = periodTypes.find(t => t.value === period);
+                return type && <Option key={type.value} value={type.value}>{type.label}</Option>;
+              })}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="budget_allocation"
+            label="预算分配方式"
+            initialValue="NONE"
+          >
+            <Select 
+              style={{ width: '100%' }}
+              onChange={handleBudgetAllocationChange}
+            >
+              <Option value="NONE">不分配</Option>
+              <Option value="AVERAGE">平均分配</Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="amount"
+            label="额度"
+          >
+            <Input type="number" disabled />
           </Form.Item>
         </Form>
       </Modal>

@@ -7,6 +7,9 @@ export interface ExpensePlan {
   name: string;
   amount: number;
   period: string;
+  parent_id: number | null;
+  sub_period: string | null;
+  budget_allocation: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,9 +40,16 @@ class FinanceAPI {
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
-  async createExpensePlan(name: string, amount: number, period: PeriodType): Promise<ExpensePlan> {
+  async createExpensePlan(plan: {
+    name: string;
+    amount: number;
+    period: PeriodType;
+    parent_id?: number | null;
+    sub_period?: string | null;
+    budget_allocation?: number | null;
+  }): Promise<ExpensePlan> {
     if (USE_IPC) {
-      return window.electronAPI.createExpensePlan({ name, amount, period });
+      return window.electronAPI.createExpensePlan(plan);
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
