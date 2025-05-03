@@ -9,7 +9,7 @@ export interface ExpensePlan {
   period: string;
   parent_id: number | null;
   sub_period: string | null;
-  budget_allocation: number | null;
+  budget_allocation: 'NONE' | 'AVERAGE';
   created_at: string;
   updated_at: string;
 }
@@ -46,7 +46,7 @@ class FinanceAPI {
     period: PeriodType;
     parent_id?: number | null;
     sub_period?: string | null;
-    budget_allocation?: number | null;
+    budget_allocation?: 'NONE' | 'AVERAGE';
   }): Promise<ExpensePlan> {
     if (USE_IPC) {
       return window.electronAPI.createExpensePlan(plan);

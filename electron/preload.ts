@@ -44,7 +44,7 @@ interface ExpensePlan {
   period: string;
   parent_id: number | null;
   sub_period: string | null;
-  budget_allocation: number | null;
+  budget_allocation: 'NONE' | 'AVERAGE';
   created_at: string;
   updated_at: string;
 }
@@ -105,7 +105,7 @@ interface IElectronAPI {
     period: string;
     parent_id?: number | null;
     sub_period?: string | null;
-    budget_allocation?: number | null;
+    budget_allocation?: 'NONE' | 'AVERAGE';
   }) => Promise<ExpensePlan>;
   updateExpensePlan: (id: number, plan: {
     name?: string;
@@ -113,7 +113,7 @@ interface IElectronAPI {
     period?: string;
     parent_id?: number | null;
     sub_period?: string | null;
-    budget_allocation?: number | null;
+    budget_allocation?: 'NONE' | 'AVERAGE';
   }) => Promise<ExpensePlan>;
   deleteExpensePlan: (id: number) => Promise<void>;
   getExpenseRecords: (planId: number) => Promise<ExpenseRecord[]>;
@@ -181,7 +181,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     period: string;
     parent_id?: number | null;
     sub_period?: string | null;
-    budget_allocation?: number | null;
+    budget_allocation?: 'NONE' | 'AVERAGE';
   }) => ipcRenderer.invoke('finance:create-expense-plan', plan),
   updateExpensePlan: (id: number, plan: {
     name?: string;
@@ -189,7 +189,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     period?: string;
     parent_id?: number | null;
     sub_period?: string | null;
-    budget_allocation?: number | null;
+    budget_allocation?: 'NONE' | 'AVERAGE';
   }) => ipcRenderer.invoke('finance:update-expense-plan', id, plan),
   deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id),
   getExpenseRecords: (planId: number) => ipcRenderer.invoke('finance:get-expense-records', planId),

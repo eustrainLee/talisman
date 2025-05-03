@@ -54,7 +54,7 @@ interface ExpensePlan {
   period: string;
   parent_id?: number;
   sub_period?: string;
-  budget_allocation: string;
+  budget_allocation: 'NONE' | 'AVERAGE';
   created_at: string;
   updated_at: string;
 }

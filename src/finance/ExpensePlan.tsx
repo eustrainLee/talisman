@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan, ExpenseRecord } from '../api/finance';
+import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType } from '../api/finance';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
@@ -83,22 +83,19 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       title: '额度',
       dataIndex: 'amount',
       key: 'amount',
-      render: (value: number) => (value / 100).toFixed(2),
+      render: (value: number, record: ExpensePlan) => {
+        const amount = (value / 100).toFixed(2);
+        if (record.parent_id === null || record.parent_id === undefined) {
+          return amount;
+        }
+        return `${amount}（${record.budget_allocation === 'AVERAGE' ? '平均分配' : '不分配'}）`;
+      },
     },
     {
       title: '周期',
       dataIndex: 'period',
       key: 'period',
       render: (value: string) => periodTypes.find(type => type.value === value)?.label,
-    },
-    {
-      title: '预算分配',
-      dataIndex: 'budget_allocation',
-      key: 'budget_allocation',
-      render: (value: string | null) => {
-        if (!value) return '-';
-        return value === 'NONE' ? '不分配' : '平均分配';
-      },
     },
     {
       title: '操作',
@@ -373,49 +370,34 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     try {
       const values = await createSubPlanForm.validateFields();
       if (!selectedPlan) {
-        console.error('Failed to create sub-plan: No parent plan selected');
-        message.error('创建失败：未选择父计划');
+        message.error('请先选择父计划');
         return;
       }
-
-      console.log('Creating sub-plan with parameters:', {
-        name: values.name,
-        amount: values.amount * 100,
-        period: values.period,
-        parent_id: selectedPlan.id,
-        budget_allocation: values.budget_allocation || 'NONE',
-      });
-
       await financeAPI.createExpensePlan({
         name: values.name,
         amount: values.amount * 100,
-        period: values.period,
+        period: selectedPlan.period as PeriodType,
         parent_id: selectedPlan.id,
-        budget_allocation: values.budget_allocation || 'NONE',
+        budget_allocation: values.budget_allocation as 'NONE' | 'AVERAGE',
       });
       message.success('创建成功');
       setIsCreateSubPlanModalVisible(false);
       fetchPlans();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to create sub-plan:', error);
-      if (error.errorFields) {
-        console.error('Form validation errors:', error.errorFields);
-        message.error('创建失败：请检查表单填写是否正确');
-      } else {
-        message.error('创建失败：' + (error instanceof Error ? error.message : '未知错误'));
-      }
+      message.error('创建失败');
     }
   };
 
   const handleBudgetAllocationChange = (value: string) => {
     if (!selectedPlan) return;
     
-    const period = createForm.getFieldValue('period');
+    const period = createSubPlanForm.getFieldValue('period');
     const amount = value === 'AVERAGE' 
       ? selectedPlan.amount / getSubPeriodCount(selectedPlan.period, period)
       : selectedPlan.amount;
     
-    createForm.setFieldsValue({
+    createSubPlanForm.setFieldsValue({
       amount: amount / 100, // 转换为元
     });
   };
@@ -464,8 +446,8 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       await financeAPI.createExpensePlan({
         name: values.name,
         amount: values.amount * 100,
-        period: values.period,
-        budget_allocation: values.budget_allocation || 'NONE',
+        period: values.period as PeriodType,
+        budget_allocation: 'NONE' as const,
       });
       message.success('创建成功');
       setIsCreatePlanModalVisible(false);
@@ -486,11 +468,16 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   };
 
   const handleSubPeriodChange = (value: string | null) => {
-    if (!value) {
-      createPlanForm.setFieldsValue({
-        budget_allocation: 'NONE',
-      });
-    }
+    if (!value || !selectedPlan) return;
+    
+    const budgetAllocation = createSubPlanForm.getFieldValue('budget_allocation');
+    const amount = budgetAllocation === 'AVERAGE' 
+      ? selectedPlan.amount / getSubPeriodCount(selectedPlan.period, value)
+      : selectedPlan.amount;
+    
+    createSubPlanForm.setFieldsValue({
+      amount: amount / 100, // 转换为元
+    });
   };
 
   // 对数据进行排序，确保子计划紧跟在对应的父计划后面
@@ -690,7 +677,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           >
             <Select 
               style={{ width: '100%' }}
-              onChange={handlePeriodChange}
+              onChange={handleSubPeriodChange}
             >
               {selectedPlan && getAvailablePeriods(selectedPlan.period).map(period => {
                 const type = periodTypes.find(t => t.value === period);
