@@ -627,6 +627,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       message.success('创建成功');
       setIsCreateSubPlanModalVisible(false);
       fetchPlans();
+      onRecordCreated?.();
     } catch (error) {
       console.error('Failed to create sub-plan:', error);
       message.error('创建失败');
