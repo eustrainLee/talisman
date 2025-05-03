@@ -439,6 +439,8 @@ const Expense: React.FC = () => {
             loading={loading}
             pagination={false}
             rowKey="id"
+            size="small"
+            style={{ fontSize: '12px' }}
           />
 
           <Modal

@@ -32,6 +32,7 @@ interface ExpensePlanComponentProps {
 const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCreated }) => {
   const [createPlanForm] = Form.useForm();
   const [createForm] = Form.useForm();
+  const [createSubPlanForm] = Form.useForm();
   const [plans, setPlans] = useState<ExpensePlan[]>([]);
   const [loading, setLoading] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -62,6 +63,20 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      render: (text: string, record: ExpensePlan) => {
+        const isSubPlan = record.parent_id !== null;
+        return (
+          <div style={{ 
+            paddingLeft: isSubPlan ? '24px' : '0',
+            display: 'flex',
+            alignItems: 'center',
+            color: isSubPlan ? '#666' : '#000',
+            fontWeight: isSubPlan ? 'normal' : '500'
+          }}>
+            {text}
+          </div>
+        );
+      },
     },
     {
       title: '额度',
@@ -74,25 +89,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       dataIndex: 'period',
       key: 'period',
       render: (value: string) => periodTypes.find(type => type.value === value)?.label,
-    },
-    {
-      title: '属于',
-      dataIndex: 'parent_id',
-      key: 'parent_id',
-      render: (value: number | null) => {
-        if (!value) return '-';
-        const parent = plans.find(p => p.id === value);
-        return parent ? parent.name : '未知计划';
-      },
-    },
-    {
-      title: '子周期',
-      dataIndex: 'sub_period',
-      key: 'sub_period',
-      render: (value: string | null) => {
-        if (!value) return '-';
-        return subPeriodTypes.find(type => type.value === value)?.label;
-      },
     },
     {
       title: '预算分配',
@@ -356,14 +352,14 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
   const handleCreateSubPlan = (plan: ExpensePlan) => {
     setSelectedPlan(plan);
-    createForm.resetFields();
+    createSubPlanForm.resetFields();
     setIsCreateSubPlanModalVisible(true);
     
     // 设置默认值
     const defaultPeriod = getAvailablePeriods(plan.period)[0];
     const defaultAmount = plan.amount / 100; // 转换为元
     
-    createForm.setFieldsValue({
+    createSubPlanForm.setFieldsValue({
       period: defaultPeriod,
       budget_allocation: 'NONE',
       amount: defaultAmount,
@@ -372,8 +368,20 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
   const handleCreateSubPlanSubmit = async () => {
     try {
-      const values = await createForm.validateFields();
-      if (!selectedPlan) return;
+      const values = await createSubPlanForm.validateFields();
+      if (!selectedPlan) {
+        console.error('创建子计划失败：未选择父计划');
+        message.error('创建失败：未选择父计划');
+        return;
+      }
+
+      console.log('创建子计划参数：', {
+        name: values.name,
+        amount: values.amount * 100,
+        period: values.period,
+        parent_id: selectedPlan.id,
+        budget_allocation: values.budget_allocation || 'NONE',
+      });
 
       await financeAPI.createExpensePlan({
         name: values.name,
@@ -385,8 +393,14 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       message.success('创建成功');
       setIsCreateSubPlanModalVisible(false);
       fetchPlans();
-    } catch (error) {
-      message.error('创建失败');
+    } catch (error: any) {
+      console.error('创建子计划失败：', error);
+      if (error.errorFields) {
+        console.error('表单验证错误：', error.errorFields);
+        message.error('创建失败：请检查表单填写是否正确');
+      } else {
+        message.error('创建失败：' + (error instanceof Error ? error.message : '未知错误'));
+      }
     }
   };
 
@@ -476,6 +490,32 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     }
   };
 
+  // 对数据进行排序，确保子计划紧跟在对应的父计划后面
+  const sortedPlans = (() => {
+    // 先获取所有父计划并按 ID 排序
+    const parentPlans = plans
+      .filter(plan => plan.parent_id === null)
+      .sort((a, b) => a.id - b.id);
+    
+    // 获取所有子计划
+    const subPlans = plans.filter(plan => plan.parent_id !== null);
+    
+    // 将子计划插入到对应的父计划后面
+    const result: ExpensePlan[] = [];
+    parentPlans.forEach(parent => {
+      // 添加父计划
+      result.push(parent);
+      // 找到该父计划的所有子计划并按 ID 排序
+      const children = subPlans
+        .filter(plan => plan.parent_id === parent.id)
+        .sort((a, b) => a.id - b.id);
+      // 添加子计划
+      result.push(...children);
+    });
+    
+    return result;
+  })();
+
   return (
     <div>
       <Card style={{ marginBottom: 16 }}>
@@ -486,10 +526,12 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
       <Table<ExpensePlan>
         columns={columns}
-        dataSource={plans}
+        dataSource={sortedPlans}
         loading={loading}
         pagination={false}
         rowKey="id"
+        size="small"
+        style={{ fontSize: '12px' }}
       />
 
       <Modal
@@ -699,7 +741,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         width={600}
       >
         <Form
-          form={createForm}
+          form={createSubPlanForm}
           layout="vertical"
         >
           <Form.Item
@@ -745,6 +787,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           <Form.Item
             name="amount"
             label="额度"
+            rules={[{ required: true, message: '请输入额度' }]}
           >
             <Input type="number" disabled />
           </Form.Item>

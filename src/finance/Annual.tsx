@@ -75,6 +75,8 @@ const Annual: React.FC = () => {
         // 数据将从数据库获取
         dataSource={[]}
         pagination={false}
+        size="small"
+        style={{ fontSize: '12px' }}
       />
     </div>
   );

@@ -69,6 +69,8 @@ const Assets: React.FC = () => {
           showSizeChanger: true,
           showTotal: (total) => `共 ${total} 条`,
         }}
+        size="small"
+        style={{ fontSize: '12px' }}
       />
     </div>
   );
