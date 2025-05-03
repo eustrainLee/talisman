@@ -376,7 +376,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       await financeAPI.createExpensePlan({
         name: values.name,
         amount: values.amount * 100,
-        period: selectedPlan.period as PeriodType,
+        period: values.period as PeriodType,
         parent_id: selectedPlan.id,
         budget_allocation: values.budget_allocation as 'NONE' | 'AVERAGE',
       });
