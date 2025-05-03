@@ -459,7 +459,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     }
   };
 
-  const handlePeriodChange = (value: string) => {
+  const handlePeriodChange = () => {
     if (!selectedPlan) return;
     
     // 重置额度
