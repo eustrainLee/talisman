@@ -596,6 +596,12 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
       message.success('创建成功');
       setIsCreateModalVisible(false);
+      
+      // 更新 plans 状态
+      const updatedPlans = await financeAPI.getExpensePlans();
+      setPlans(updatedPlans);
+      
+      // 调用回调
       onRecordCreated?.();
     } catch (error) {
       console.error('Failed to create expense record:', error);
