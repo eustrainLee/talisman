@@ -233,6 +233,10 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     const today = dayjs();
     const startDate = setPeriodStartDate(today);
     
+    // 重置错误状态
+    setParentRecordError(null);
+    setSubRecordError(null);
+    
     createForm.setFieldsValue({
       date: startDate,
       budget_amount: plan.amount / 100,
@@ -826,7 +830,12 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         title="创建开支记录"
         open={isCreateModalVisible}
         onOk={handleCreateSubmit}
-        onCancel={() => setIsCreateModalVisible(false)}
+        onCancel={() => {
+          setIsCreateModalVisible(false);
+          // 关闭弹窗时清除错误信息
+          setParentRecordError(null);
+          setSubRecordError(null);
+        }}
         width={600}
         okButtonProps={{ disabled: !!existingRecord }}
       >
