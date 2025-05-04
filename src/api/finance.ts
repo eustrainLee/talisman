@@ -28,7 +28,6 @@ export interface ExpenseRecord {
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
   is_sub_record: boolean;
-  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -76,7 +75,6 @@ class FinanceAPI {
       return records.map(record => ({
         ...record,
         is_sub_record: record.is_sub_record || false,
-        sub_period_index: record.sub_period_index || 0,
       }));
     }
     throw new Error('非 Electron 环境不支持财务功能');
@@ -87,7 +85,6 @@ class FinanceAPI {
       return window.electronAPI.createExpenseRecord({
         ...record,
         is_sub_record: record.is_sub_record || false,
-        sub_period_index: record.sub_period_index || 0,
       });
     }
     throw new Error('非 Electron 环境不支持财务功能');
@@ -98,7 +95,6 @@ class FinanceAPI {
       await window.electronAPI.updateExpenseRecord(recordId, {
         ...data,
         is_sub_record: data.is_sub_record || false,
-        sub_period_index: data.sub_period_index || 0,
       });
       return;
     }

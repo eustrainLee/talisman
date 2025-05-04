@@ -157,7 +157,6 @@ export function initializeDatabase() {
         opening_cumulative_expense INTEGER NOT NULL,  -- 期初累计支出（分）
         closing_cumulative_expense INTEGER NOT NULL,  -- 期末累计支出（分）
         is_sub_record BOOLEAN NOT NULL DEFAULT 0,     -- 是否是子记录
-        sub_period_index INTEGER,                     -- 子周期索引，从1开始递增，表示这是第几个子周期
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (plan_id) REFERENCES expense_plans (id),

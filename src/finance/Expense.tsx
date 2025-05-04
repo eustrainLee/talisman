@@ -181,7 +181,6 @@ const Expense: React.FC = () => {
       opening_cumulative_expense: record.opening_cumulative_expense / 100,
       closing_cumulative_expense: record.closing_cumulative_expense / 100,
       is_sub_record: record.is_sub_record,
-      sub_period_index: record.sub_period_index || 0,
     });
     setIsEditModalVisible(true);
     setIsFormDisabled(false);
@@ -483,12 +482,6 @@ const Expense: React.FC = () => {
       render: (value: boolean) => value ? '是' : '否',
     },
     {
-      title: '子周期索引',
-      dataIndex: 'sub_period_index',
-      key: 'sub_period_index',
-      render: (value: number) => value || '-',
-    },
-    {
       title: '操作',
       key: 'action',
       render: (_, record) => (
@@ -636,12 +629,6 @@ const Expense: React.FC = () => {
                 valuePropName="checked"
               >
                 <Switch disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="sub_period_index"
-                label="子周期索引"
-              >
-                <Input type="number" disabled={isFormDisabled} />
               </Form.Item>
             </Form>
           </Modal>

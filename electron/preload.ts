@@ -63,7 +63,6 @@ interface ExpenseRecord {
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
   is_sub_record: boolean;
-  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -129,7 +128,6 @@ interface IElectronAPI {
     closing_cumulative_expense: number;
     parent_record_id?: number;
     is_sub_record?: boolean;
-    sub_period_index?: number;
   }) => Promise<ExpenseRecord>;
   updateExpenseRecord: (id: number, record: {
     date?: string;
@@ -142,7 +140,6 @@ interface IElectronAPI {
     closing_cumulative_expense?: number;
     parent_record_id?: number;
     is_sub_record?: boolean;
-    sub_period_index?: number;
   }) => Promise<void>;
   deleteExpenseRecord: (id: number) => Promise<void>;
   invoke: (channel: string, ...args: any[]) => Promise<void>;
@@ -205,7 +202,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closing_cumulative_expense: number;
     parent_record_id?: number;
     is_sub_record?: boolean;
-    sub_period_index?: number;
   }) => ipcRenderer.invoke('finance:create-expense-record', record),
   updateExpenseRecord: (id: number, record: {
     date?: string;
@@ -218,7 +214,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closing_cumulative_expense?: number;
     parent_record_id?: number;
     is_sub_record?: boolean;
-    sub_period_index?: number;
   }) => ipcRenderer.invoke('finance:update-expense-record', id, record),
   deleteExpenseRecord: (id: number) => ipcRenderer.invoke('finance:delete-expense-record', id),
   invoke: (channel: string, ...args: any[]) => {

@@ -72,7 +72,6 @@ interface ExpenseRecord {
   opening_cumulative_expense: number;
   closing_cumulative_expense: number;
   is_sub_record: boolean;
-  sub_period_index?: number;
   created_at: string;
   updated_at: string;
 }
@@ -900,7 +899,6 @@ export function setupIpcHandlers() {
     opening_cumulative_expense: number;
     closing_cumulative_expense: number;
     is_sub_record: boolean;
-    sub_period_index?: number;
   }) => {
     try {
       const db = getDatabase();
@@ -934,9 +932,8 @@ export function setupIpcHandlers() {
           closing_cumulative_balance,
           opening_cumulative_expense,
           closing_cumulative_expense,
-          is_sub_record,
-          sub_period_index
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          is_sub_record
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         record.plan_id,
@@ -949,8 +946,7 @@ export function setupIpcHandlers() {
         record.closing_cumulative_balance,
         record.opening_cumulative_expense,
         record.closing_cumulative_expense,
-        record.is_sub_record ? 1 : 0,
-        record.sub_period_index || null
+        record.is_sub_record ? 1 : 0
       );
       
       if (record.is_sub_record && record.parent_record_id) {

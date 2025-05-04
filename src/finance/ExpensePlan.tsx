@@ -575,7 +575,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           closing_cumulative_expense: values.closing_cumulative_expense * 100,
           is_sub_record: true,
           parent_record_id: parentRecord.id,
-          sub_period_index: 0,
         });
 
         // 更新父记录
@@ -594,7 +593,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           opening_cumulative_expense: values.opening_cumulative_expense * 100,
           closing_cumulative_expense: values.closing_cumulative_expense * 100,
           is_sub_record: false,
-          sub_period_index: 0,
         });
       }
 
