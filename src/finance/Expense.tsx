@@ -513,8 +513,8 @@ const Expense: React.FC = () => {
     <div>
       <Tabs defaultActiveKey="1">
         <Tabs.TabPane tab="开支记录" key="1">
-          <Card style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 16 }}>
+          <Card type='inner'>
+            <div>
               <Select
                 value={periodType}
                 onChange={handlePeriodTypeChange}

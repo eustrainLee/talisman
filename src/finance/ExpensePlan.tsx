@@ -799,7 +799,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
+      <Card type='inner'>
         <Button type="primary" onClick={() => setIsCreatePlanModalVisible(true)}>
           创建计划
         </Button>
