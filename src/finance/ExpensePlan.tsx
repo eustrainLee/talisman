@@ -64,7 +64,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       render: (text: string, record: ExpensePlan) => {
         if (record.parent_id) {
           const parentPlan = plans.find(p => p.id === record.parent_id);
-          return parentPlan ? '-' : text;
+          return parentPlan ? `- ${parentPlan.name}` : text;
         }
         return text;
       },
