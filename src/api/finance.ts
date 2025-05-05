@@ -320,3 +320,19 @@ export const formatDate = (date: dayjs.Dayjs, periodType: string) => {
       return date.format('YYYY-MM-DD(ddd)');
   }
 };
+
+// 获取周期起始时间
+export const getPeriodStartDate = (date: dayjs.Dayjs, period: string) => {
+  switch (period) {
+    case 'WEEK':
+      return date.startOf('week');
+    case 'MONTH':
+      return date.startOf('month');
+    case 'QUARTER':
+      return date.startOf('quarter');
+    case 'YEAR':
+      return date.startOf('year');
+    default:
+      return date;
+  }
+};

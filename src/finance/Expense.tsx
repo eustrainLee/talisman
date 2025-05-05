@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Input, message, Switch } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Input, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
-import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord, formatDate } from '../api/finance';
+import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord, formatDate, getPeriodStartDate } from '../api/finance';
 
 const { Option } = Select;
 
@@ -55,9 +55,20 @@ const Expense: React.FC = () => {
       let allRecords: ExpenseRecord[] = [];
       
       if (selectedPlanId) {
-        // 如果选择了特定计划，只获取该计划的记录
+        // 如果选择了特定计划，只获取该计划的记录。
+        // 如果这是一个父计划，另外获取其子计划的记录。
         const data = await financeAPI.getExpenseRecords(selectedPlanId);
         allRecords = data;
+        
+        const plans = await financeAPI.getExpensePlans();
+        const plan = plans.find(p => p.id === selectedPlanId);
+        if (plan) {
+          const childrenPlans = plans.filter(p => p.parent_id === plan.id);
+          for (const childPlan of childrenPlans) {
+            const childData = await financeAPI.getExpenseRecords(childPlan.id);
+            allRecords = [...allRecords, ...childData];
+          }
+        }
       } else {
         // 如果没有选择计划，获取所有计划的记录
         for (const plan of plans) {
@@ -109,7 +120,17 @@ const Expense: React.FC = () => {
       const sortedRecords = [];
       for (const nonSubRecord of nonSubRecords) {
         sortedRecords.push(nonSubRecord);
-        const matchedSubRecords = subRecords.filter(record => record.parent_record_id === nonSubRecord.id);
+        const matchedSubRecords = subRecords
+          .filter(record => record.parent_record_id === nonSubRecord.id)
+          .filter(record => {
+            const parentRecord = filteredRecords.find(r => r.id === record.parent_record_id);
+            if (!parentRecord) return false;
+            const parentPlan = plans.find(p => p.id === parentRecord.plan_id);
+            if (!parentPlan) return false;
+            const startDate = getPeriodStartDate(dayjs(record.date), parentPlan.period);
+            const parentStartDate = getPeriodStartDate(dayjs(parentRecord.date), parentPlan.period);
+            return startDate.isSame(parentStartDate, 'day');
+          });
         if (matchedSubRecords.length > 0) {
           sortedRecords.push(...matchedSubRecords);
         }
@@ -119,26 +140,6 @@ const Expense: React.FC = () => {
       console.error('获取开支记录失败:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // 设置周期起始时间
-  const setPeriodStartDate = (date: dayjs.Dayjs) => {
-    if (!selectedRecord) return date;
-    const plan = plans.find(p => p.id === selectedRecord.plan_id);
-    if (!plan) return date;
-    
-    switch (plan.period) {
-      case 'WEEK':
-        return date.startOf('week');
-      case 'MONTH':
-        return date.startOf('month');
-      case 'QUARTER':
-        return date.startOf('quarter');
-      case 'YEAR':
-        return date.startOf('year');
-      default:
-        return date;
     }
   };
 
@@ -184,7 +185,7 @@ const Expense: React.FC = () => {
     if (!plan) return;
 
     const recordDate = dayjs(record.date);
-    const startDate = setPeriodStartDate(recordDate);
+    const startDate = getPeriodStartDate(recordDate, plan.period);
 
     editForm.setFieldsValue({
       date: startDate,
@@ -203,8 +204,9 @@ const Expense: React.FC = () => {
 
   const handleDateChange = async (date: dayjs.Dayjs | null) => {
     if (!date || !selectedRecord) return;
-    
-    const startDate = setPeriodStartDate(date);
+    const plan = plans.find(p => p.id === selectedRecord.plan_id);
+    if (!plan) return;
+    const startDate = getPeriodStartDate(date, plan.period);
     editForm.setFieldsValue({ date: startDate });
     
     // 在日期变化时检查是否存在记录
@@ -432,6 +434,15 @@ const Expense: React.FC = () => {
     }
   };
 
+  // 转到计划
+  const turnToPlan = (record: ExpenseRecord) => {
+    const plan = plans.find(p => p.id === record.plan_id);
+    if (plan) {
+      setSelectedPlanId(plan.id);
+      setPeriodType(plan.period);
+    }
+  };
+
   const columns: ColumnsType<ExpenseRecord> = [
     {
       title: '名称',
@@ -501,6 +512,9 @@ const Expense: React.FC = () => {
           <Button type="link" onClick={() => handleEdit(record)}>
             编辑
           </Button>
+          <Button type="link" onClick={() => turnToPlan(record)}>
+            转到计划
+          </Button>
           <Button type="link" danger onClick={() => handleDelete(record)}>
             删除
           </Button>
@@ -540,7 +554,7 @@ const Expense: React.FC = () => {
                 placeholder="选择开支计划（可选）"
                 allowClear
               >
-                {filteredPlans.map(plan => (
+                {filteredPlans.filter(plan => !plan.parent_id).map(plan => (
                   <Option key={plan.id} value={plan.id}>{plan.name}</Option>
                 ))}
               </Select>
