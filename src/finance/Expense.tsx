@@ -195,7 +195,6 @@ const Expense: React.FC = () => {
       closing_cumulative_balance: record.closing_cumulative_balance / 100,
       opening_cumulative_expense: record.opening_cumulative_expense / 100,
       closing_cumulative_expense: record.closing_cumulative_expense / 100,
-      is_sub_record: record.is_sub_record,
     });
     setIsEditModalVisible(true);
     setIsFormDisabled(false);
@@ -635,13 +634,6 @@ const Expense: React.FC = () => {
                 rules={[{ required: true, message: '请输入期末累计开支' }]}
               >
                 <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="is_sub_record"
-                label="是否是子记录"
-                valuePropName="checked"
-              >
-                <Switch disabled={isFormDisabled} />
               </Form.Item>
             </Form>
           </Modal>
