@@ -97,9 +97,24 @@ const Expense: React.FC = () => {
         }
         
         return true;
-      }).sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-      
-      setRecords(filteredRecords);
+      });
+      // 对记录进行排序
+      // 获取所有非子记录和子记录
+      const nonSubRecords = filteredRecords.filter(record => !record.is_sub_record);
+      const subRecords = filteredRecords.filter(record => record.is_sub_record);
+      // 对记录按照时间递减的关系排序
+      nonSubRecords.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      subRecords.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      // 生成一个新的列表，所有子记录都位于其基于 ID 对应的非子记录的后面
+      const sortedRecords = [];
+      for (const nonSubRecord of nonSubRecords) {
+        sortedRecords.push(nonSubRecord);
+        const matchedSubRecords = subRecords.filter(record => record.parent_record_id === nonSubRecord.id);
+        if (matchedSubRecords.length > 0) {
+          sortedRecords.push(...matchedSubRecords);
+        }
+      }
+      setRecords(sortedRecords);
     } catch (error) {
       console.error('获取开支记录失败:', error);
     } finally {
