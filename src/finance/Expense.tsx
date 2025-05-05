@@ -434,15 +434,6 @@ const Expense: React.FC = () => {
     }
   };
 
-  // 转到计划
-  const turnToPlan = (record: ExpenseRecord) => {
-    const plan = plans.find(p => p.id === record.plan_id);
-    if (plan) {
-      setSelectedPlanId(plan.id);
-      setPeriodType(plan.period);
-    }
-  };
-
   const columns: ColumnsType<ExpenseRecord> = [
     {
       title: '名称',
@@ -511,9 +502,6 @@ const Expense: React.FC = () => {
         <Space size="middle">
           <Button type="link" onClick={() => handleEdit(record)}>
             编辑
-          </Button>
-          <Button type="link" onClick={() => turnToPlan(record)}>
-            转到计划
           </Button>
           <Button type="link" danger onClick={() => handleDelete(record)}>
             删除
