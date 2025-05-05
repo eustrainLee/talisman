@@ -3,7 +3,7 @@ import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Inpu
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
-import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord } from '../api/finance';
+import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord, formatDate } from '../api/finance';
 
 const { Option } = Select;
 
@@ -447,6 +447,10 @@ const Expense: React.FC = () => {
       title: '日期',
       dataIndex: 'date',
       key: 'date',
+      render: (_: dayjs.Dayjs, record: ExpenseRecord) => {
+        const plan = plans.find(p => p.id === record.plan_id);
+        return plan ? formatDate(dayjs(record.date), plan.period) : dayjs(record.date).format('YYYY-MM-DD');
+      },
     },
     {
       title: '预算额度',

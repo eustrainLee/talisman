@@ -299,3 +299,24 @@ const getSubPeriodCount = (parentPeriod: string, subPeriod: string): number => {
       return 1;
   }
 }; 
+
+// 格式化日期：
+// 年：年份
+// 季度：年份-Q季度
+// 月：年份-月份(周几)
+// 周：年份-月份-日
+// 默认：年份-月份-日(周几)
+export const formatDate = (date: dayjs.Dayjs, periodType: string) => {
+  switch (periodType) {
+    case 'YEAR':
+      return date.format('YYYY');
+    case 'QUARTER':
+      return date.format('YYYY-[Q]Q');
+    case 'MONTH':
+      return date.format('YYYY-MM(ddd)');
+    case 'WEEK':
+      return date.format('YYYY-MM-DD');
+    default:
+      return date.format('YYYY-MM-DD(ddd)');
+  }
+};
