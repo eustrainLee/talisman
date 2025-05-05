@@ -40,15 +40,23 @@ class FinanceAPI {
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
-  async createExpensePlan(plan: {
-    name: string;
-    amount: number;
-    period: PeriodType;
-    parent_id?: number | null;
-    sub_period?: string | null;
-    budget_allocation?: 'NONE' | 'AVERAGE';
-  }): Promise<ExpensePlan> {
+  async getExpensePlan(planId: number): Promise<ExpensePlan | null> {
     if (USE_IPC) {
+      const plans = await window.electronAPI.getExpensePlans();
+      return plans.find(plan => plan.id === planId) || null;
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async createExpensePlan(plan: Omit<ExpensePlan, 'id' | 'created_at' | 'updated_at'>): Promise<ExpensePlan> {
+    if (USE_IPC) {
+      // 如果是子计划，自动使用父计划的名称
+      if (plan.parent_id) {
+        const parentPlan = await this.getExpensePlan(plan.parent_id);
+        if (parentPlan) {
+          plan.name = parentPlan.name;
+        }
+      }
       return window.electronAPI.createExpensePlan(plan);
     }
     throw new Error('非 Electron 环境不支持财务功能');
@@ -113,16 +121,48 @@ class FinanceAPI {
 export const financeAPI = new FinanceAPI();
 
 // 自省函数：更新结余和累计值
-export const introspectionExpenseRecord = (record: ExpenseRecord) => {
-  // 计算结余
-  const balance = record.budget_amount - record.actual_amount;
-  
-  // 计算期末累计值
-  const closingCumulativeBalance = record.opening_cumulative_balance + balance;
-  const closingCumulativeExpense = record.opening_cumulative_expense + record.actual_amount;
+export const introspectionExpenseRecord = (record: ExpenseRecord, plans: ExpensePlan[]) => {
+  const plan = plans.find(p => p.id === record.plan_id);
+  if (!plan) return record;
+
+  const result = calculateExpense(
+    record.is_sub_record,
+    plan.budget_allocation,
+    record.budget_amount,
+    record.actual_amount,
+    record.opening_cumulative_balance,
+    record.opening_cumulative_expense
+  );
 
   return {
     ...record,
+    balance: result.balance,
+    closing_cumulative_balance: result.closing_cumulative_balance,
+    closing_cumulative_expense: result.closing_cumulative_expense,
+  };
+};
+
+// 计算开支
+// 对于平均分配策略和非子记录，计算每个子记录的预算和期末累计值，累计值直接相加即可
+// 对于无分配策略的非子记录，期末累计开支直接相加，而期末累计结余应减去当前记录的实际开销
+export const calculateExpense = (
+  isSubRecord: boolean, budgetAllocation: 'NONE' | 'AVERAGE',
+  budgetAmount: number, actualAmount: number, openingCumulativeBalance: number, openingCumulativeExpense: number,
+): {balance: number, closing_cumulative_balance: number, closing_cumulative_expense: number} => {
+  const balance = budgetAmount - actualAmount;
+  if (budgetAllocation === 'AVERAGE' || isSubRecord) {
+    const closingCumulativeBalance = openingCumulativeBalance + balance;
+    const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
+    return {
+      balance,
+      closing_cumulative_balance: closingCumulativeBalance,
+      closing_cumulative_expense: closingCumulativeExpense,
+    };
+  }
+  // NONE 策略
+  const closingCumulativeBalance = openingCumulativeBalance - actualAmount;
+  const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
+  return {
     balance,
     closing_cumulative_balance: closingCumulativeBalance,
     closing_cumulative_expense: closingCumulativeExpense,
@@ -139,7 +179,7 @@ export const updateExpenseRecord = async (record: ExpenseRecord, plans: ExpenseP
   const subPlan = plans.find(p => p.parent_id === plan.id);
   if (!subPlan) {
     // 如果没有子计划，直接自省
-    return introspectionExpenseRecord(record);
+    return introspectionExpenseRecord(record, plans);
   }
 
   // 获取所有子记录
@@ -208,7 +248,7 @@ export const updateExpenseRecord = async (record: ExpenseRecord, plans: ExpenseP
         ...subRecord,
         budget_amount: remainingBudget,
         opening_cumulative_expense: totalExpense,
-        opening_cumulative_balance: record.opening_cumulative_balance + remainingBudget,
+        opening_cumulative_balance: remainingBudget,
       };
 
       // 递归更新子记录
@@ -231,7 +271,7 @@ export const updateExpenseRecord = async (record: ExpenseRecord, plans: ExpenseP
   };
 
   // 自省当前记录
-  return introspectionExpenseRecord(updatedRecord);
+  return introspectionExpenseRecord(updatedRecord, plans);
 };
 
 // 获取子周期数量

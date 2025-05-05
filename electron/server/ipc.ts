@@ -787,7 +787,17 @@ export function setupIpcHandlers() {
     budget_allocation?: string;
   }) => {
     try {
-      const stmt = getDatabase().prepare(`
+      const db = getDatabase();
+      
+      // 如果是子计划，检查父计划是否已存在子计划
+      if (plan.parent_id) {
+        const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(plan.parent_id) as { count: number };
+        if (hasSubPlans.count > 0) {
+          throw new Error('已存在子计划，不能重复创建');
+        }
+      }
+      
+      const stmt = db.prepare(`
         INSERT INTO expense_plans (
           name, amount, period, parent_id, sub_period, budget_allocation
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -933,7 +943,7 @@ export function setupIpcHandlers() {
           opening_cumulative_expense,
           closing_cumulative_expense,
           is_sub_record
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         record.plan_id,

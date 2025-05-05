@@ -425,7 +425,7 @@ const Expense: React.FC = () => {
       key: 'plan_id',
       render: (planId: number) => {
         const plan = plans.find(p => p.id === planId);
-        return plan ? plan.name : '未知计划';
+        return plan ? (plan.parent_id ? `- ${plan.name}` : plan.name) : '未知';
       },
     },
     {
@@ -474,12 +474,6 @@ const Expense: React.FC = () => {
       dataIndex: 'closing_cumulative_expense',
       key: 'closing_cumulative_expense',
       render: (value: number) => (value / 100).toFixed(2),
-    },
-    {
-      title: '子记录',
-      dataIndex: 'is_sub_record',
-      key: 'is_sub_record',
-      render: (value: boolean) => value ? '是' : '否',
     },
     {
       title: '操作',

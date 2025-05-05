@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType, updateExpenseRecord } from '../api/finance';
+import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType, updateExpenseRecord, calculateExpense } from '../api/finance';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
@@ -23,6 +23,7 @@ interface ExpensePlanComponentProps {
   onRecordCreated?: () => void;
 }
 
+// 组件 开支计划
 const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCreated }) => {
   const [createPlanForm] = Form.useForm();
   const [createForm] = Form.useForm();
@@ -61,63 +62,60 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       dataIndex: 'name',
       key: 'name',
       render: (text: string, record: ExpensePlan) => {
-        const isSubPlan = record.parent_id !== null;
-        return (
-          <div style={{ 
-            paddingLeft: isSubPlan ? '24px' : '0',
-            display: 'flex',
-            alignItems: 'center',
-            color: isSubPlan ? '#666' : '#000',
-            fontWeight: isSubPlan ? 'normal' : '500'
-          }}>
-            {text}
-          </div>
-        );
-      },
-    },
-    {
-      title: '额度',
-      dataIndex: 'amount',
-      key: 'amount',
-      render: (value: number, record: ExpensePlan) => {
-        const amount = (value / 100).toFixed(2);
-        if (record.parent_id === null || record.parent_id === undefined) {
-          return amount;
+        if (record.parent_id) {
+          const parentPlan = plans.find(p => p.id === record.parent_id);
+          return parentPlan ? '-' : text;
         }
-        return `${amount}（${record.budget_allocation === 'AVERAGE' ? '平均分配' : '不分配'}）`;
+        return text;
       },
     },
     {
       title: '周期',
       dataIndex: 'period',
       key: 'period',
-      render: (value: string) => periodTypes.find(type => type.value === value)?.label,
+    },
+    {
+      title: '预算额度',
+      dataIndex: 'amount',
+      key: 'amount',
+      render: (value: number) => (value / 100).toFixed(2),
+    },
+    {
+      title: '预算分配',
+      dataIndex: 'budget_allocation',
+      key: 'budget_allocation',
+      render: (value: string) => {
+        switch (value) {
+          case 'NONE':
+            return '不分配';
+          case 'AVERAGE':
+            return '平均分配';
+          default:
+            return value;
+        }
+      },
     },
     {
       title: '操作',
       key: 'action',
-      render: (_, record) => {
-        const hasSubPlan = plans.some(p => p.parent_id === record.id);
-        return (
-          <Space size="middle">
-            <Button type="link" onClick={() => handleCreate(record)}>
-              创建记录
+      render: (_, plan) => (
+        <Space size="middle">
+          <Button type="link" onClick={() => handleCreate(plan)}>
+            创建记录
+          </Button>
+          {!plan.parent_id && (
+            <Button type="link"
+            onClick={() => handleCreateSubPlan(plan)}
+            disabled={plans.some(plan => plan.parent_id === plan.id)}
+            >
+              创建子计划
             </Button>
-            {!record.parent_id && (
-              <Button 
-                type="link" 
-                onClick={() => handleCreateSubPlan(record)}
-                disabled={hasSubPlan}
-              >
-                创建子计划
-              </Button>
-            )}
-            <Button type="link" danger onClick={() => handleDelete(record.id)}>
-              删除
-            </Button>
-          </Space>
-        );
-      },
+          )}
+          <Button type="link" danger onClick={() => handleDelete(plan.id)}>
+            删除
+          </Button>
+        </Space>
+      ),
     },
   ];
 
@@ -211,10 +209,8 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   };
 
   // 设置周期起始时间
-  const setPeriodStartDate = (date: dayjs.Dayjs) => {
-    if (!selectedPlan) return date;
-    
-    switch (selectedPlan.period) {
+  const getPeriodStartDate = (date: dayjs.Dayjs, period: string) => {
+    switch (period) {
       case 'WEEK':
         return date.startOf('week');
       case 'MONTH':
@@ -228,11 +224,19 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     }
   };
 
+  // 创建开支记录
   const handleCreate = (plan: ExpensePlan) => {
     setSelectedPlan(plan);
+
+    // 设置时间字段为这个周期的开始时间
     const today = dayjs();
-    const startDate = setPeriodStartDate(today);
-    
+    const startDate = getPeriodStartDate(today, plan.period);
+    // 设置期初累计值
+    const openingCumulativeBalance = plan.amount / 100;
+    const openingCumulativeExpense = 0;
+
+    const expenseValue = calculateExpense(false, plan.budget_allocation, plan.amount / 100, 0, openingCumulativeBalance, openingCumulativeExpense);
+
     // 重置错误状态
     setParentRecordError(null);
     setSubRecordError(null);
@@ -241,11 +245,11 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       date: startDate,
       budget_amount: plan.amount / 100,
       actual_amount: 0,
-      balance: plan.amount / 100,
-      opening_cumulative_balance: 0,
-      closing_cumulative_balance: plan.amount / 100,
-      opening_cumulative_expense: 0,
-      closing_cumulative_expense: 0,
+      balance: expenseValue.balance,
+      opening_cumulative_balance: openingCumulativeBalance,
+      closing_cumulative_balance: expenseValue.closing_cumulative_balance,
+      opening_cumulative_expense: openingCumulativeExpense,
+      closing_cumulative_expense: expenseValue.closing_cumulative_expense,
     });
     setIsCreateModalVisible(true);
     setIsFormDisabled(false);
@@ -372,7 +376,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const handleDateChange = async (date: dayjs.Dayjs | null) => {
     if (!date || !selectedPlan) return;
     
-    const startDate = setPeriodStartDate(date);
+    const startDate = getPeriodStartDate(date, selectedPlan.period);
     createForm.setFieldsValue({ date: startDate });
     
     // 在日期变化时检查是否存在记录并更新期初累计值
@@ -613,44 +617,28 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
 
   const handleCreateFormValuesChange = (changedValues: any, allValues: any) => {
     // 使用预算额度输入框的值（元）
-    const budgetAmount = Number(allValues.budget_amount || 0);
-    
-    if (budgetAmount > 0) {
-      if ('actual_amount' in changedValues) {
-        // 如果实际开销被修改，重新计算结余
-        const actualAmount = Number(changedValues.actual_amount);
-        const balance = budgetAmount - actualAmount;
-        createForm.setFieldsValue({ balance });
-        // 更新期末累计结余
-        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
-        const closingCumulativeBalance = openingCumulativeBalance + balance;
-        createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
-      } else if ('balance' in changedValues) {
-        // 如果结余被修改，重新计算实际开销
-        const balance = Number(changedValues.balance);
-        const actualAmount = budgetAmount - balance;
-        createForm.setFieldsValue({ actual_amount: actualAmount });
-        // 更新期末累计结余
-        const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
-        const closingCumulativeBalance = openingCumulativeBalance + balance;
-        createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
-      }
+    const budgetAmount = Number(allValues.budget_amount);
+    const actualAmount = Number(allValues.actual_amount);
+    const balance = Number(allValues.balance);
+    const openingCumulativeBalance = Number(allValues.opening_cumulative_balance);
+    const openingCumulativeExpense = Number(allValues.opening_cumulative_expense);
+    if ('actual_amount' in changedValues) {
+      // 如果实际开销被修改，重新计算结余
+      const balance = budgetAmount - actualAmount;
+      createForm.setFieldsValue({ balance });
+    } else if ('balance' in changedValues) {
+      // 如果结余被修改，重新计算实际开销
+      const actualAmount = budgetAmount - balance;
+      createForm.setFieldsValue({ actual_amount: actualAmount });
     }
 
-    // 计算累计值
-    if ('opening_cumulative_balance' in changedValues || 'balance' in changedValues) {
-      const openingCumulativeBalance = Number(allValues.opening_cumulative_balance || 0);
-      const balance = Number(allValues.balance || 0);
-      const closingCumulativeBalance = openingCumulativeBalance + balance;
-      createForm.setFieldsValue({ closing_cumulative_balance: closingCumulativeBalance });
-    }
+    const expenseValue = calculateExpense(false, selectedPlan?.budget_allocation || 'NONE', budgetAmount, actualAmount, openingCumulativeBalance, openingCumulativeExpense);
 
-    if ('opening_cumulative_expense' in changedValues || 'actual_amount' in changedValues) {
-      const openingCumulativeExpense = Number(allValues.opening_cumulative_expense || 0);
-      const actualAmount = Number(allValues.actual_amount || 0);
-      const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
-      createForm.setFieldsValue({ closing_cumulative_expense: closingCumulativeExpense });
-    }
+    createForm.setFieldsValue({
+      balance: expenseValue.balance,
+      closing_cumulative_balance: expenseValue.closing_cumulative_balance,
+      closing_cumulative_expense: expenseValue.closing_cumulative_expense,
+    });
   };
 
   const handleCreateSubPlan = (plan: ExpensePlan) => {
@@ -677,6 +665,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         amount: values.amount * 100,
         period: values.period as PeriodType,
         parent_id: selectedPlan!.id,
+        sub_period: values.period,
         budget_allocation: values.budget_allocation as 'NONE' | 'AVERAGE',
       });
       message.success('创建成功');
@@ -747,6 +736,8 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         name: values.name,
         amount: values.amount * 100,
         period: values.period as PeriodType,
+        parent_id: null,
+        sub_period: null,
         budget_allocation: 'NONE' as const,
       });
       message.success('创建成功');
@@ -969,46 +960,35 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         open={isCreateSubPlanModalVisible}
         onOk={handleCreateSubPlanSubmit}
         onCancel={() => setIsCreateSubPlanModalVisible(false)}
-        width={600}
+        width={400}
       >
         <Form
           form={createSubPlanForm}
           layout="vertical"
         >
           <Form.Item
-            label="属于"
-          >
-            <Input value={selectedPlan?.name} disabled />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
-          >
-            <Input placeholder="请输入名称" />
-          </Form.Item>
-          <Form.Item
             name="period"
             label="周期"
             rules={[{ required: true, message: '请选择周期' }]}
           >
-            <Select 
-              style={{ width: '100%' }}
+            <Select
+              placeholder="请选择周期"
               onChange={handleSubPeriodChange}
             >
-              {selectedPlan && getAvailablePeriods(selectedPlan.period).map(period => {
-                const type = periodTypes.find(t => t.value === period);
-                return type && <Option key={type.value} value={type.value}>{type.label}</Option>;
-              })}
+              {getAvailablePeriods(selectedPlan?.period || 'YEAR').map(period => (
+                <Option key={period} value={period}>
+                  {periodTypes.find(type => type.value === period)?.label}
+                </Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item
             name="budget_allocation"
-            label="预算分配方式"
-            initialValue="NONE"
+            label="预算分配"
+            rules={[{ required: true, message: '请选择预算分配方式' }]}
           >
             <Select 
-              style={{ width: '100%' }}
+              placeholder="请选择预算分配方式"
               onChange={handleBudgetAllocationChange}
             >
               <Option value="NONE">不分配</Option>
@@ -1020,7 +1000,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             label="额度"
             rules={[{ required: true, message: '请输入额度' }]}
           >
-            <Input type="number" disabled />
+            <Input type="number" placeholder="请输入额度" />
           </Form.Item>
         </Form>
       </Modal>
