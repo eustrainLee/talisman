@@ -73,6 +73,31 @@ interface UserSettings {
   lastFilePath?: string;
 }
 
+// 收入计划接口
+interface IncomePlan {
+  id: number;
+  name: string;
+  period: string;
+  parent_id: number | null;
+  sub_period: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 收入记录接口
+interface IncomeRecord {
+  id: number;
+  plan_id: number;
+  parent_record_id?: number;
+  date: string;
+  amount: number;
+  opening_cumulative: number;
+  closing_cumulative: number;
+  is_sub_record: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // 自定义的 API 接口
 interface IElectronAPI {
   getDocList: (docId: string) => Promise<DocFile[]>;
@@ -142,6 +167,15 @@ interface IElectronAPI {
     is_sub_record?: boolean;
   }) => Promise<void>;
   deleteExpenseRecord: (id: number) => Promise<void>;
+  // 收入相关 API
+  getIncomePlans: () => Promise<IncomePlan[]>;
+  createIncomePlan: (plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => Promise<IncomePlan>;
+  updateIncomePlan: (id: number, plan: { name?: string; period?: PeriodType }) => Promise<IncomePlan>;
+  deleteIncomePlan: (id: number) => Promise<void>;
+  getIncomeRecords: (planId: number) => Promise<IncomeRecord[]>;
+  createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<IncomeRecord>;
+  updateIncomeRecord: (recordId: number, data: Partial<IncomeRecord>) => Promise<void>;
+  deleteIncomeRecord: (recordId: number) => Promise<void>;
   invoke: (channel: string, ...args: any[]) => Promise<void>;
 }
 
@@ -216,6 +250,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     is_sub_record?: boolean;
   }) => ipcRenderer.invoke('finance:update-expense-record', id, record),
   deleteExpenseRecord: (id: number) => ipcRenderer.invoke('finance:delete-expense-record', id),
+  // 收入相关 API
+  getIncomePlans: () => ipcRenderer.invoke('finance:get-income-plans'),
+  createIncomePlan: (plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-income-plan', plan),
+  updateIncomePlan: (id: number, plan: { name?: string; period?: PeriodType }) => ipcRenderer.invoke('finance:update-income-plan', id, plan),
+  deleteIncomePlan: (id: number) => ipcRenderer.invoke('finance:delete-income-plan', id),
+  getIncomeRecords: (planId: number) => ipcRenderer.invoke('finance:get-income-records', planId),
+  createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-income-record', record),
+  updateIncomeRecord: (recordId: number, data: Partial<IncomeRecord>) => ipcRenderer.invoke('finance:update-income-record', recordId, data),
+  deleteIncomeRecord: (recordId: number) => ipcRenderer.invoke('finance:delete-income-record', recordId),
   invoke: (channel: string, ...args: any[]) => {
     return ipcRenderer.invoke(channel, ...args);
   },
@@ -227,3 +270,5 @@ declare global {
     electronAPI: IElectronAPI;
   }
 }
+
+type PeriodType = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';

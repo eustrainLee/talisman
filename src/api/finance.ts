@@ -32,6 +32,29 @@ export interface ExpenseRecord {
   updated_at: string;
 }
 
+export interface IncomePlan {
+  id: number;
+  name: string;
+  period: string;
+  parent_id: number | null;
+  sub_period: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IncomeRecord {
+  id: number;
+  plan_id: number;
+  parent_record_id?: number;
+  date: string;
+  amount: number;
+  opening_cumulative: number;
+  closing_cumulative: number;
+  is_sub_record: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 class FinanceAPI {
   async getExpensePlans(): Promise<ExpensePlan[]> {
     if (USE_IPC) {
@@ -115,6 +138,56 @@ class FinanceAPI {
       return;
     }
     throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  // 收入计划相关 API
+  async getIncomePlans(): Promise<IncomePlan[]> {
+    return window.electronAPI.getIncomePlans();
+  }
+
+  async getIncomePlan(planId: number): Promise<IncomePlan | null> {
+    const plans = await this.getIncomePlans();
+    return plans.find(plan => plan.id === planId) || null;
+  }
+
+  async createIncomePlan(plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>): Promise<IncomePlan> {
+    if (USE_IPC) {
+      return window.electronAPI.createIncomePlan({
+        name: plan.name,
+        period: plan.period,
+        parent_id: plan.parent_id,
+        sub_period: plan.sub_period
+      });
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async updateIncomePlan(id: number, plan: { name?: string; period?: PeriodType }): Promise<IncomePlan> {
+    if (USE_IPC) {
+      return window.electronAPI.updateIncomePlan(id, plan);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async deleteIncomePlan(id: number): Promise<void> {
+    return window.electronAPI.deleteIncomePlan(id);
+  }
+
+  // 收入记录相关 API
+  async getIncomeRecords(planId: number): Promise<IncomeRecord[]> {
+    return window.electronAPI.getIncomeRecords(planId);
+  }
+
+  async createIncomeRecord(record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>): Promise<IncomeRecord> {
+    return window.electronAPI.createIncomeRecord(record);
+  }
+
+  async updateIncomeRecord(recordId: number, data: Partial<IncomeRecord>): Promise<void> {
+    return window.electronAPI.updateIncomeRecord(recordId, data);
+  }
+
+  async deleteIncomeRecord(recordId: number): Promise<void> {
+    return window.electronAPI.deleteIncomeRecord(recordId);
   }
 }
 

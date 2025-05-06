@@ -76,6 +76,29 @@ interface ExpenseRecord {
   updated_at: string;
 }
 
+interface IncomePlan {
+  id: number;
+  name: string;
+  period: string;
+  parent_id: number | null;
+  sub_period: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface IncomeRecord {
+  id: number;
+  plan_id: number;
+  parent_record_id: number | null;
+  date: string;
+  amount: number;
+  opening_cumulative: number;
+  closing_cumulative: number;
+  is_sub_record: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 const getConfigDir = () => {
     const userDataPath = app.getPath('userData');
     return path.join(userDataPath, 'config');
@@ -1079,6 +1102,285 @@ export function setupIpcHandlers() {
         lastRecord.closing_cumulative_balance,
         firstRecord.opening_cumulative_expense,
         lastRecord.closing_cumulative_expense,
+        parentRecordId
+      );
+    }
+  }
+
+  // 获取收入计划列表
+  ipcMain.handle('finance:get-income-plans', async () => {
+    try {
+      const stmt = getDatabase().prepare(`
+        SELECT * FROM income_plans 
+        ORDER BY parent_id IS NULL DESC, created_at DESC
+      `);
+      return stmt.all();
+    } catch (error) {
+      log.error('Failed to fetch income plans:', error);
+      throw error;
+    }
+  });
+
+  // 创建收入计划
+  ipcMain.handle('finance:create-income-plan', async (_event, plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const db = getDatabase();
+      
+      const result = db.prepare(`
+        INSERT INTO income_plans (name, period, parent_id, sub_period)
+        VALUES (?, ?, ?, ?)
+      `).run(plan.name, plan.period, plan.parent_id, plan.sub_period);
+
+      const newPlan = db.prepare('SELECT * FROM income_plans WHERE id = ?').get(result.lastInsertRowid) as IncomePlan;
+      return newPlan;
+    } catch (error) {
+      log.error('Failed to create income plan:', error);
+      throw error;
+    }
+  });
+
+  // 更新收入计划
+  ipcMain.handle('finance:update-income-plan', async (_, id: number, plan: { name?: string; period?: string }) => {
+    try {
+      const db = getDatabase();
+      const updates: string[] = [];
+      const values: any[] = [];
+
+      if (plan.name !== undefined) {
+        updates.push('name = ?');
+        values.push(plan.name);
+      }
+      if (plan.period !== undefined) {
+        updates.push('period = ?');
+        values.push(plan.period);
+      }
+
+      if (updates.length === 0) {
+        throw new Error('没有要更新的字段');
+      }
+
+      values.push(id);
+      const result = db.prepare(`
+        UPDATE income_plans 
+        SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(...values);
+
+      if (result.changes === 0) {
+        throw new Error('收入计划不存在');
+      }
+
+      const updatedPlan = db.prepare('SELECT * FROM income_plans WHERE id = ?').get(id) as IncomePlan;
+      return updatedPlan;
+    } catch (error) {
+      log.error('Error updating income plan:', error);
+      throw error;
+    }
+  });
+
+  // 删除收入计划
+  ipcMain.handle('finance:delete-income-plan', async (_event, id: number) => {
+    try {
+      const db = getDatabase();
+      
+      const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM income_plans WHERE parent_id = ?').get(id) as { count: number };
+      if (hasSubPlans.count > 0) {
+        throw new Error('请先删除子计划');
+      }
+      
+      const hasRecords = db.prepare('SELECT COUNT(*) as count FROM income_records WHERE plan_id = ?').get(id) as { count: number };
+      if (hasRecords.count > 0) {
+        throw new Error('请先删除相关记录');
+      }
+      
+      const stmt = db.prepare('DELETE FROM income_plans WHERE id = ?');
+      stmt.run(id);
+      return true;
+    } catch (error) {
+      log.error('Failed to delete income plan:', error);
+      throw error;
+    }
+  });
+
+  // 获取收入记录列表
+  ipcMain.handle('finance:get-income-records', async (_event, planId: number) => {
+    try {
+      const stmt = getDatabase().prepare(`
+        SELECT * FROM income_records 
+        WHERE plan_id = ? 
+        ORDER BY is_sub_record ASC, date DESC
+      `);
+      return stmt.all(planId);
+    } catch (error) {
+      log.error('Failed to fetch income records:', error);
+      throw error;
+    }
+  });
+
+  // 创建收入记录
+  ipcMain.handle('finance:create-income-record', async (_event, record: {
+    plan_id: number;
+    parent_record_id?: number;
+    date: string;
+    amount: number;
+    opening_cumulative: number;
+    closing_cumulative: number;
+    is_sub_record: boolean;
+  }) => {
+    try {
+      const db = getDatabase();
+      
+      if (record.is_sub_record && record.parent_record_id) {
+        const parentRecord = db.prepare('SELECT * FROM income_records WHERE id = ?').get(record.parent_record_id);
+        if (!parentRecord) {
+          throw new Error('父记录不存在');
+        }
+      }
+      
+      if (record.is_sub_record) {
+        const overlappingRecord = db.prepare(`
+          SELECT * FROM income_records 
+          WHERE plan_id = ? AND is_sub_record = 1 AND date = ?
+        `).get(record.plan_id, record.date);
+        if (overlappingRecord) {
+          throw new Error('该时间已存在子记录');
+        }
+      }
+      
+      const stmt = db.prepare(`
+        INSERT INTO income_records (
+          plan_id,
+          parent_record_id,
+          date,
+          amount,
+          opening_cumulative,
+          closing_cumulative,
+          is_sub_record
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        record.plan_id,
+        record.parent_record_id || null,
+        record.date,
+        record.amount,
+        record.opening_cumulative,
+        record.closing_cumulative,
+        record.is_sub_record ? 1 : 0
+      );
+      
+      if (record.is_sub_record && record.parent_record_id) {
+        updateParentIncomeRecordSummary(record.parent_record_id);
+      }
+      
+      return {
+        id: result.lastInsertRowid,
+        ...record,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    } catch (error) {
+      log.error('Failed to create income record:', error);
+      throw error;
+    }
+  });
+
+  // 更新收入记录
+  ipcMain.handle('finance:update-income-record', async (_event, recordId: number, data: {
+    date?: string;
+    amount?: number;
+    opening_cumulative?: number;
+    closing_cumulative?: number;
+  }) => {
+    try {
+      const db = getDatabase();
+      const record = db.prepare('SELECT * FROM income_records WHERE id = ?').get(recordId) as IncomeRecord | undefined;
+      if (!record) {
+        throw new Error('记录不存在');
+      }
+
+      if (record.is_sub_record && data.date && data.date !== record.date) {
+        const overlappingRecord = db.prepare(`
+          SELECT * FROM income_records 
+          WHERE plan_id = ? AND is_sub_record = 1 AND date = ? AND id != ?
+        `).get(record.plan_id, data.date, recordId);
+        if (overlappingRecord) {
+          throw new Error('该时间已存在子记录');
+        }
+      }
+
+      db.prepare(`
+        UPDATE income_records 
+        SET date = ?, 
+            amount = ?, 
+            opening_cumulative = ?,
+            closing_cumulative = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        data.date || record.date,
+        data.amount || record.amount,
+        data.opening_cumulative || record.opening_cumulative,
+        data.closing_cumulative || record.closing_cumulative,
+        recordId
+      );
+
+      if (record.is_sub_record && record.parent_record_id) {
+        updateParentIncomeRecordSummary(record.parent_record_id);
+      }
+
+      return true;
+    } catch (error) {
+      log.error('Failed to update income record:', error);
+      throw error;
+    }
+  });
+
+  // 删除收入记录
+  ipcMain.handle('finance:delete-income-record', async (_event, recordId: number) => {
+    try {
+      const db = getDatabase();
+      
+      const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM income_records WHERE parent_record_id = ?').get(recordId) as { count: number };
+      if (hasSubRecords.count > 0) {
+        throw new Error('请先删除子记录');
+      }
+      
+      const stmt = db.prepare('DELETE FROM income_records WHERE id = ?');
+      const result = stmt.run(recordId) as { changes: number };
+      
+      if (result.changes === 0) {
+        throw new Error('记录不存在');
+      }
+      
+      return true;
+    } catch (error) {
+      log.error('Failed to delete income record:', error);
+      throw error;
+    }
+  });
+
+  // 更新父收入记录汇总数据
+  function updateParentIncomeRecordSummary(parentRecordId: number) {
+    const db = getDatabase();
+    const subRecords = db.prepare(`
+      SELECT * FROM income_records 
+      WHERE parent_record_id = ? 
+      ORDER BY date ASC
+    `).all(parentRecordId) as IncomeRecord[];
+    
+    if (subRecords.length > 0) {
+      const firstRecord = subRecords[0];
+      const lastRecord = subRecords[subRecords.length - 1];
+      
+      db.prepare(`
+        UPDATE income_records 
+        SET opening_cumulative = ?,
+            closing_cumulative = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        firstRecord.opening_cumulative,
+        lastRecord.closing_cumulative,
         parentRecordId
       );
     }
