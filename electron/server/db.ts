@@ -163,6 +163,38 @@ export function initializeDatabase() {
         FOREIGN KEY (parent_record_id) REFERENCES expense_records (id)
       )
     `)
+
+    // Create income plans table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS income_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        period TEXT NOT NULL,     -- 周期类型：WEEK/MONTH/QUARTER/YEAR
+        parent_id INTEGER,        -- 父计划ID
+        sub_period TEXT,          -- 子周期类型（如果是一级计划）
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES income_plans (id)
+      )
+    `)
+
+    // Create income records table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS income_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        parent_record_id INTEGER,  -- 父记录ID
+        date TEXT NOT NULL,        -- 记录日期
+        amount INTEGER NOT NULL,   -- 收入金额（分）
+        opening_cumulative INTEGER NOT NULL,  -- 期初累计（分）
+        closing_cumulative INTEGER NOT NULL,  -- 期末累计（分）
+        is_sub_record BOOLEAN NOT NULL DEFAULT 0,  -- 是否是子记录
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (plan_id) REFERENCES income_plans (id),
+        FOREIGN KEY (parent_record_id) REFERENCES income_records (id)
+      )
+    `)
   
     log.info('Database tables created successfully')
   } catch (error) {
