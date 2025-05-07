@@ -15,8 +15,8 @@ const periodTypes = [
 ];
 
 const Income: React.FC = () => {
-  const [periodType, setPeriodType] = useState('MONTH');
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [periodType, setPeriodType] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [records, setRecords] = useState<IncomeRecord[]>([]);
   const [plans, setPlans] = useState<IncomePlanType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,6 +148,8 @@ const Income: React.FC = () => {
                 value={periodType}
                 onChange={setPeriodType}
                 style={{ width: 120 }}
+                placeholder="选择周期（可选）"
+                allowClear
               >
                 {periodTypes.map(type => (
                   <Option key={type.value} value={type.value}>{type.label}</Option>
@@ -156,8 +158,9 @@ const Income: React.FC = () => {
               <DatePicker
                 value={selectedDate}
                 onChange={setSelectedDate}
-                picker={periodType.toLowerCase() as any}
+                picker={periodType?.toLowerCase() as any}
                 style={{ width: 200 }}
+                disabled={!periodType}
               />
             </div>
           </Card>
