@@ -3,7 +3,7 @@ import { Table, Select, DatePicker, Card, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import IncomePlanComponent from './IncomePlan';
-import { financeAPI, IncomeRecord, IncomePlan, formatDate } from '../api/finance';
+import { financeAPI, IncomeRecord, IncomePlan, formatDate, getPeriodStartDate } from '../api/finance';
 
 const { Option } = Select;
 
@@ -87,8 +87,32 @@ const Income: React.FC = () => {
       });
 
       // 对记录进行排序
-      filteredRecords.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
-      setRecords(filteredRecords);
+      // 获取所有非子记录和子记录
+      const nonSubRecords = filteredRecords.filter(record => !record.is_sub_record);
+      const subRecords = filteredRecords.filter(record => record.is_sub_record);
+      // 对记录按照时间递减的关系排序
+      nonSubRecords.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      subRecords.sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf());
+      // 生成一个新的列表，所有子记录都位于其基于 ID 对应的非子记录的后面
+      const sortedRecords = [];
+      for (const nonSubRecord of nonSubRecords) {
+        sortedRecords.push(nonSubRecord);
+        const matchedSubRecords = subRecords
+          .filter(record => record.parent_record_id === nonSubRecord.id)
+          .filter(record => {
+            const parentRecord = filteredRecords.find(r => r.id === record.parent_record_id);
+            if (!parentRecord) return false;
+            const parentPlan = plans.find(p => p.id === parentRecord.plan_id);
+            if (!parentPlan) return false;
+            const startDate = getPeriodStartDate(dayjs(record.date), parentPlan.period);
+            const parentStartDate = getPeriodStartDate(dayjs(parentRecord.date), parentPlan.period);
+            return startDate.isSame(parentStartDate, 'day');
+          });
+        if (matchedSubRecords.length > 0) {
+          sortedRecords.push(...matchedSubRecords);
+        }
+      }
+      setRecords(sortedRecords);
     } catch (error) {
       console.error('获取收入记录失败:', error);
     } finally {
