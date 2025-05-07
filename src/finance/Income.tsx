@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Table, Select, DatePicker, Card, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import IncomePlan from './IncomePlan';
-import { financeAPI, IncomeRecord, IncomePlan as IncomePlanType } from '../api/finance';
+import IncomePlanComponent from './IncomePlan';
+import { financeAPI, IncomeRecord, IncomePlan, formatDate } from '../api/finance';
 
 const { Option } = Select;
 
@@ -18,7 +18,7 @@ const Income: React.FC = () => {
   const [periodType, setPeriodType] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [records, setRecords] = useState<IncomeRecord[]>([]);
-  const [plans, setPlans] = useState<IncomePlanType[]>([]);
+  const [plans, setPlans] = useState<IncomePlan[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -110,7 +110,10 @@ const Income: React.FC = () => {
       title: '日期',
       dataIndex: 'date',
       key: 'date',
-      render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
+      render: (_: dayjs.Dayjs, record: IncomeRecord) => {
+        const plan = plans.find(p => p.id === record.plan_id);
+        return plan ? formatDate(dayjs(record.date), plan.period) : dayjs(record.date).format('YYYY-MM-DD');
+      },
     },
     {
       title: '收入',
@@ -176,7 +179,7 @@ const Income: React.FC = () => {
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="收入计划" key="2">
-          <IncomePlan onRecordCreated={fetchRecords} />
+          <IncomePlanComponent onRecordCreated={fetchRecords} />
         </Tabs.TabPane>
       </Tabs>
     </div>
