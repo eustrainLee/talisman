@@ -552,16 +552,19 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
     const defaultPeriod = getAvailablePeriods(plan.period)[0];
     createSubPlanForm.setFieldsValue({
       period: defaultPeriod,
+      name: plan.name,
     });
   };
 
   const handleCreateSubPlanSubmit = async () => {
     try {
       const values = await createSubPlanForm.validateFields();
+      if (!selectedPlan) return;
+      
       await financeAPI.createIncomePlan({
-        name: values.name,
+        name: selectedPlan.name,
         period: values.period as PeriodType,
-        parent_id: selectedPlan!.id,
+        parent_id: selectedPlan.id,
         sub_period: values.period,
       });
       message.success('创建成功');
@@ -807,13 +810,6 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
           form={createSubPlanForm}
           layout="vertical"
         >
-          <Form.Item
-            name="name"
-            label="名称"
-            rules={[{ required: true, message: '请输入名称' }]}
-          >
-            <Input placeholder="请输入名称" />
-          </Form.Item>
           <Form.Item
             name="period"
             label="周期"
