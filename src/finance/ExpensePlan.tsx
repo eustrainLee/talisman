@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, ExpensePlan, ExpenseRecord, PeriodType, updateExpenseRecord, calculateExpense } from '../api/finance';
+import { ExpensePlan, ExpenseRecord } from '../../electron/server/finance/def';
+import { getPeriodStartDate, calculateExpense } from '../../electron/server/finance/helper';
+import { financeAPI, PeriodType } from '../api/finance';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
@@ -141,7 +143,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   // 检查指定时间是否已存在记录，并获取最近周期的期末累计值
   const checkExistingRecord = async (planId: number, date: dayjs.Dayjs) => {
     try {
-      const records = await financeAPI.getExpenseRecords(planId);
+      const records = await financeAPI.getExpenseRecordsWithPlanID(planId);
       const period = selectedPlan?.period;
       
       // 检查当前周期是否存在记录
@@ -208,22 +210,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     }
   };
 
-  // 设置周期起始时间
-  const getPeriodStartDate = (date: dayjs.Dayjs, period: string) => {
-    switch (period) {
-      case 'WEEK':
-        return date.startOf('week');
-      case 'MONTH':
-        return date.startOf('month');
-      case 'QUARTER':
-        return date.startOf('quarter');
-      case 'YEAR':
-        return date.startOf('year');
-      default:
-        return date;
-    }
-  };
-
   // 创建开支记录
   const handleCreate = (plan: ExpensePlan) => {
     setSelectedPlan(plan);
@@ -283,7 +269,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           }
 
           // 获取父计划的记录
-          financeAPI.getExpenseRecords(parentPlan.id).then(parentRecords => {
+          financeAPI.getExpenseRecordsWithPlanID(parentPlan.id).then(parentRecords => {
             let parentRecord = null;
 
             // 根据父计划的周期类型查找对应的父记录
@@ -317,7 +303,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             }
 
             // 检查是否有时间冲突的子记录
-            financeAPI.getExpenseRecords(selectedPlan.id).then(subRecords => {
+            financeAPI.getExpenseRecordsWithPlanID(selectedPlan.id).then(subRecords => {
               const hasOverlappingRecord = subRecords.some(r => r.date === dayjs(date).format('YYYY-MM-DD'));
               if (hasOverlappingRecord) {
                 setSubRecordError('该时间已存在子记录');
@@ -406,7 +392,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       }
 
       // 获取父计划的记录
-      const parentRecords = await financeAPI.getExpenseRecords(parentPlan.id);
+      const parentRecords = await financeAPI.getExpenseRecordsWithPlanID(parentPlan.id);
       let parentRecord = null;
 
       // 根据父计划的周期类型查找对应的父记录
@@ -440,7 +426,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
       }
 
       // 检查是否有时间冲突的子记录
-      const subRecords = await financeAPI.getExpenseRecords(selectedPlan.id);
+      const subRecords = await financeAPI.getExpenseRecordsWithPlanID(selectedPlan.id);
       const hasOverlappingRecord = subRecords.some(r => r.date === startDate.format('YYYY-MM-DD'));
       if (hasOverlappingRecord) {
         setSubRecordError('该时间已存在子记录');
@@ -524,7 +510,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         }
 
         // 获取父计划的记录
-        const parentRecords = await financeAPI.getExpenseRecords(parentPlan.id);
+        const parentRecords = await financeAPI.getExpenseRecordsWithPlanID(parentPlan.id);
         const recordDate = dayjs(values.date);
         let parentRecord = null;
 
@@ -559,7 +545,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         }
 
         // 检查是否有时间冲突的子记录
-        const subRecords = await financeAPI.getExpenseRecords(selectedPlan.id);
+        const subRecords = await financeAPI.getExpenseRecordsWithPlanID(selectedPlan.id);
         const hasOverlappingRecord = subRecords.some(r => r.date === values.date.format('YYYY-MM-DD'));
         if (hasOverlappingRecord) {
           message.error('该时间已存在子记录');
@@ -581,12 +567,13 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           parent_record_id: parentRecord.id,
         });
 
-        // 更新父记录
-        const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
-        await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+        // TODO：移到后端
+        // // 更新父记录
+        // const updatedParentRecord = await reconcileExpenseRecord(parentRecord, plans);
+        // await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
 
       } else {
-        await financeAPI.createExpenseRecord({
+        const record = await financeAPI.createExpenseRecord({
           plan_id: selectedPlan.id,
           date: values.date.format('YYYY-MM-DD'),
           budget_amount: values.budget_amount * 100,
@@ -598,6 +585,11 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           closing_cumulative_expense: values.closing_cumulative_expense * 100,
           is_sub_record: false,
         });
+        // TODO：移到后端
+        // // 更新记录
+        // const updatedRecord = await reconcileExpenseRecord(record, plans);
+        // await financeAPI.updateExpenseRecord(record.id, updatedRecord);
+        await financeAPI.updateExpenseRecord(record.id, record);
       }
 
       message.success('创建成功');
@@ -736,8 +728,6 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
         name: values.name,
         amount: values.amount * 100,
         period: values.period as PeriodType,
-        parent_id: null,
-        sub_period: null,
         budget_allocation: 'NONE' as const,
       });
       message.success('创建成功');

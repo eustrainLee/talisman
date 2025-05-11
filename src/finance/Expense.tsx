@@ -3,7 +3,9 @@ import { Table, Select, DatePicker, Card, Tabs, Button, Space, Modal, Form, Inpu
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import ExpensePlanComponent from './ExpensePlan';
-import { financeAPI, ExpenseRecord, ExpensePlan, updateExpenseRecord, formatDate, getPeriodStartDate } from '../api/finance';
+import { ExpenseRecord, ExpensePlan } from '../../electron/server/finance/def';
+import { financeAPI } from '../api/finance';
+import { getPeriodStartDate, formatDate } from '../../electron/server/finance/helper';
 
 const { Option } = Select;
 
@@ -57,7 +59,7 @@ const Expense: React.FC = () => {
       if (selectedPlanId) {
         // 如果选择了特定计划，只获取该计划的记录。
         // 如果这是一个父计划，另外获取其子计划的记录。
-        const data = await financeAPI.getExpenseRecords(selectedPlanId);
+        const data = await financeAPI.getExpenseRecordsWithPlanID(selectedPlanId);
         allRecords = data;
         
         const plans = await financeAPI.getExpensePlans();
@@ -65,14 +67,14 @@ const Expense: React.FC = () => {
         if (plan) {
           const childrenPlans = plans.filter(p => p.parent_id === plan.id);
           for (const childPlan of childrenPlans) {
-            const childData = await financeAPI.getExpenseRecords(childPlan.id);
+            const childData = await financeAPI.getExpenseRecordsWithPlanID(childPlan.id);
             allRecords = [...allRecords, ...childData];
           }
         }
       } else {
         // 如果没有选择计划，获取所有计划的记录
         for (const plan of plans) {
-          const data = await financeAPI.getExpenseRecords(plan.id);
+          const data = await financeAPI.getExpenseRecordsWithPlanID(plan.id);
           allRecords = [...allRecords, ...data];
         }
       }
@@ -146,7 +148,7 @@ const Expense: React.FC = () => {
   // 检查指定时间是否已存在记录
   const checkExistingRecord = async (recordId: number, planId: number, date: dayjs.Dayjs) => {
     try {
-      const records = await financeAPI.getExpenseRecords(planId);
+      const records = await financeAPI.getExpenseRecordsWithPlanID(planId);
       const plan = plans.find(p => p.id === planId);
       if (!plan) return false;
       
@@ -275,7 +277,7 @@ const Expense: React.FC = () => {
           }
 
           // 获取父计划的所有记录
-          const parentRecords = await financeAPI.getExpenseRecords(parentPlan);
+          const parentRecords = await financeAPI.getExpenseRecordsWithPlanID(parentPlan);
           
           // 找到与子记录时间匹配的父记录
           const parentRecord = parentRecords.find(r => {
@@ -319,10 +321,11 @@ const Expense: React.FC = () => {
             opening_cumulative_expense: values.opening_cumulative_expense * 100,
             closing_cumulative_expense: values.closing_cumulative_expense * 100,
           });
-
-          // 更新父记录
-          const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
-          await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+          
+          // TODO: 移到后端
+          // // 更新父记录
+          // const updatedParentRecord = await reconcileExpenseRecord(parentRecord, plans);
+          // await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
 
         } else {
           await financeAPI.updateExpenseRecord(selectedRecord.id, {
@@ -364,7 +367,7 @@ const Expense: React.FC = () => {
             }
 
             // 获取父计划的所有记录
-            const parentRecords = await financeAPI.getExpenseRecords(parentPlan);
+            const parentRecords = await financeAPI.getExpenseRecordsWithPlanID(parentPlan);
             
             // 找到与子记录时间匹配的父记录
             const parentRecord = parentRecords.find(r => {
@@ -399,9 +402,10 @@ const Expense: React.FC = () => {
             // 删除子记录
             await financeAPI.deleteExpenseRecord(record.id);
             
-            // 更新父记录
-            const updatedParentRecord = await updateExpenseRecord(parentRecord, plans);
-            await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
+            // TODO: 移到后端
+            // // 更新父记录
+            // const updatedParentRecord = await reconcileExpenseRecord(parentRecord, plans);
+            // await financeAPI.updateExpenseRecord(parentRecord.id, updatedParentRecord);
           } else {
             await financeAPI.deleteExpenseRecord(record.id);
           }

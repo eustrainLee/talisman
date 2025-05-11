@@ -3,7 +3,9 @@ import { Table, Select, DatePicker, Card, Tabs } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import IncomePlanComponent from './IncomePlan';
-import { financeAPI, IncomeRecord, IncomePlan, formatDate, getPeriodStartDate } from '../api/finance';
+import { IncomeRecord, IncomePlan } from '../../electron/server/finance/def';
+import { formatDate, getPeriodStartDate } from '../../electron/server/finance/helper';
+import { financeAPI } from '../api/finance';
 
 const { Option } = Select;
 

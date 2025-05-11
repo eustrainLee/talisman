@@ -5,7 +5,8 @@ import * as path from 'path'
 import log from 'electron-log'
 import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as gitModule from './git'
-import { getDatabase } from './db'
+import * as financeApi from './finance/api'
+// import * as financeDB from './finance/db'
 
 // 配置日志
 log.transports.file.level = 'debug';
@@ -47,115 +48,63 @@ interface UserSettings {
   lastFilePath?: string;
 }
 
-interface ExpensePlan {
-  id: number;
-  name: string;
-  amount: number;
-  period: string;
-  parent_id?: number;
-  sub_period?: string;
-  budget_allocation: 'NONE' | 'AVERAGE';
-  created_at: string;
-  updated_at: string;
-}
-
-interface ExpenseRecord {
-  id: number;
-  plan_id: number;
-  parent_record_id?: number;
-  date: string;
-  budget_amount: number;
-  actual_amount: number;
-  balance: number;
-  opening_cumulative_balance: number;
-  closing_cumulative_balance: number;
-  opening_cumulative_expense: number;
-  closing_cumulative_expense: number;
-  is_sub_record: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface IncomePlan {
-  id: number;
-  name: string;
-  period: string;
-  parent_id: number | null;
-  sub_period: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface IncomeRecord {
-  id: number;
-  plan_id: number;
-  parent_record_id: number | null;
-  date: string;
-  amount: number;
-  opening_cumulative: number;
-  closing_cumulative: number;
-  is_sub_record: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 const getConfigDir = () => {
-    const userDataPath = app.getPath('userData');
-    return path.join(userDataPath, 'config');
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'config');
 };
 
 // 获取用户设置文件路径
 const getUserSettingsPath = () => {
-    return path.join(getConfigDir(), 'user_settings.json');
+  return path.join(getConfigDir(), 'user_settings.json');
 };
 
 // 获取用户设置
 const getUserSettings = (): UserSettings => {
-    try {
-        const configDir = getConfigDir();
-        const settingsPath = getUserSettingsPath();
-        
-        // 确保配置目录存在
-        if (!fs.existsSync(configDir)) {
-            fs.mkdirSync(configDir, { recursive: true });
-        }
-        
-        // 读取设置文件
-        if (fs.existsSync(settingsPath)) {
-            const settingsData = fs.readFileSync(settingsPath, 'utf-8');
-            return JSON.parse(settingsData);
-        }
-    } catch (error) {
-        log.error('Failed to read user settings:', error);
+  try {
+    const configDir = getConfigDir();
+    const settingsPath = getUserSettingsPath();
+
+    // 确保配置目录存在
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
     }
-    
-    // 默认返回空对象
-    return {};
+
+    // 读取设置文件
+    if (fs.existsSync(settingsPath)) {
+      const settingsData = fs.readFileSync(settingsPath, 'utf-8');
+      return JSON.parse(settingsData);
+    }
+  } catch (error) {
+    log.error('Failed to read user settings:', error);
+  }
+
+  // 默认返回空对象
+  return {};
 };
 
 // 保存用户设置
 const saveUserSettings = (settings: UserSettings): boolean => {
-    try {
-        const configDir = getConfigDir();
-        const settingsPath = getUserSettingsPath();
-        
-        // 确保配置目录存在
-        if (!fs.existsSync(configDir)) {
-            fs.mkdirSync(configDir, { recursive: true });
-        }
-        
-        // 保存设置
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-        return true;
-    } catch (error) {
-        log.error('Failed to save user settings:', error);
-        return false;
+  try {
+    const configDir = getConfigDir();
+    const settingsPath = getUserSettingsPath();
+
+    // 确保配置目录存在
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
     }
+
+    // 保存设置
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    log.error('Failed to save user settings:', error);
+    return false;
+  }
 };
 
 const getDataDir = () => {
-    const userDataPath = app.getPath('userData');
-    return path.join(userDataPath, 'data');
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'data');
 };
 
 export function setupIpcHandlers() {
@@ -166,38 +115,38 @@ export function setupIpcHandlers() {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let docPath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           docPath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回空数组
       if (!docPath) {
         return [];
       }
-      
+
       // 检查目录是否存在，不存在则返回空数组
       if (!fs.existsSync(docPath)) {
         return [];
       }
-      
-      
+
+
       // 递归扫描目录函数
       const scanDirectory = (dirPath: string): DocNode[] => {
         const result: DocNode[] = [];
         const items = fs.readdirSync(dirPath, { withFileTypes: true });
-        
+
         for (const item of items) {
           const itemPath = path.join(dirPath, item.name);
           const relativePath = path.relative(docPath, itemPath).replace(/\\/g, '/');
           const itemKey = `${docId}/${relativePath}`;
-          
+
           if (item.isDirectory()) {
             // 目录节点 - 无论是否为空目录都正确标记为目录
             const children = scanDirectory(itemPath);
@@ -218,10 +167,10 @@ export function setupIpcHandlers() {
             });
           }
         }
-        
+
         return result;
       };
-      
+
       // 开始扫描根目录
       return scanDirectory(docPath);
     } catch (error) {
@@ -236,35 +185,35 @@ export function setupIpcHandlers() {
       // 解析路径 ID 和相对路径
       const [docId, ...relativeParts] = docPath.split('/');
       const relativePath = relativeParts.join('/');
-      
+
       // 获取文档路径配置
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回空内容
       if (!basePath) {
         return '';
       }
-      
+
       // 获取完整文件路径
       const filePath = path.join(basePath, relativePath);
-      
+
       // 检查文件是否存在
       if (!fs.existsSync(filePath)) {
         return '';
       }
-      
+
       // 读取文件内容
       const content = await fsPromises.readFile(filePath, 'utf-8');
       return content;
@@ -280,38 +229,38 @@ export function setupIpcHandlers() {
       // 解析路径 ID 和相对路径
       const [docId, ...relativeParts] = docPath.split('/');
       const relativePath = relativeParts.join('/');
-      
+
       // 获取文档路径配置
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回失败
       if (!basePath) {
         return false;
       }
-      
+
       // 检查基础目录是否存在
       if (!fs.existsSync(basePath)) {
         return false;
       }
-      
+
       // 获取完整文件路径
       const filePath = path.join(basePath, relativePath);
-      
+
       // 确保文件所在的目录存在（这是保存文件所必需的）
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
-      
+
       // 保存文件内容
       await fsPromises.writeFile(filePath, content, 'utf-8');
       return true;
@@ -327,27 +276,27 @@ export function setupIpcHandlers() {
       // 解析路径 ID 和相对路径
       const [docId, ...relativeParts] = docPath.split('/');
       const relativePath = relativeParts.join('/');
-      
+
       // 获取文档路径配置
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回失败
       if (!basePath) {
         return { success: false, error: 'Document directory not found' };
       }
-      
+
       const configPath = path.join(basePath, 'config.json');
       let config: DocConfig = { files: [] };
 
@@ -355,7 +304,7 @@ export function setupIpcHandlers() {
         try {
           const configContent = await fsPromises.readFile(configPath, 'utf-8');
           config = JSON.parse(configContent);
-          
+
           // 确保 files 字段存在
           if (!config.files) {
             config.files = [];
@@ -368,12 +317,12 @@ export function setupIpcHandlers() {
       const isFile = relativePath.endsWith('.md');
       const pathParts = relativePath.split('/');
       let currentConfig = config.files;
-      
+
       // 创建或更新路径上的所有节点
       for (let i = 0; i < pathParts.length; i++) {
         const part = pathParts[i];
         const isLastPart = i === pathParts.length - 1;
-        
+
         if (!currentConfig.find(node => node.name === part)) {
           currentConfig.push({
             title: isLastPart ? title : part,
@@ -387,7 +336,7 @@ export function setupIpcHandlers() {
             node.title = title;
           }
         }
-        
+
         if (!isLastPart) {
           const node = currentConfig.find(node => node.name === part);
           if (node && node.children) {
@@ -409,7 +358,7 @@ export function setupIpcHandlers() {
   // 从远程仓库拉取文档
   ipcMain.handle('doc:pull-from-git', async (_event, config: { docId: string, git: gitModule.GitConfig }) => {
     const tempDir = path.join(getDataDir(), 'temp_git');
-    
+
     try {
       // 获取文档路径配置
       const configDir = getConfigDir();
@@ -417,35 +366,35 @@ export function setupIpcHandlers() {
       let docConfig: DocJsonConfig = {
         docs: []
       };
-      
+
       if (fs.existsSync(docConfigPath)) {
         docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
       }
-      
+
       // 确保 docs 数组存在
       if (!docConfig.docs) {
         docConfig.docs = [];
       }
-      
+
       // 查找或创建指定 ID 的路径配置
       let pathItem = docConfig.docs.find(p => p.id === config.docId);
       if (!pathItem) {
         // 如果找不到指定 ID 的配置，返回失败
         return { success: false, error: 'Document directory configuration not found' };
       }
-      
+
       // 更新 Git 配置
       pathItem.git = config.git;
-      
+
       // 保存配置
       await fsPromises.mkdir(configDir, { recursive: true });
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
-      
+
       // 检查目标目录是否存在
       if (!fs.existsSync(pathItem.path)) {
         return { success: false, error: 'Target directory does not exist, please create it first' };
       }
-      
+
       // 使用 git 模块的 pullFromGit 函数
       return await gitModule.pullFromGit(tempDir, pathItem.path, config.git);
     } catch (error) {
@@ -457,7 +406,7 @@ export function setupIpcHandlers() {
   // 创建 Pull Request
   ipcMain.handle('doc:create-pull-request', async (_event, config: { docId: string, pr: gitModule.PullRequestConfig }) => {
     const tempDir = path.join(getDataDir(), 'temp_git');
-    
+
     try {
       // 获取文档路径配置
       const configDir = getConfigDir();
@@ -465,17 +414,17 @@ export function setupIpcHandlers() {
       let docConfig: DocJsonConfig = {
         docs: []
       };
-      
+
       if (fs.existsSync(docConfigPath)) {
         docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
       }
-      
+
       // 查找指定 ID 的路径配置
       const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === config.docId);
       if (!pathItem || !pathItem.git) {
         return { success: false, error: 'Git configuration for document directory not found' };
       }
-      
+
       // 使用 git 模块的 createPullRequest 函数
       return await gitModule.createPullRequest(
         configDir,
@@ -495,10 +444,10 @@ export function setupIpcHandlers() {
     try {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.git) {
@@ -517,19 +466,19 @@ export function setupIpcHandlers() {
     try {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 直接返回新格式的配置
         if (docConfig.docs) {
           return { docs: docConfig.docs };
         }
-        
+
         // 如果没有 docs 字段，返回空数组
         return { docs: [] };
       }
-      
+
       // 如果配置文件不存在，返回空数组
       return { docs: [] };
     } catch (error) {
@@ -543,22 +492,22 @@ export function setupIpcHandlers() {
     try {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
-      
+
       let docConfig: DocJsonConfig = {
         docs: []
       };
-      
+
       if (fs.existsSync(docConfigPath)) {
         docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
       }
-      
+
       // 更新路径配置
       docConfig.docs = config.docs;
-      
+
       // 不再自动创建目录
       // 只确保配置目录存在
       await fsPromises.mkdir(configDir, { recursive: true });
-      
+
       await fsPromises.writeFile(docConfigPath, JSON.stringify(docConfig, null, 2), 'utf-8');
       return true;
     } catch (error) {
@@ -594,18 +543,18 @@ export function setupIpcHandlers() {
         properties: ['openDirectory'],
         title: 'Select Document Directory'
       };
-      
+
       // 如果提供了初始路径且该路径存在，则设置为默认路径
       if (initialPath && fs.existsSync(initialPath)) {
         options.defaultPath = initialPath;
       }
-      
+
       const result = await dialog.showOpenDialog(options);
-      
+
       if (result.canceled) {
         return '';
       }
-      
+
       return result.filePaths[0];
     } catch (error) {
       log.error('Failed to select directory:', error);
@@ -637,31 +586,31 @@ export function setupIpcHandlers() {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回失败
       if (!basePath) {
         return { success: false, error: 'Document directory not found' };
       }
-      
+
       // 获取完整文件路径
       const filePath = path.join(basePath, relativePath);
-      
+
       // 确保文件所在的目录存在
       await fsPromises.mkdir(path.dirname(filePath), { recursive: true });
-      
+
       // 创建文件
       await fsPromises.writeFile(filePath, content, 'utf-8');
-      
+
       return { success: true };
     } catch (error) {
       log.error('Failed to create file:', error);
@@ -676,28 +625,28 @@ export function setupIpcHandlers() {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回失败
       if (!basePath) {
         return { success: false, error: 'Document directory not found' };
       }
-      
+
       // 获取完整文件夹路径
       const dirPath = path.join(basePath, relativePath);
-      
+
       // 创建文件夹
       await fsPromises.mkdir(dirPath, { recursive: true });
-      
+
       return { success: true };
     } catch (error) {
       log.error('Failed to create directory:', error);
@@ -712,30 +661,30 @@ export function setupIpcHandlers() {
       const configDir = getConfigDir();
       const docConfigPath = path.join(configDir, 'doc.json');
       let basePath = '';
-      
+
       if (fs.existsSync(docConfigPath)) {
         const docConfig = JSON.parse(fs.readFileSync(docConfigPath, 'utf-8'));
-        
+
         // 查找指定 ID 的路径配置
         const pathItem = docConfig.docs?.find((p: DocPathItem) => p.id === docId);
         if (pathItem && pathItem.path) {
           basePath = pathItem.path;
         }
       }
-      
+
       // 如果找不到指定路径，返回失败
       if (!basePath) {
         return { success: false, error: 'Document directory not found' };
       }
-      
+
       // 获取完整路径
       const itemPath = path.join(basePath, relativePath);
-      
+
       // 检查路径是否存在
       if (!fs.existsSync(itemPath)) {
         return { success: false, error: 'Path does not exist' };
       }
-      
+
       // 删除文件或文件夹
       if (isDirectory) {
         // 递归删除文件夹及其内容
@@ -744,7 +693,7 @@ export function setupIpcHandlers() {
         // 删除文件
         await fsPromises.unlink(itemPath);
       }
-      
+
       return { success: true };
     } catch (error) {
       log.error('Failed to delete item:', error);
@@ -789,600 +738,140 @@ export function setupIpcHandlers() {
   // 获取开支计划列表
   ipcMain.handle('finance:get-expense-plans', async () => {
     try {
-      const stmt = getDatabase().prepare(`
-        SELECT * FROM expense_plans 
-        ORDER BY parent_id IS NULL DESC, created_at DESC
-      `);
-      return stmt.all();
+      return await financeApi.getExpensePlans();
     } catch (error) {
-      log.error('Failed to fetch expense plans:', error);
+      console.error('获取开支计划失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取收入计划列表
+  ipcMain.handle('finance:get-income-plans', async () => {
+    try {
+      return await financeApi.getIncomePlans();
+    } catch (error) {
+      console.error('获取收入计划失败:', error);
       throw error;
     }
   });
 
   // 创建开支计划
-  ipcMain.handle('finance:create-expense-plan', async (_event, plan: { 
-    name: string; 
-    amount: number; 
-    period: string;
-    parent_id?: number;
-    sub_period?: string;
-    budget_allocation?: string;
-  }) => {
+  ipcMain.handle('finance:create-expense-plan', async (_, plan) => {
     try {
-      const db = getDatabase();
-      
-      // 如果是子计划，检查父计划是否已存在子计划
-      if (plan.parent_id) {
-        const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(plan.parent_id) as { count: number };
-        if (hasSubPlans.count > 0) {
-          throw new Error('已存在子计划，不能重复创建');
-        }
-      }
-      
-      const stmt = db.prepare(`
-        INSERT INTO expense_plans (
-          name, amount, period, parent_id, sub_period, budget_allocation
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `);
-      const result = stmt.run(
-        plan.name,
-        plan.amount,
-        plan.period,
-        plan.parent_id || null,
-        plan.sub_period || null,
-        plan.budget_allocation || 'NONE'
-      );
-      return { id: result.lastInsertRowid, ...plan };
+      return await financeApi.createExpensePlan(plan);
     } catch (error) {
-      log.error('Failed to create expense plan:', error);
-      throw error;
-    }
-  });
-
-  // 更新开支计划
-  ipcMain.handle('finance:update-expense-plan', async (_event, id: number, data: Partial<ExpensePlan>) => {
-    try {
-      const db = getDatabase();
-      const plan = db.prepare('SELECT * FROM expense_plans WHERE id = ?').get(id) as ExpensePlan | undefined;
-      if (!plan) {
-        throw new Error('计划不存在');
-      }
-
-      if (data.sub_period && plan.sub_period !== data.sub_period) {
-        const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
-        if (hasSubPlans.count > 0) {
-          throw new Error('已存在子计划，不能修改子周期类型');
-        }
-      }
-
-      db.prepare(`
-        UPDATE expense_plans 
-        SET name = ?, 
-            amount = ?, 
-            period = ?,
-            sub_period = ?,
-            budget_allocation = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        data.name || plan.name,
-        data.amount || plan.amount,
-        data.period || plan.period,
-        data.sub_period || plan.sub_period,
-        data.budget_allocation || plan.budget_allocation,
-        id
-      );
-      return true;
-    } catch (error) {
-      log.error('Failed to update expense plan:', error);
-      throw error;
-    }
-  });
-
-  // 删除开支计划
-  ipcMain.handle('finance:delete-expense-plan', async (_event, id: number) => {
-    try {
-      const db = getDatabase();
-      
-      const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(id) as { count: number };
-      if (hasSubPlans.count > 0) {
-        throw new Error('请先删除子计划');
-      }
-      
-      const hasRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE plan_id = ?').get(id) as { count: number };
-      if (hasRecords.count > 0) {
-        throw new Error('请先删除相关记录');
-      }
-      
-      const stmt = db.prepare('DELETE FROM expense_plans WHERE id = ?');
-      stmt.run(id);
-      return true;
-    } catch (error) {
-      log.error('Failed to delete expense plan:', error);
-      throw error;
-    }
-  });
-
-  // 获取开支记录列表
-  ipcMain.handle('finance:get-expense-records', async (_event, planId: number) => {
-    try {
-      const stmt = getDatabase().prepare(`
-        SELECT * FROM expense_records 
-        WHERE plan_id = ? 
-        ORDER BY is_sub_record ASC, date DESC
-      `);
-      return stmt.all(planId);
-    } catch (error) {
-      log.error('Failed to fetch expense records:', error);
-      throw error;
-    }
-  });
-
-  // 创建开支记录
-  ipcMain.handle('finance:create-expense-record', async (_event, record: {
-    plan_id: number;
-    parent_record_id?: number;
-    date: string;
-    budget_amount: number;
-    actual_amount: number;
-    balance: number;
-    opening_cumulative_balance: number;
-    closing_cumulative_balance: number;
-    opening_cumulative_expense: number;
-    closing_cumulative_expense: number;
-    is_sub_record: boolean;
-  }) => {
-    try {
-      const db = getDatabase();
-      
-      if (record.is_sub_record && record.parent_record_id) {
-        const parentRecord = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(record.parent_record_id) as ExpenseRecord | undefined;
-        if (!parentRecord) {
-          throw new Error('父记录不存在');
-        }
-      }
-      
-      if (record.is_sub_record) {
-        const overlappingRecord = db.prepare(`
-          SELECT * FROM expense_records 
-          WHERE plan_id = ? AND is_sub_record = 1 AND date = ?
-        `).get(record.plan_id, record.date) as ExpenseRecord | undefined;
-        if (overlappingRecord) {
-          throw new Error('该时间已存在子记录');
-        }
-      }
-      
-      const stmt = db.prepare(`
-        INSERT INTO expense_records (
-          plan_id,
-          parent_record_id,
-          date,
-          budget_amount,
-          actual_amount,
-          balance,
-          opening_cumulative_balance,
-          closing_cumulative_balance,
-          opening_cumulative_expense,
-          closing_cumulative_expense,
-          is_sub_record
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      const result = stmt.run(
-        record.plan_id,
-        record.parent_record_id || null,
-        record.date,
-        record.budget_amount,
-        record.actual_amount,
-        record.balance,
-        record.opening_cumulative_balance,
-        record.closing_cumulative_balance,
-        record.opening_cumulative_expense,
-        record.closing_cumulative_expense,
-        record.is_sub_record ? 1 : 0
-      );
-      
-      if (record.is_sub_record && record.parent_record_id) {
-        updateParentRecordSummary(record.parent_record_id);
-      }
-      
-      return {
-        id: result.lastInsertRowid,
-        ...record,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-    } catch (error) {
-      log.error('Failed to create expense record:', error);
-      throw error;
-    }
-  });
-
-  // 更新开支记录
-  ipcMain.handle('finance:update-expense-record', async (_event, recordId: number, data: Partial<ExpenseRecord>) => {
-    try {
-      const db = getDatabase();
-      const record = db.prepare('SELECT * FROM expense_records WHERE id = ?').get(recordId) as ExpenseRecord | undefined;
-      if (!record) {
-        throw new Error('记录不存在');
-      }
-
-      if (record.is_sub_record && data.date && data.date !== record.date) {
-        const overlappingRecord = db.prepare(`
-          SELECT * FROM expense_records 
-          WHERE plan_id = ? AND is_sub_record = 1 AND date = ? AND id != ?
-        `).get(record.plan_id, data.date, recordId) as ExpenseRecord | undefined;
-        if (overlappingRecord) {
-          throw new Error('该时间已存在子记录');
-        }
-      }
-
-      db.prepare(`
-        UPDATE expense_records 
-        SET date = ?, 
-            budget_amount = ?, 
-            actual_amount = ?, 
-            balance = ?,
-            opening_cumulative_balance = ?,
-            closing_cumulative_balance = ?,
-            opening_cumulative_expense = ?,
-            closing_cumulative_expense = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        data.date || record.date,
-        data.budget_amount || record.budget_amount,
-        data.actual_amount || record.actual_amount,
-        data.balance || record.balance,
-        data.opening_cumulative_balance || record.opening_cumulative_balance,
-        data.closing_cumulative_balance || record.closing_cumulative_balance,
-        data.opening_cumulative_expense || record.opening_cumulative_expense,
-        data.closing_cumulative_expense || record.closing_cumulative_expense,
-        recordId
-      );
-
-      if (record.is_sub_record && record.parent_record_id) {
-        updateParentRecordSummary(record.parent_record_id);
-      }
-
-      return true;
-    } catch (error) {
-      log.error('Failed to update expense record:', error);
-      throw error;
-    }
-  });
-
-  // 删除开支记录
-  ipcMain.handle('finance:delete-expense-record', async (_event, recordId: number) => {
-    try {
-      const db = getDatabase();
-      
-      const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE parent_record_id = ?').get(recordId) as { count: number };
-      if (hasSubRecords.count > 0) {
-        throw new Error('请先删除子记录');
-      }
-      
-      const stmt = db.prepare('DELETE FROM expense_records WHERE id = ?');
-      const result = stmt.run(recordId) as { changes: number };
-      
-      if (result.changes === 0) {
-        throw new Error('记录不存在');
-      }
-      
-      return true;
-    } catch (error) {
-      log.error('Failed to delete expense record:', error);
-      throw error;
-    }
-  });
-
-  // 更新父记录汇总数据
-  function updateParentRecordSummary(parentRecordId: number) {
-    const db = getDatabase();
-    const subRecords = db.prepare(`
-      SELECT * FROM expense_records 
-      WHERE parent_record_id = ? 
-      ORDER BY date ASC
-    `).all(parentRecordId) as ExpenseRecord[];
-    
-    if (subRecords.length > 0) {
-      const firstRecord = subRecords[0];
-      const lastRecord = subRecords[subRecords.length - 1];
-      
-      db.prepare(`
-        UPDATE expense_records 
-        SET opening_cumulative_balance = ?,
-            closing_cumulative_balance = ?,
-            opening_cumulative_expense = ?,
-            closing_cumulative_expense = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        firstRecord.opening_cumulative_balance,
-        lastRecord.closing_cumulative_balance,
-        firstRecord.opening_cumulative_expense,
-        lastRecord.closing_cumulative_expense,
-        parentRecordId
-      );
-    }
-  }
-
-  // 获取收入计划列表
-  ipcMain.handle('finance:get-income-plans', async () => {
-    try {
-      const stmt = getDatabase().prepare(`
-        SELECT * FROM income_plans 
-        ORDER BY parent_id IS NULL DESC, created_at DESC
-      `);
-      return stmt.all();
-    } catch (error) {
-      log.error('Failed to fetch income plans:', error);
+      console.error('创建开支计划失败:', error);
       throw error;
     }
   });
 
   // 创建收入计划
-  ipcMain.handle('finance:create-income-plan', async (_event, plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => {
+  ipcMain.handle('finance:create-income-plan', async (_, plan) => {
     try {
-      const db = getDatabase();
-      
-      const result = db.prepare(`
-        INSERT INTO income_plans (name, period, parent_id, sub_period)
-        VALUES (?, ?, ?, ?)
-      `).run(plan.name, plan.period, plan.parent_id, plan.sub_period);
-
-      const newPlan = db.prepare('SELECT * FROM income_plans WHERE id = ?').get(result.lastInsertRowid) as IncomePlan;
-      return newPlan;
+      return await financeApi.createIncomePlan(plan);
     } catch (error) {
-      log.error('Failed to create income plan:', error);
+      console.error('创建收入计划失败:', error);
       throw error;
     }
   });
 
-  // 更新收入计划
-  ipcMain.handle('finance:update-income-plan', async (_, id: number, plan: { name?: string; period?: string }) => {
+  // 删除开支计划
+  ipcMain.handle('finance:delete-expense-plan', async (_, id) => {
     try {
-      const db = getDatabase();
-      const updates: string[] = [];
-      const values: any[] = [];
-
-      if (plan.name !== undefined) {
-        updates.push('name = ?');
-        values.push(plan.name);
-      }
-      if (plan.period !== undefined) {
-        updates.push('period = ?');
-        values.push(plan.period);
-      }
-
-      if (updates.length === 0) {
-        throw new Error('没有要更新的字段');
-      }
-
-      values.push(id);
-      const result = db.prepare(`
-        UPDATE income_plans 
-        SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(...values);
-
-      if (result.changes === 0) {
-        throw new Error('收入计划不存在');
-      }
-
-      const updatedPlan = db.prepare('SELECT * FROM income_plans WHERE id = ?').get(id) as IncomePlan;
-      return updatedPlan;
+      await financeApi.deleteExpensePlan(id);
     } catch (error) {
-      log.error('Error updating income plan:', error);
+      console.error('删除开支计划失败:', error);
       throw error;
     }
   });
 
   // 删除收入计划
-  ipcMain.handle('finance:delete-income-plan', async (_event, id: number) => {
+  ipcMain.handle('finance:delete-income-plan', async (_, id) => {
     try {
-      const db = getDatabase();
-      
-      const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM income_plans WHERE parent_id = ?').get(id) as { count: number };
-      if (hasSubPlans.count > 0) {
-        throw new Error('请先删除子计划');
-      }
-      
-      const hasRecords = db.prepare('SELECT COUNT(*) as count FROM income_records WHERE plan_id = ?').get(id) as { count: number };
-      if (hasRecords.count > 0) {
-        throw new Error('请先删除相关记录');
-      }
-      
-      const stmt = db.prepare('DELETE FROM income_plans WHERE id = ?');
-      stmt.run(id);
-      return true;
+      await financeApi.deleteIncomePlan(id);
     } catch (error) {
-      log.error('Failed to delete income plan:', error);
+      console.error('删除收入计划失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取开支记录列表
+  ipcMain.handle('finance:get-expense-records-with-plan-id', async (_, planId) => {
+    try {
+      return await financeApi.getExpenseRecordsWithPlanID(planId);
+    } catch (error) {
+      console.error('获取开支记录失败:', error);
       throw error;
     }
   });
 
   // 获取收入记录列表
-  ipcMain.handle('finance:get-income-records', async (_event, planId: number) => {
+  ipcMain.handle('finance:get-income-records', async (_, planId) => {
     try {
-      const stmt = getDatabase().prepare(`
-        SELECT * FROM income_records 
-        WHERE plan_id = ? 
-        ORDER BY is_sub_record ASC, date DESC
-      `);
-      return stmt.all(planId);
+      return await financeApi.getIncomeRecords(planId);
     } catch (error) {
-      log.error('Failed to fetch income records:', error);
+      console.error('获取收入记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 创建开支记录
+  ipcMain.handle('finance:create-expense-record', async (_, record) => {
+    try {
+      return await financeApi.createExpenseRecord(record);
+    } catch (error) {
+      console.error('创建开支记录失败:', error);
       throw error;
     }
   });
 
   // 创建收入记录
-  ipcMain.handle('finance:create-income-record', async (_event, record: {
-    plan_id: number;
-    parent_record_id?: number;
-    date: string;
-    amount: number;
-    opening_cumulative: number;
-    closing_cumulative: number;
-    is_sub_record: boolean;
-  }) => {
+  ipcMain.handle('finance:create-income-record', async (_, record) => {
     try {
-      const db = getDatabase();
-      
-      if (record.is_sub_record && record.parent_record_id) {
-        const parentRecord = db.prepare('SELECT * FROM income_records WHERE id = ?').get(record.parent_record_id);
-        if (!parentRecord) {
-          throw new Error('父记录不存在');
-        }
-      }
-      
-      if (record.is_sub_record) {
-        const overlappingRecord = db.prepare(`
-          SELECT * FROM income_records 
-          WHERE plan_id = ? AND is_sub_record = 1 AND date = ?
-        `).get(record.plan_id, record.date);
-        if (overlappingRecord) {
-          throw new Error('该时间已存在子记录');
-        }
-      }
-      
-      const stmt = db.prepare(`
-        INSERT INTO income_records (
-          plan_id,
-          parent_record_id,
-          date,
-          amount,
-          opening_cumulative,
-          closing_cumulative,
-          is_sub_record
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      const result = stmt.run(
-        record.plan_id,
-        record.parent_record_id || null,
-        record.date,
-        record.amount,
-        record.opening_cumulative,
-        record.closing_cumulative,
-        record.is_sub_record ? 1 : 0
-      );
-      
-      if (record.is_sub_record && record.parent_record_id) {
-        updateParentIncomeRecordSummary(record.parent_record_id);
-      }
-      
-      return {
-        id: result.lastInsertRowid,
-        ...record,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+      return await financeApi.createIncomeRecord(record);
     } catch (error) {
-      log.error('Failed to create income record:', error);
+      console.error('创建收入记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 更新开支记录
+  ipcMain.handle('finance:update-expense-record', async (_, recordId, data) => {
+    try {
+      await financeApi.updateExpenseRecord(recordId, data);
+    } catch (error) {
+      console.error('更新开支记录失败:', error);
       throw error;
     }
   });
 
   // 更新收入记录
-  ipcMain.handle('finance:update-income-record', async (_event, recordId: number, data: {
-    date?: string;
-    amount?: number;
-    opening_cumulative?: number;
-    closing_cumulative?: number;
-  }) => {
+  ipcMain.handle('finance:update-income-record', async (_, recordId, data) => {
     try {
-      const db = getDatabase();
-      const record = db.prepare('SELECT * FROM income_records WHERE id = ?').get(recordId) as IncomeRecord | undefined;
-      if (!record) {
-        throw new Error('记录不存在');
-      }
-
-      if (record.is_sub_record && data.date && data.date !== record.date) {
-        const overlappingRecord = db.prepare(`
-          SELECT * FROM income_records 
-          WHERE plan_id = ? AND is_sub_record = 1 AND date = ? AND id != ?
-        `).get(record.plan_id, data.date, recordId);
-        if (overlappingRecord) {
-          throw new Error('该时间已存在子记录');
-        }
-      }
-
-      db.prepare(`
-        UPDATE income_records 
-        SET date = ?, 
-            amount = ?, 
-            opening_cumulative = ?,
-            closing_cumulative = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        data.date || record.date,
-        data.amount || record.amount,
-        data.opening_cumulative || record.opening_cumulative,
-        data.closing_cumulative || record.closing_cumulative,
-        recordId
-      );
-
-      if (record.is_sub_record && record.parent_record_id) {
-        updateParentIncomeRecordSummary(record.parent_record_id);
-      }
-
-      return true;
+      await financeApi.updateIncomeRecord(recordId, data);
     } catch (error) {
-      log.error('Failed to update income record:', error);
+      console.error('更新收入记录失败:', error);
+      throw error;
+    }
+  });
+
+  // 删除开支记录
+  ipcMain.handle('finance:delete-expense-record', async (_, recordId) => {
+    try {
+      await financeApi.deleteExpenseRecord(recordId);
+    } catch (error) {
+      console.error('删除开支记录失败:', error);
       throw error;
     }
   });
 
   // 删除收入记录
-  ipcMain.handle('finance:delete-income-record', async (_event, recordId: number) => {
+  ipcMain.handle('finance:delete-income-record', async (_, recordId) => {
     try {
-      const db = getDatabase();
-      
-      const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM income_records WHERE parent_record_id = ?').get(recordId) as { count: number };
-      if (hasSubRecords.count > 0) {
-        throw new Error('请先删除子记录');
-      }
-      
-      const stmt = db.prepare('DELETE FROM income_records WHERE id = ?');
-      const result = stmt.run(recordId) as { changes: number };
-      
-      if (result.changes === 0) {
-        throw new Error('记录不存在');
-      }
-      
-      return true;
+      await financeApi.deleteIncomeRecord(recordId);
     } catch (error) {
-      log.error('Failed to delete income record:', error);
+      console.error('删除收入记录失败:', error);
       throw error;
     }
   });
-
-  // 更新父收入记录汇总数据
-  function updateParentIncomeRecordSummary(parentRecordId: number) {
-    const db = getDatabase();
-    const subRecords = db.prepare(`
-      SELECT * FROM income_records 
-      WHERE parent_record_id = ? 
-      ORDER BY date ASC
-    `).all(parentRecordId) as IncomeRecord[];
-    
-    if (subRecords.length > 0) {
-      const firstRecord = subRecords[0];
-      const lastRecord = subRecords[subRecords.length - 1];
-      
-      db.prepare(`
-        UPDATE income_records 
-        SET opening_cumulative = ?,
-            closing_cumulative = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        firstRecord.opening_cumulative,
-        lastRecord.closing_cumulative,
-        parentRecordId
-      );
-    }
-  }
 } 

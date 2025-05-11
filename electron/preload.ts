@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from './server/finance/def';
 
 interface DocFile {
   title: string;
@@ -36,66 +37,10 @@ interface PullRequestConfig {
   targetBranch: string;
 }
 
-// 开支计划接口
-interface ExpensePlan {
-  id: number;
-  name: string;
-  amount: number;
-  period: string;
-  parent_id: number | null;
-  sub_period: string | null;
-  budget_allocation: 'NONE' | 'AVERAGE';
-  created_at: string;
-  updated_at: string;
-}
-
-// 开支记录接口
-interface ExpenseRecord {
-  id: number;
-  plan_id: number;
-  parent_record_id?: number;
-  date: string;
-  budget_amount: number;
-  actual_amount: number;
-  balance: number;
-  opening_cumulative_balance: number;
-  closing_cumulative_balance: number;
-  opening_cumulative_expense: number;
-  closing_cumulative_expense: number;
-  is_sub_record: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 // 用户设置接口
 interface UserSettings {
   lastDocId?: string;
   lastFilePath?: string;
-}
-
-// 收入计划接口
-interface IncomePlan {
-  id: number;
-  name: string;
-  period: string;
-  parent_id: number | null;
-  sub_period: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// 收入记录接口
-interface IncomeRecord {
-  id: number;
-  plan_id: number;
-  parent_record_id?: number;
-  date: string;
-  amount: number;
-  opening_cumulative: number;
-  closing_cumulative: number;
-  is_sub_record: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 // 自定义的 API 接口
@@ -140,7 +85,7 @@ interface IElectronAPI {
     budget_allocation?: 'NONE' | 'AVERAGE';
   }) => Promise<ExpensePlan>;
   deleteExpensePlan: (id: number) => Promise<void>;
-  getExpenseRecords: (planId: number) => Promise<ExpenseRecord[]>;
+  getExpenseRecordsWithPlanID: (planId: number) => Promise<ExpenseRecord[]>;
   createExpenseRecord: (record: {
     plan_id: number;
     date: string;
@@ -223,7 +168,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     budget_allocation?: 'NONE' | 'AVERAGE';
   }) => ipcRenderer.invoke('finance:update-expense-plan', id, plan),
   deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id),
-  getExpenseRecords: (planId: number) => ipcRenderer.invoke('finance:get-expense-records', planId),
+  getExpenseRecordsWithPlanID: (planId: number) => ipcRenderer.invoke('finance:get-expense-records-with-plan-id', planId),
   createExpenseRecord: (record: {
     plan_id: number;
     date: string;
