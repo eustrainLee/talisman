@@ -775,6 +775,16 @@ export function setupIpcHandlers() {
     }
   });
 
+  // 更新开支计划
+  ipcMain.handle('finance:update-expense-plan', async (_, plan) => {
+    try {
+      return await financeApi.updateExpensePlan(plan);
+    } catch (error) {
+      console.error('更新开支计划失败:', error);
+      throw error;
+    }
+  });
+
   // 删除开支计划
   ipcMain.handle('finance:delete-expense-plan', async (_, id) => {
     try {

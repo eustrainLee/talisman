@@ -33,9 +33,9 @@ class FinanceAPI {
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
-  async updateExpensePlan(id: number, plan: { name?: string; amount?: number; period?: PeriodType }): Promise<ExpensePlan> {
+  async updateExpensePlan(plan: Partial<ExpensePlan>): Promise<ExpensePlan> {
     if (USE_IPC) {
-      return window.electronAPI.updateExpensePlan(id, plan);
+      return window.electronAPI.updateExpensePlan(plan);
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }

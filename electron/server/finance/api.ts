@@ -1,12 +1,13 @@
 // 对外提供接口
-import { ExpenseRecord, ExpensePlan, IncomePlan, IncomeRecord } from './def';
+import { ExpenseRecord, ExpensePlan} from './def';
 import * as db from './db';
 import dayjs from 'dayjs';
 import { getSubPeriodCount, calculateExpense } from './helper';
 
 // 开支计划相关操作
 export const getExpensePlans = () => db.getExpensePlans();
-export const createExpensePlan = (plan: Parameters<typeof db.createExpensePlan>[0]) => db.createExpensePlan(plan);
+export const createExpensePlan = (plan: Omit<ExpensePlan, 'id' | 'created_at' | 'updated_at'>) => db.createExpensePlan(plan);
+export const updateExpensePlan = (plan: Partial<ExpensePlan>) => db.updateExpensePlan(plan);
 export const deleteExpensePlan = (id: number) => db.deleteExpensePlan(id);
 
 // 收入计划相关操作

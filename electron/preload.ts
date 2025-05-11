@@ -68,22 +68,8 @@ interface IElectronAPI {
   on: (channel: string, callback: (event: IpcRendererEvent, ...args: any[]) => void) => void;
   // 财务相关 API
   getExpensePlans: () => Promise<ExpensePlan[]>;
-  createExpensePlan: (plan: {
-    name: string;
-    amount: number;
-    period: string;
-    parent_id?: number | null;
-    sub_period?: string | null;
-    budget_allocation?: 'NONE' | 'AVERAGE';
-  }) => Promise<ExpensePlan>;
-  updateExpensePlan: (id: number, plan: {
-    name?: string;
-    amount?: number;
-    period?: string;
-    parent_id?: number | null;
-    sub_period?: string | null;
-    budget_allocation?: 'NONE' | 'AVERAGE';
-  }) => Promise<ExpensePlan>;
+  createExpensePlan: (plan: Omit<ExpensePlan, 'id' | 'created_at' | 'updated_at'>) => Promise<ExpensePlan>;
+  updateExpensePlan: (plan: Partial<ExpensePlan>) => Promise<ExpensePlan>;
   deleteExpensePlan: (id: number) => Promise<void>;
   getExpenseRecordsWithPlanID: (planId: number) => Promise<ExpenseRecord[]>;
   createExpenseRecord: (record: {
@@ -151,22 +137,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   // 财务相关 API
   getExpensePlans: () => ipcRenderer.invoke('finance:get-expense-plans'),
-  createExpensePlan: (plan: {
-    name: string;
-    amount: number;
-    period: string;
-    parent_id?: number | null;
-    sub_period?: string | null;
-    budget_allocation?: 'NONE' | 'AVERAGE';
-  }) => ipcRenderer.invoke('finance:create-expense-plan', plan),
-  updateExpensePlan: (id: number, plan: {
-    name?: string;
-    amount?: number;
-    period?: string;
-    parent_id?: number | null;
-    sub_period?: string | null;
-    budget_allocation?: 'NONE' | 'AVERAGE';
-  }) => ipcRenderer.invoke('finance:update-expense-plan', id, plan),
+  createExpensePlan: (plan: Omit<ExpensePlan, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-expense-plan', plan),
+  updateExpensePlan: (plan: Partial<ExpensePlan>) => ipcRenderer.invoke('finance:update-expense-plan', plan),
   deleteExpensePlan: (id: number) => ipcRenderer.invoke('finance:delete-expense-plan', id),
   getExpenseRecordsWithPlanID: (planId: number) => ipcRenderer.invoke('finance:get-expense-records-with-plan-id', planId),
   createExpenseRecord: (record: {

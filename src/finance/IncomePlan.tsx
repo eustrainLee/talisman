@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Form, Input, Select, Button, Card, Space, message, Modal, DatePicker } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { financeAPI, IncomePlan, IncomeRecord, PeriodType } from '../api/finance';
+import { financeAPI, PeriodType } from '../api/finance';
+import { IncomePlan, IncomeRecord } from '../../electron/server/finance/def';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
@@ -517,6 +518,7 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
           opening_cumulative: values.opening_cumulative * 100,
           closing_cumulative: values.closing_cumulative * 100,
           is_sub_record: false,
+          parent_record_id: null,
         });
       }
 
@@ -535,7 +537,7 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
     }
   };
 
-  const handleCreateFormValuesChange = (changedValues: any, allValues: any) => {
+  const handleCreateFormValuesChange = (_: any, allValues: any) => {
     // 计算期末累计值
     const amount = Number(allValues.amount || 0);
     const openingCumulative = Number(allValues.opening_cumulative || 0);
@@ -574,31 +576,6 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
     } catch (error) {
       console.error('Failed to create sub-plan:', error);
       message.error('创建失败');
-    }
-  };
-
-  const getSubPeriodCount = (parentPeriod: string, subPeriod: string): number => {
-    switch (parentPeriod) {
-      case 'YEAR':
-        switch (subPeriod) {
-          case 'QUARTER': return 4;
-          case 'MONTH': return 12;
-          case 'WEEK': return 52;
-          default: return 1;
-        }
-      case 'QUARTER':
-        switch (subPeriod) {
-          case 'MONTH': return 3;
-          case 'WEEK': return 13;
-          default: return 1;
-        }
-      case 'MONTH':
-        switch (subPeriod) {
-          case 'WEEK': return 4;
-          default: return 1;
-        }
-      default:
-        return 1;
     }
   };
 

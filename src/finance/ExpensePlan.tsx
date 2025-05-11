@@ -35,11 +35,13 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isCreatePlanModalVisible, setIsCreatePlanModalVisible] = useState(false);
   const [isCreateSubPlanModalVisible, setIsCreateSubPlanModalVisible] = useState(false);
+  const [isUpdatePlanModalVisible, setIsUpdatePlanModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<ExpensePlan | null>(null);
   const [existingRecord, setExistingRecord] = useState<ExpenseRecord | null>(null);
   const [isFormDisabled, setIsFormDisabled] = useState(false);
   const [parentRecordError, setParentRecordError] = useState<string | null>(null);
   const [subRecordError, setSubRecordError] = useState<string | null>(null);
+  const [updatePlanForm] = Form.useForm();
 
   useEffect(() => {
     fetchPlans();
@@ -108,11 +110,14 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
           {!plan.parent_id && (
             <Button type="link"
             onClick={() => handleCreateSubPlan(plan)}
-            disabled={plans.some(plan => plan.parent_id === plan.id)}
+            disabled={plans.some(p => p.parent_id === plan.id)}
             >
               创建子计划
             </Button>
           )}
+          <Button type="link" onClick={() => handleUpdate(plan)}>
+            更新
+          </Button>
           <Button type="link" danger onClick={() => handleDelete(plan.id)}>
             删除
           </Button>
@@ -761,6 +766,73 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
     });
   };
 
+  const handleUpdate = (plan: ExpensePlan) => {
+    setSelectedPlan(plan);
+    updatePlanForm.setFieldsValue({
+      name: plan.name,
+      amount: plan.amount / 100,
+      period: plan.period,
+      budget_allocation: plan.budget_allocation,
+    });
+    setIsUpdatePlanModalVisible(true);
+  };
+
+  // 获取可用的周期选项
+  const getAvailablePeriodsForUpdate = (plan: ExpensePlan): PeriodType[] => {
+    const allPeriods: PeriodType[] = ['WEEK', 'MONTH', 'QUARTER', 'YEAR'];
+    const periodOrder: Record<PeriodType, number> = { 'WEEK': 1, 'MONTH': 2, 'QUARTER': 3, 'YEAR': 4 };
+    
+    // 如果有子计划，获取子计划的最小周期
+    const subPlans = plans.filter(p => p.parent_id === plan.id);
+    if (subPlans.length > 0) {
+      const minSubPeriod = subPlans.reduce((min, p) => 
+        periodOrder[p.period as PeriodType] < periodOrder[min.period as PeriodType] ? p : min
+      ).period as PeriodType;
+      // 只返回比最小子周期大的周期
+      return allPeriods.filter(p => periodOrder[p] > periodOrder[minSubPeriod]);
+    }
+
+    // 如果有父计划，获取父计划的周期
+    if (plan.parent_id) {
+      const parentPlan = plans.find(p => p.id === plan.parent_id);
+      if (parentPlan) {
+        // 只返回比父周期小的周期
+        return allPeriods.filter(p => periodOrder[p] < periodOrder[parentPlan.period as PeriodType]);
+      }
+    }
+
+    // 如果没有子计划和父计划，返回所有周期
+    return allPeriods;
+  };
+
+  const handleUpdateSubmit = async () => {
+    try {
+      const values = await updatePlanForm.validateFields();
+      if (!selectedPlan) return;
+
+      // 检查周期是否合法
+      const availablePeriods = getAvailablePeriodsForUpdate(selectedPlan);
+      if (!availablePeriods.includes(values.period)) {
+        message.error('所选周期不符合要求');
+        return;
+      }
+
+      await financeAPI.updateExpensePlan({
+        id: selectedPlan.id,
+        name: values.name,
+        amount: values.amount * 100,
+        period: values.period,
+        budget_allocation: values.budget_allocation,
+      });
+      message.success('更新成功');
+      setIsUpdatePlanModalVisible(false);
+      fetchPlans();
+    } catch (error) {
+      console.error('Failed to update expense plan:', error);
+      message.error('更新失败');
+    }
+  };
+
   // 对数据进行排序，确保子计划紧跟在对应的父计划后面
   const sortedPlans = (() => {
     // 先获取所有父计划并按 ID 排序
@@ -991,6 +1063,63 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             rules={[{ required: true, message: '请输入额度' }]}
           >
             <Input type="number" placeholder="请输入额度" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="更新开支计划"
+        open={isUpdatePlanModalVisible}
+        onOk={handleUpdateSubmit}
+        onCancel={() => setIsUpdatePlanModalVisible(false)}
+        width={600}
+      >
+        <Form
+          form={updatePlanForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="name"
+            label="名称"
+            rules={[{ required: true, message: '请输入名称' }]}
+          >
+            <Input placeholder="请输入名称" />
+          </Form.Item>
+          <Form.Item
+            name="amount"
+            label="额度"
+            rules={[{ required: true, message: '请输入额度' }]}
+          >
+            <Input type="number" placeholder="请输入额度" />
+          </Form.Item>
+          <Form.Item
+            name="period"
+            label="周期"
+            rules={[{ required: true, message: '请选择周期' }]}
+          >
+            <Select 
+              style={{ width: '100%' }}
+              onChange={handlePeriodChange}
+            >
+              {selectedPlan && getAvailablePeriodsForUpdate(selectedPlan).map(period => (
+                <Option key={period} value={period}>
+                  {periodTypes.find(type => type.value === period)?.label}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="budget_allocation"
+            label="预算分配"
+            rules={[{ required: true, message: '请选择预算分配方式' }]}
+          >
+            <Select 
+              placeholder="请选择预算分配方式"
+              onChange={handleBudgetAllocationChange}
+            >
+              <Option value="NONE">不分配</Option>
+              <Option value="AVERAGE">平均分配</Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

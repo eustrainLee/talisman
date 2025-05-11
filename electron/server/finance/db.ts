@@ -22,14 +22,7 @@ export async function getIncomePlans(): Promise<IncomePlan[]> {
 }
 
 // 创建开支计划
-export async function createExpensePlan(plan: { 
-  name: string; 
-  amount: number; 
-  period: string;
-  parent_id?: number;
-  sub_period?: string;
-  budget_allocation?: "NONE" | "AVERAGE";
-}): Promise<ExpensePlan> {
+export async function createExpensePlan(plan: Omit<ExpensePlan, 'id' | 'created_at' | 'updated_at'>): Promise<ExpensePlan> {
   const db = getDatabase();
   
   // 如果是子计划，检查父计划是否已存在子计划
@@ -472,4 +465,44 @@ export async function updateParentIncomeRecordSummary(parentRecordId: number): P
       parentRecordId
     );
   }
+}
+
+// 更新开支计划
+export async function updateExpensePlan(plan: Partial<ExpensePlan>): Promise<ExpensePlan> {
+  const db = getDatabase();
+  const existingPlan = db.prepare('SELECT * FROM expense_plans WHERE id = ?').get(plan.id) as ExpensePlan | undefined;
+  if (!existingPlan) {
+    throw new Error('计划不存在');
+  }
+
+  // 如果修改了父计划，检查是否已存在子计划
+  if (plan.parent_id && plan.parent_id !== existingPlan.parent_id) {
+    const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(plan.parent_id) as { count: number };
+    if (hasSubPlans.count > 0) {
+      throw new Error('已存在子计划，不能重复创建');
+    }
+  }
+
+  db.prepare(`
+    UPDATE expense_plans 
+    SET name = ?,
+        amount = ?,
+        period = ?,
+        parent_id = ?,
+        sub_period = ?,
+        budget_allocation = ?,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(
+    plan.name || existingPlan.name,
+    plan.amount || existingPlan.amount,
+    plan.period || existingPlan.period,
+    plan.parent_id || existingPlan.parent_id,
+    plan.sub_period || existingPlan.sub_period,
+    plan.budget_allocation || existingPlan.budget_allocation,
+    plan.id
+  );
+
+  const updatedPlan = db.prepare('SELECT * FROM expense_plans WHERE id = ?').get(plan.id) as ExpensePlan;
+  return updatedPlan;
 } 
