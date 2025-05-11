@@ -10,7 +10,7 @@ interface MonthlyRecord {
   balance: number;
 }
 
-const Annual: React.FC = () => {
+const Summary: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const columns: ColumnsType<MonthlyRecord> = [
@@ -82,4 +82,4 @@ const Annual: React.FC = () => {
   );
 };
 
-export default Annual; 
+export default Summary; 

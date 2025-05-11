@@ -3,7 +3,7 @@ import { Tabs } from 'antd';
 import Overview from './Overview';
 import Income from './Income';
 import Expense from './Expense';
-import Annual from './Annual';
+import Summary from './Summary';
 import Assets from './Assets';
 import styles from './index.module.css';
 
@@ -22,8 +22,8 @@ const Finance: React.FC = () => {
         <TabPane tab="支出" key="expense">
           <Expense />
         </TabPane>
-        <TabPane tab="年度" key="annual">
-          <Annual />
+        <TabPane tab="汇总" key="summary">
+          <Summary />
         </TabPane>
         <TabPane tab="资产" key="assets">
           <Assets />
