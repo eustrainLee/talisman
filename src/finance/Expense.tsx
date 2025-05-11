@@ -137,6 +137,12 @@ const Expense: React.FC = () => {
           sortedRecords.push(...matchedSubRecords);
         }
       }
+      // 对于子记录，如果父记录没有被筛选得到，那么这条子记录也应该展示出来
+      for (const record of subRecords) {
+        if (!sortedRecords.find(r => r.id === record.id)) {
+          sortedRecords.push(record);
+        }
+      }
       setRecords(sortedRecords);
     } catch (error) {
       console.error('获取开支记录失败:', error);
