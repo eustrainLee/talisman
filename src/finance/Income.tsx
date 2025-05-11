@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Card, Tabs } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs, Button, Modal, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import IncomePlanComponent from './IncomePlan';
@@ -165,7 +165,35 @@ const Income: React.FC = () => {
       key: 'updated_at',
       render: (value: string) => dayjs(value).format('YYYY-MM-DD HH:mm:ss'),
     },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) => (
+        <Button type="link" danger onClick={() => handleDelete(record.id)}>
+          删除
+        </Button>
+      ),
+    },
   ];
+
+  const handleDelete = async (recordId: number) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这条收入记录吗？',
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await financeAPI.deleteIncomeRecord(recordId);
+          message.success('删除成功');
+          fetchRecords();
+        } catch (error) {
+          console.error('删除收入记录失败:', error);
+          message.error('删除失败');
+        }
+      }
+    });
+  };
 
   return (
     <div>
