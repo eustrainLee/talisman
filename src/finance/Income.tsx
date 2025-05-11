@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Select, DatePicker, Card, Tabs, Button, Modal, message } from 'antd';
+import { Table, Select, DatePicker, Card, Tabs, Button, Modal, message, Form, Input, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import IncomePlanComponent from './IncomePlan';
@@ -22,6 +22,9 @@ const Income: React.FC = () => {
   const [records, setRecords] = useState<IncomeRecord[]>([]);
   const [plans, setPlans] = useState<IncomePlan[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<IncomeRecord | null>(null);
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchPlans();
@@ -169,9 +172,14 @@ const Income: React.FC = () => {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Button type="link" danger onClick={() => handleDelete(record.id)}>
-          删除
-        </Button>
+        <Space size="middle">
+          <Button type="link" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
+          <Button type="link" danger onClick={() => handleDelete(record.id)}>
+            删除
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -193,6 +201,49 @@ const Income: React.FC = () => {
         }
       }
     });
+  };
+
+  const handleEdit = (record: IncomeRecord) => {
+    setSelectedRecord(record);
+    const plan = plans.find(p => p.id === record.plan_id);
+    if (plan) {
+      editForm.setFieldsValue({
+        date: dayjs(record.date),
+        amount: record.amount / 100,
+        opening_cumulative: record.opening_cumulative / 100,
+        closing_cumulative: record.closing_cumulative / 100,
+      });
+    }
+    setIsEditModalVisible(true);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      if (!selectedRecord) return;
+
+      await financeAPI.updateIncomeRecord(selectedRecord.id, {
+        date: values.date.format('YYYY-MM-DD'),
+        amount: values.amount * 100,
+        opening_cumulative: values.opening_cumulative * 100,
+        closing_cumulative: values.closing_cumulative * 100,
+      });
+
+      message.success('更新成功');
+      setIsEditModalVisible(false);
+      fetchRecords();
+    } catch (error) {
+      console.error('更新收入记录失败:', error);
+      message.error('更新失败');
+    }
+  };
+
+  const handleEditFormValuesChange = (_: any, allValues: any) => {
+    // 计算期末累计值
+    const amount = Number(allValues.amount || 0);
+    const openingCumulative = Number(allValues.opening_cumulative || 0);
+    const closingCumulative = openingCumulative + amount;
+    editForm.setFieldsValue({ closing_cumulative: closingCumulative });
   };
 
   return (
@@ -236,6 +287,55 @@ const Income: React.FC = () => {
           <IncomePlanComponent onRecordCreated={fetchRecords} />
         </Tabs.TabPane>
       </Tabs>
+
+      <Modal
+        title="编辑收入记录"
+        open={isEditModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          editForm.resetFields();
+        }}
+        width={600}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onValuesChange={handleEditFormValuesChange}
+        >
+          <Form.Item
+            name="date"
+            label="时间"
+            rules={[{ required: true, message: '请选择时间' }]}
+          >
+            <DatePicker
+              picker={selectedRecord ? plans.find(p => p.id === selectedRecord.plan_id)?.period.toLowerCase() as any : 'month'}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Form.Item
+            name="amount"
+            label="收入金额"
+            rules={[{ required: true, message: '请输入收入金额' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="opening_cumulative"
+            label="期初累计"
+            rules={[{ required: true, message: '请输入期初累计' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+          <Form.Item
+            name="closing_cumulative"
+            label="期末累计"
+            rules={[{ required: true, message: '请输入期末累计' }]}
+          >
+            <Input type="number" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
