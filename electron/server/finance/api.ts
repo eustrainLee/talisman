@@ -31,7 +31,6 @@ export const updateExpenseRecord = async (recordId: number, data: Parameters<typ
   const updatedRecord = await db.updateExpenseRecord(recordId, data);
   if (updatedRecord) {
     const reconciledRecord = await reconcileExpenseRecord(updatedRecord, await getExpensePlans());
-    console.log(`Reconciled record ${JSON.stringify(reconciledRecord)}`);
     await db.updateExpenseRecord(reconciledRecord.id, reconciledRecord);
   }
 };
@@ -60,7 +59,6 @@ export const updateIncomeRecord = async (data: Parameters<typeof db.updateIncome
   const updatedRecord = await db.updateIncomeRecord(data);
   if (updatedRecord) {
     const reconciledRecord = await reconcileIncomeRecord(updatedRecord, await getIncomePlans());
-    console.log(`Reconciled record ${JSON.stringify(reconciledRecord)}`);
     await db.updateIncomeRecord(reconciledRecord);
   }
 };
@@ -105,7 +103,6 @@ const getReconcileExpenseRecordStartPoint = async (record: ExpenseRecord) => {
   if (record.is_sub_record && record.parent_record_id) {
     const parentRecord = await db.getExpenseRecordWithID(record.parent_record_id);
     if (parentRecord) {
-      console.log(`Parent record ${JSON.stringify(parentRecord)}`);
       return parentRecord;
     } else {
       // Error
@@ -117,30 +114,23 @@ const getReconcileExpenseRecordStartPoint = async (record: ExpenseRecord) => {
 
 const reconcileExpenseRecord = async (record: ExpenseRecord, plans: ExpensePlan[]) => {
   const needReconciledRecord = await getReconcileExpenseRecordStartPoint(record);
-  console.log(`Need reconciling expense record ${JSON.stringify(needReconciledRecord)}`);
   const updatedRecord = await doReconcileExpenseRecord(needReconciledRecord, plans);
   return updatedRecord;
 };
 
 // 更新函数：处理记录及其子记录
 const doReconcileExpenseRecord = async (record: ExpenseRecord, plans: ExpensePlan[]) => {
-  // 日志记录
-  console.log(`Reconciling expense record ${JSON.stringify(record)}`);
   // 获取记录对应的计划
   const plan = plans.find(p => p.id === record.plan_id);
   if (!plan) return record;
-
   // 检查是否有子计划
   const subPlan = plans.find(p => p.parent_id === plan.id);
   if (!subPlan) {
-    console.log(`No sub plan found for record ${JSON.stringify(record)}`);
     // 如果没有子计划，直接自省
     return introspectionExpenseRecord(record, plans);
   }
-
   // 获取所有子记录
   const subRecords = await getExpenseRecordsWithPlanID(subPlan.id);
-
   // 筛选出与当前记录在同一时间段的子记录，并按时间升序排序
   const matchingSubRecords = subRecords
     .filter(subRecord => {
@@ -167,9 +157,7 @@ const doReconcileExpenseRecord = async (record: ExpenseRecord, plans: ExpensePla
 
   let totalExpense = 0;
   let totalBalance = 0;
-
   if (subPlan.budget_allocation === 'AVERAGE') {
-    console.log(`Sub plan ${JSON.stringify(subPlan)} is using average budget allocation strategy`);
     // 平均分配策略
     const subPeriodCount = getSubPeriodCount(plan.period, subPlan.period);
     const averageBudget = record.budget_amount / subPeriodCount;
@@ -195,7 +183,6 @@ const doReconcileExpenseRecord = async (record: ExpenseRecord, plans: ExpensePla
       totalBalance += introspectedSubRecord.balance;
     }
   } else {
-    console.log(`Sub plan ${JSON.stringify(subPlan)} is using no allocation strategy`);
     // 不分配策略
     let remainingBudget = record.budget_amount;
 
@@ -221,15 +208,11 @@ const doReconcileExpenseRecord = async (record: ExpenseRecord, plans: ExpensePla
       remainingBudget = introspectedSubRecord.balance;
     }
   }
-
   // 更新当前记录的实际开销
   const updatedRecord = {
     ...record,
     actual_amount: totalExpense,
   };
-
-  console.log(`Updated record ${JSON.stringify(updatedRecord)} to introspect`);
-
   // 自省当前记录
   return introspectionExpenseRecord(updatedRecord, plans);
 };
@@ -246,18 +229,14 @@ const introspectionIncomeRecord = (record: IncomeRecord) => {
 const doReconcileIncomeRecord = async (record: IncomeRecord, plans: IncomePlan[]) => {
   const plan = plans.find(p => p.id === record.plan_id);
   if (!plan) return record;
-
   // 检查是否有子计划
   const subPlan = plans.find(p => p.parent_id === plan.id);
   if (!subPlan) {
-    console.log(`No sub plan found for record ${JSON.stringify(record)}`);
     // 如果没有子计划，直接自省
     return introspectionIncomeRecord(record);
   }
-
   // 获取所有子记录
   const subRecords = await getIncomeRecords(subPlan.id);
-
   // 筛选出与当前记录在同一时间段的子记录，并按时间升序排序
   const matchingSubRecords = subRecords
     .filter(subRecord => {
@@ -281,9 +260,7 @@ const doReconcileIncomeRecord = async (record: IncomeRecord, plans: IncomePlan[]
       }
     })
     .sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
-
   let totalIncome = 0;
-
   // 更新每个子记录
   for (const subRecord of matchingSubRecords) {
     // 更新子记录的预算和期初累计值
@@ -291,24 +268,18 @@ const doReconcileIncomeRecord = async (record: IncomeRecord, plans: IncomePlan[]
       ...subRecord,
       opening_cumulative: record.opening_cumulative + totalIncome,
     };
-
     // 递归更新子记录
     const introspectedSubRecord = await doReconcileIncomeRecord(updatedSubRecord, plans);
-
     // 更新子记录
     await db.updateIncomeRecord(introspectedSubRecord);
-
     // 累加实际收入
     totalIncome += introspectedSubRecord.amount;
   }
-
-  console.log(`Total income: ${totalIncome}`);
   // 更新当前记录的实际收入
   const updatedRecord = {
     ...record,
     amount: totalIncome,
   };
-
   // 自省当前记录
   return introspectionIncomeRecord(updatedRecord);
 };
@@ -317,7 +288,6 @@ const getReconcileIncomeRecordStartPoint = async (record: IncomeRecord) => {
   if (record.is_sub_record && record.parent_record_id) {
     const parentRecord = await db.getIncomeRecordWithID(record.parent_record_id); // FIXME: 实现这个函数
     if (parentRecord) {
-      console.log(`Parent record ${JSON.stringify(parentRecord)}`);
       return parentRecord;
     } else {
       // Error
@@ -328,8 +298,7 @@ const getReconcileIncomeRecordStartPoint = async (record: IncomeRecord) => {
 };
 
 const reconcileIncomeRecord = async (record: IncomeRecord, plans: IncomePlan[]) => {
-  const needReconciledRecord = await getReconcileIncomeRecordStartPoint(record);
-  console.log(`Need reconciling income record ${JSON.stringify(needReconciledRecord)}`);
+  const needReconciledRecord = await getReconcileIncomeRecordStartPoint(record);;
   const updatedRecord = await doReconcileIncomeRecord(needReconciledRecord, plans);
   return updatedRecord;
 };
