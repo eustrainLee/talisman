@@ -101,7 +101,7 @@ interface IElectronAPI {
   // 收入相关 API
   getIncomePlans: () => Promise<IncomePlan[]>;
   createIncomePlan: (plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => Promise<IncomePlan>;
-  updateIncomePlan: (id: number, plan: { name?: string; period?: PeriodType }) => Promise<IncomePlan>;
+  updateIncomePlan: (plan: Partial<IncomePlan>) => Promise<IncomePlan>;
   deleteIncomePlan: (id: number) => Promise<void>;
   getIncomeRecords: (planId: number) => Promise<IncomeRecord[]>;
   createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<IncomeRecord>;
@@ -170,7 +170,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 收入相关 API
   getIncomePlans: () => ipcRenderer.invoke('finance:get-income-plans'),
   createIncomePlan: (plan: Omit<IncomePlan, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-income-plan', plan),
-  updateIncomePlan: (id: number, plan: { name?: string; period?: PeriodType }) => ipcRenderer.invoke('finance:update-income-plan', id, plan),
+  updateIncomePlan: (plan: Partial<IncomePlan>) => ipcRenderer.invoke('finance:update-income-plan', plan),
   deleteIncomePlan: (id: number) => ipcRenderer.invoke('finance:delete-income-plan', id),
   getIncomeRecords: (planId: number) => ipcRenderer.invoke('finance:get-income-records', planId),
   createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-income-record', record),

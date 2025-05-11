@@ -785,6 +785,16 @@ export function setupIpcHandlers() {
     }
   });
 
+  // 更新收入计划
+  ipcMain.handle('finance:update-income-plan', async (_, plan) => {
+    try {
+      return await financeApi.updateIncomePlan(plan);
+    } catch (error) {
+      console.error('更新收入计划失败:', error);
+      throw error;
+    }
+  });
+
   // 删除开支计划
   ipcMain.handle('finance:delete-expense-plan', async (_, id) => {
     try {

@@ -13,6 +13,7 @@ export const deleteExpensePlan = (id: number) => db.deleteExpensePlan(id);
 // 收入计划相关操作
 export const getIncomePlans = () => db.getIncomePlans();
 export const createIncomePlan = (plan: Parameters<typeof db.createIncomePlan>[0]) => db.createIncomePlan(plan);
+export const updateIncomePlan = (plan: Partial<IncomePlan>) => db.updateIncomePlan(plan);
 export const deleteIncomePlan = (id: number) => db.deleteIncomePlan(id);
 
 // 开支记录相关操作

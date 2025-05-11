@@ -116,7 +116,7 @@ const ExpensePlanComponent: React.FC<ExpensePlanComponentProps> = ({ onRecordCre
             </Button>
           )}
           <Button type="link" onClick={() => handleUpdate(plan)}>
-            更新
+            编辑
           </Button>
           <Button type="link" danger onClick={() => handleDelete(plan.id)}>
             删除
