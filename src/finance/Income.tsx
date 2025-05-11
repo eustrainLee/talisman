@@ -222,7 +222,8 @@ const Income: React.FC = () => {
       const values = await editForm.validateFields();
       if (!selectedRecord) return;
 
-      await financeAPI.updateIncomeRecord(selectedRecord.id, {
+      await financeAPI.updateIncomeRecord({
+        id: selectedRecord.id,
         date: values.date.format('YYYY-MM-DD'),
         amount: values.amount * 100,
         opening_cumulative: values.opening_cumulative * 100,

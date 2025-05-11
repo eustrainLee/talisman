@@ -856,9 +856,9 @@ export function setupIpcHandlers() {
   });
 
   // 更新收入记录
-  ipcMain.handle('finance:update-income-record', async (_, recordId, data) => {
+  ipcMain.handle('finance:update-income-record', async (_, data) => {
     try {
-      await financeApi.updateIncomeRecord(recordId, data);
+      await financeApi.updateIncomeRecord(data);
     } catch (error) {
       console.error('更新收入记录失败:', error);
       throw error;

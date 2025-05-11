@@ -130,8 +130,8 @@ class FinanceAPI {
     return window.electronAPI.createIncomeRecord(record);
   }
 
-  async updateIncomeRecord(recordId: number, data: Partial<IncomeRecord>): Promise<void> {
-    return window.electronAPI.updateIncomeRecord(recordId, data);
+  async updateIncomeRecord(data: Partial<IncomeRecord>): Promise<void> {
+    return window.electronAPI.updateIncomeRecord(data);
   }
 
   async deleteIncomeRecord(recordId: number): Promise<void> {

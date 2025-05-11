@@ -508,7 +508,7 @@ const IncomePlanComponent: React.FC<IncomePlanComponentProps> = ({ onRecordCreat
           ...parentRecord,
           closing_cumulative: parentRecord.closing_cumulative + values.amount * 100,
         };
-        await financeAPI.updateIncomeRecord(parentRecord.id, updatedParentRecord);
+        await financeAPI.updateIncomeRecord(updatedParentRecord);
 
       } else {
         await financeAPI.createIncomeRecord({

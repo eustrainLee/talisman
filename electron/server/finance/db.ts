@@ -326,25 +326,26 @@ export async function updateExpenseRecord(recordId: number, data: Partial<Expens
 }
 
 // 更新收入记录
-export async function updateIncomeRecord(recordId: number, data: {
+export async function updateIncomeRecord(data: {
+  id: number;
   date?: string;
   amount?: number;
   opening_cumulative?: number;
   closing_cumulative?: number;
 }): Promise<IncomeRecord> {
   const db = getDatabase();
-  const record = db.prepare('SELECT * FROM income_records WHERE id = ?').get(recordId) as IncomeRecord | undefined;
+  const record = db.prepare('SELECT * FROM income_records WHERE id = ?').get(data.id) as IncomeRecord | undefined;
   if (!record) {
-    throw new Error('记录不存在');
+    throw new Error('record not found');
   }
 
   if (record.is_sub_record && data.date && data.date !== record.date) {
     const overlappingRecord = db.prepare(`
       SELECT * FROM income_records 
       WHERE plan_id = ? AND is_sub_record = 1 AND date = ? AND id != ?
-    `).get(record.plan_id, data.date, recordId) as IncomeRecord | undefined;
+    `).get(record.plan_id, data.date, data.id) as IncomeRecord | undefined;
     if (overlappingRecord) {
-      throw new Error('该时间已存在子记录');
+      throw new Error('sub record already exists');
     }
   }
 
@@ -361,14 +362,14 @@ export async function updateIncomeRecord(recordId: number, data: {
     data.amount || record.amount,
     data.opening_cumulative || record.opening_cumulative,
     data.closing_cumulative || record.closing_cumulative,
-    recordId
+    data.id
   );
 
   if (record.is_sub_record && record.parent_record_id) {
     updateParentIncomeRecordSummary(record.parent_record_id);
   }
 
-  const updatedRecord = db.prepare('SELECT * FROM income_records WHERE id = ?').get(recordId) as IncomeRecord;
+  const updatedRecord = db.prepare('SELECT * FROM income_records WHERE id = ?').get(data.id) as IncomeRecord;
   return {
     ...updatedRecord,
     is_sub_record: Boolean(updatedRecord.is_sub_record)
@@ -381,14 +382,14 @@ export async function deleteExpenseRecord(recordId: number): Promise<void> {
   
   const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM expense_records WHERE parent_record_id = ?').get(recordId) as { count: number };
   if (hasSubRecords.count > 0) {
-    throw new Error('请先删除子记录');
+    throw new Error('please delete sub records first');
   }
   
   const stmt = db.prepare('DELETE FROM expense_records WHERE id = ?');
   const result = stmt.run(recordId) as { changes: number };
   
   if (result.changes === 0) {
-    throw new Error('记录不存在');
+    throw new Error('record not found');
   }
 }
 
@@ -398,14 +399,14 @@ export async function deleteIncomeRecord(recordId: number): Promise<void> {
   
   const hasSubRecords = db.prepare('SELECT COUNT(*) as count FROM income_records WHERE parent_record_id = ?').get(recordId) as { count: number };
   if (hasSubRecords.count > 0) {
-    throw new Error('请先删除子记录');
+    throw new Error('please delete sub records first');
   }
   
   const stmt = db.prepare('DELETE FROM income_records WHERE id = ?');
   const result = stmt.run(recordId) as { changes: number };
   
   if (result.changes === 0) {
-    throw new Error('记录不存在');
+    throw new Error('record not found');
   }
 }
 
@@ -479,7 +480,7 @@ export async function updateExpensePlan(plan: Partial<ExpensePlan>): Promise<Exp
   if (plan.parent_id && plan.parent_id !== existingPlan.parent_id) {
     const hasSubPlans = db.prepare('SELECT COUNT(*) as count FROM expense_plans WHERE parent_id = ?').get(plan.parent_id) as { count: number };
     if (hasSubPlans.count > 0) {
-      throw new Error('已存在子计划，不能重复创建');
+      throw new Error('sub plan already exists');
     }
   }
 
@@ -506,3 +507,19 @@ export async function updateExpensePlan(plan: Partial<ExpensePlan>): Promise<Exp
   const updatedPlan = db.prepare('SELECT * FROM expense_plans WHERE id = ?').get(plan.id) as ExpensePlan;
   return updatedPlan;
 } 
+
+export async function getIncomeRecordWithID(recordId: number): Promise<IncomeRecord> {
+  const db = getDatabase();
+  const record = db.prepare('SELECT * FROM income_records WHERE id = ?').get(recordId) as IncomeRecord | undefined;
+  if (!record) {
+    throw new Error('record not found');
+  }
+  return record;
+}
+
+export async function getIncomeRecordsWithPlanID(planId: number): Promise<IncomeRecord[]> {
+  const db = getDatabase();
+  const records = db.prepare('SELECT * FROM income_records WHERE plan_id = ?').all(planId) as IncomeRecord[];
+  return records;
+}
+  

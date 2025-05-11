@@ -105,7 +105,7 @@ interface IElectronAPI {
   deleteIncomePlan: (id: number) => Promise<void>;
   getIncomeRecords: (planId: number) => Promise<IncomeRecord[]>;
   createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => Promise<IncomeRecord>;
-  updateIncomeRecord: (recordId: number, data: Partial<IncomeRecord>) => Promise<void>;
+  updateIncomeRecord: (data: Partial<IncomeRecord>) => Promise<void>;
   deleteIncomeRecord: (recordId: number) => Promise<void>;
   invoke: (channel: string, ...args: any[]) => Promise<void>;
 }
@@ -174,7 +174,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteIncomePlan: (id: number) => ipcRenderer.invoke('finance:delete-income-plan', id),
   getIncomeRecords: (planId: number) => ipcRenderer.invoke('finance:get-income-records', planId),
   createIncomeRecord: (record: Omit<IncomeRecord, 'id' | 'created_at' | 'updated_at'>) => ipcRenderer.invoke('finance:create-income-record', record),
-  updateIncomeRecord: (recordId: number, data: Partial<IncomeRecord>) => ipcRenderer.invoke('finance:update-income-record', recordId, data),
+  updateIncomeRecord: (data: Partial<IncomeRecord>) => ipcRenderer.invoke('finance:update-income-record', data),
   deleteIncomeRecord: (recordId: number) => ipcRenderer.invoke('finance:delete-income-record', recordId),
   invoke: (channel: string, ...args: any[]) => {
     return ipcRenderer.invoke(channel, ...args);
