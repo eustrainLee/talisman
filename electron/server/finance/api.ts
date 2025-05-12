@@ -303,3 +303,12 @@ const reconcileIncomeRecord = async (record: IncomeRecord, plans: IncomePlan[]) 
   return updatedRecord;
 };
 
+// 获取年度汇总数据
+export const getYearlySummary = (year: number) => db.getYearlySummary(year);
+
+// 获取季度汇总数据
+export const getQuarterlySummary = (year: number, quarter: number) => db.getQuarterlySummary(year, quarter);
+
+// 获取月度汇总数据
+export const getMonthlySummary = (year: number, month: number) => db.getMonthlySummary(year, month);
+

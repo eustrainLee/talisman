@@ -70,23 +70,28 @@ export const getPeriodStartDate = (date: dayjs.Dayjs, period: string) => {
 export const calculateExpense = (
     isSubRecord: boolean, budgetAllocation: 'NONE' | 'AVERAGE',
     budgetAmount: number, actualAmount: number, openingCumulativeBalance: number, openingCumulativeExpense: number,
-  ): { balance: number, closing_cumulative_balance: number, closing_cumulative_expense: number } => {
+): { balance: number, closing_cumulative_balance: number, closing_cumulative_expense: number } => {
     const balance = budgetAmount - actualAmount;
     if (budgetAllocation === 'AVERAGE' || !isSubRecord) {
-      const closingCumulativeBalance = openingCumulativeBalance + balance;
-      const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
-      return {
-        balance,
-        closing_cumulative_balance: closingCumulativeBalance,
-        closing_cumulative_expense: closingCumulativeExpense,
-      };
+        const closingCumulativeBalance = openingCumulativeBalance + balance;
+        const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
+        return {
+            balance,
+            closing_cumulative_balance: closingCumulativeBalance,
+            closing_cumulative_expense: closingCumulativeExpense,
+        };
     }
     // NONE 策略
     const closingCumulativeBalance = openingCumulativeBalance - actualAmount;
     const closingCumulativeExpense = openingCumulativeExpense + actualAmount;
     return {
-      balance,
-      closing_cumulative_balance: closingCumulativeBalance,
-      closing_cumulative_expense: closingCumulativeExpense,
+        balance,
+        closing_cumulative_balance: closingCumulativeBalance,
+        closing_cumulative_expense: closingCumulativeExpense,
     };
-  };
+};
+
+// 获取这个月有多少天
+export const daysOfMonth = (month: number, year: number) => {
+    return dayjs(`${year}-${month}-01`).daysInMonth();
+};

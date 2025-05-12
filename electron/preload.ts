@@ -108,6 +108,39 @@ interface IElectronAPI {
   updateIncomeRecord: (data: Partial<IncomeRecord>) => Promise<void>;
   deleteIncomeRecord: (recordId: number) => Promise<void>;
   invoke: (channel: string, ...args: any[]) => Promise<void>;
+  getYearlySummary: (year: number) => Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    quarters: {
+      quarter: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
+  }>;
+  getQuarterlySummary: (year: number, quarter: number) => Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    months: {
+      month: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
+  }>;
+  getMonthlySummary: (year: number, month: number) => Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    plans: {
+      planId: number;
+      planName: string;
+      type: 'income' | 'expense';
+      amount: number;
+    }[];
+  }>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -179,6 +212,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   invoke: (channel: string, ...args: any[]) => {
     return ipcRenderer.invoke(channel, ...args);
   },
+  getYearlySummary: (year: number) => ipcRenderer.invoke('finance:get-yearly-summary', year),
+  getQuarterlySummary: (year: number, quarter: number) => ipcRenderer.invoke('finance:get-quarterly-summary', year, quarter),
+  getMonthlySummary: (year: number, month: number) => ipcRenderer.invoke('finance:get-monthly-summary', year, month),
 })
 
 // 声明全局类型

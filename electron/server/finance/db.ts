@@ -2,6 +2,7 @@
 
 import { getDatabase } from '../db';
 import type { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from './def';
+import { daysOfMonth } from './helper';
 
 // 获取开支计划列表
 export async function getExpensePlans(): Promise<ExpensePlan[]> {
@@ -557,5 +558,196 @@ export async function updateIncomePlan(plan: Partial<IncomePlan>): Promise<Incom
 
   const updatedPlan = db.prepare('SELECT * FROM income_plans WHERE id = ?').get(plan.id) as IncomePlan;
   return updatedPlan;
+}
+
+// 获取指定时间范围内的收入记录
+export async function getIncomeRecordsInRange(startDate: string, endDate: string): Promise<IncomeRecord[]> {
+  const stmt = getDatabase().prepare(`
+    SELECT * FROM income_records 
+    WHERE date >= ? AND date <= ?
+    ORDER BY date ASC
+  `);
+  return stmt.all(startDate, endDate) as IncomeRecord[];
+}
+
+// 获取指定时间范围内的支出记录
+export async function getExpenseRecordsInRange(startDate: string, endDate: string): Promise<ExpenseRecord[]> {
+  const stmt = getDatabase().prepare(`
+    SELECT * FROM expense_records 
+    WHERE date >= ? AND date <= ?
+    ORDER BY date ASC
+  `);
+  return stmt.all(startDate, endDate) as ExpenseRecord[];
+}
+
+// 获取年度汇总数据
+export async function getYearlySummary(year: number): Promise<{
+  totalIncome: number;
+  totalExpense: number;
+  netIncome: number;
+  quarters: {
+    quarter: number;
+    income: number;
+    expense: number;
+    netIncome: number;
+  }[];
+}> {
+  const db = getDatabase();
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  // 获取年度收入记录
+  const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
+  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+
+  // 获取年度支出记录
+  const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
+  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+  // 按季度汇总
+  const quarters = [1, 2, 3, 4].map(quarter => {
+    const startMonth = (quarter - 1) * 3 + 1;
+    const endMonth = quarter * 3;
+    const quarterStart = `${year}-${startMonth.toString().padStart(2, '0')}-01`;
+    const quarterEnd = `${year}-${endMonth.toString().padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
+    
+    const quarterIncomeRecords = incomeRecords.filter(record => 
+      record.date >= quarterStart && record.date <= quarterEnd
+    );
+    const quarterExpenseRecords = expenseRecords.filter(record => 
+      record.date >= quarterStart && record.date <= quarterEnd
+    );
+
+    const income = quarterIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
+    const expense = quarterExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+    return {
+      quarter,
+      income,
+      expense,
+      netIncome: income - expense
+    };
+  });
+
+  return {
+    totalIncome,
+    totalExpense,
+    netIncome: totalIncome - totalExpense,
+    quarters
+  };
+}
+
+// 获取季度汇总数据
+export async function getQuarterlySummary(year: number, quarter: number): Promise<{
+  totalIncome: number;
+  totalExpense: number;
+  netIncome: number;
+  months: {
+    month: number;
+    income: number;
+    expense: number;
+    netIncome: number;
+  }[];
+}> {
+  const startMonth = (quarter - 1) * 3 + 1;
+  const endMonth = quarter * 3;
+  const startDate = `${year}-${startMonth.toString().padStart(2, '0')}-01`;
+  const endDate = `${year}-${endMonth.toString().padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
+
+  // 获取季度收入记录
+  const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
+  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+
+  // 获取季度支出记录
+  const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
+  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+  // 按月份汇总
+  const months = Array.from({ length: 3 }, (_, i) => {
+    const month = startMonth + i;
+    const monthStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${month.toString().padStart(2, '0')}-${daysOfMonth(month, year)}`;
+
+    const monthIncomeRecords = incomeRecords.filter(record => 
+      record.date >= monthStart && record.date <= monthEnd
+    );
+    const monthExpenseRecords = expenseRecords.filter(record => 
+      record.date >= monthStart && record.date <= monthEnd
+    );
+
+    const income = monthIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
+    const expense = monthExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+    return {
+      month,
+      income,
+      expense,
+      netIncome: income - expense
+    };
+  });
+
+  return {
+    totalIncome,
+    totalExpense,
+    netIncome: totalIncome - totalExpense,
+    months
+  };
+}
+
+// 获取月度汇总数据
+export async function getMonthlySummary(year: number, month: number): Promise<{
+  totalIncome: number;
+  totalExpense: number;
+  netIncome: number;
+  plans: {
+    planId: number;
+    planName: string;
+    type: 'income' | 'expense';
+    amount: number;
+  }[];
+}> {
+  const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+  const endDate = `${year}-${month.toString().padStart(2, '0')}-${daysOfMonth(month, year)}`;
+
+  // 获取月度收入记录
+  const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
+  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+
+  // 获取月度支出记录
+  const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
+  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+  // 获取所有计划
+  const incomePlans = await getIncomePlans();
+  const expensePlans = await getExpensePlans();
+
+  // 按计划汇总
+  const plans = [
+    ...incomeRecords.map(record => {
+      const plan = incomePlans.find(p => p.id === record.plan_id);
+      return {
+        planId: record.plan_id,
+        planName: plan?.name || '未知计划',
+        type: 'income' as const,
+        amount: record.amount
+      };
+    }),
+    ...expenseRecords.map(record => {
+      const plan = expensePlans.find(p => p.id === record.plan_id);
+      return {
+        planId: record.plan_id,
+        planName: plan?.name || '未知计划',
+        type: 'expense' as const,
+        amount: record.actual_amount
+      };
+    })
+  ];
+
+  return {
+    totalIncome,
+    totalExpense,
+    netIncome: totalIncome - totalExpense,
+    plans
+  };
 }
   

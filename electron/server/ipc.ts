@@ -894,4 +894,34 @@ export function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // 获取年度汇总数据
+  ipcMain.handle('finance:get-yearly-summary', async (_, year) => {
+    try {
+      return await financeApi.getYearlySummary(year);
+    } catch (error) {
+      console.error('获取年度汇总数据失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取季度汇总数据
+  ipcMain.handle('finance:get-quarterly-summary', async (_, year, quarter) => {
+    try {
+      return await financeApi.getQuarterlySummary(year, quarter);
+    } catch (error) {
+      console.error('获取季度汇总数据失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取月度汇总数据
+  ipcMain.handle('finance:get-monthly-summary', async (_, year, month) => {
+    try {
+      return await financeApi.getMonthlySummary(year, month);
+    } catch (error) {
+      console.error('获取月度汇总数据失败:', error);
+      throw error;
+    }
+  });
 } 
