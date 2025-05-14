@@ -896,7 +896,7 @@ export function setupIpcHandlers() {
   });
 
   // 获取年度汇总数据
-  ipcMain.handle('finance:get-yearly-summary', async (_, year) => {
+  ipcMain.handle('finance:get-yearly-summary', async (_, year: number) => {
     try {
       return await financeApi.getYearlySummary(year);
     } catch (error) {
@@ -906,7 +906,7 @@ export function setupIpcHandlers() {
   });
 
   // 获取季度汇总数据
-  ipcMain.handle('finance:get-quarterly-summary', async (_, year, quarter) => {
+  ipcMain.handle('finance:get-quarterly-summary', async (_, year: number, quarter: number) => {
     try {
       return await financeApi.getQuarterlySummary(year, quarter);
     } catch (error) {
@@ -916,7 +916,7 @@ export function setupIpcHandlers() {
   });
 
   // 获取月度汇总数据
-  ipcMain.handle('finance:get-monthly-summary', async (_, year, month) => {
+  ipcMain.handle('finance:get-monthly-summary', async (_, year: number, month: number) => {
     try {
       return await financeApi.getMonthlySummary(year, month);
     } catch (error) {

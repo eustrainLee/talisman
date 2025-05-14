@@ -591,30 +591,51 @@ export async function getYearlySummary(year: number): Promise<{
     expense: number;
     netIncome: number;
   }[];
+  months: {
+    month: number;
+    income: number;
+    expense: number;
+    netIncome: number;
+  }[];
 }> {
-  const db = getDatabase();
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
 
   // 获取年度收入记录
   const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
-  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentIncomeRecordIds = new Set(
+    incomeRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredIncomeRecords = incomeRecords.filter(record => !parentIncomeRecordIds.has(record.id));
+  const totalIncome = filteredIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
 
   // 获取年度支出记录
   const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
-  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentExpenseRecordIds = new Set(
+    expenseRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredExpenseRecords = expenseRecords.filter(record => !parentExpenseRecordIds.has(record.id));
+  const totalExpense = filteredExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
 
-  // 按季度汇总
+  // 计算季度数据
   const quarters = [1, 2, 3, 4].map(quarter => {
     const startMonth = (quarter - 1) * 3 + 1;
     const endMonth = quarter * 3;
-    const quarterStart = `${year}-${startMonth.toString().padStart(2, '0')}-01`;
-    const quarterEnd = `${year}-${endMonth.toString().padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
-    
-    const quarterIncomeRecords = incomeRecords.filter(record => 
+    const quarterStart = `${year}-${String(startMonth).padStart(2, '0')}-01`;
+    const quarterEnd = `${year}-${String(endMonth).padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
+
+    const quarterIncomeRecords = filteredIncomeRecords.filter(record => 
       record.date >= quarterStart && record.date <= quarterEnd
     );
-    const quarterExpenseRecords = expenseRecords.filter(record => 
+    const quarterExpenseRecords = filteredExpenseRecords.filter(record => 
       record.date >= quarterStart && record.date <= quarterEnd
     );
 
@@ -629,11 +650,35 @@ export async function getYearlySummary(year: number): Promise<{
     };
   });
 
+  // 计算月度数据
+  const months = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${daysOfMonth(month, year)}`;
+
+    const monthIncomeRecords = filteredIncomeRecords.filter(record => 
+      record.date >= monthStart && record.date <= monthEnd
+    );
+    const monthExpenseRecords = filteredExpenseRecords.filter(record => 
+      record.date >= monthStart && record.date <= monthEnd
+    );
+
+    const income = monthIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
+    const expense = monthExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+
+    return {
+      month,
+      income,
+      expense,
+      netIncome: income - expense
+    };
+  });
+
   return {
     totalIncome,
     totalExpense,
     netIncome: totalIncome - totalExpense,
-    quarters
+    quarters,
+    months
   };
 }
 
@@ -651,32 +696,49 @@ export async function getQuarterlySummary(year: number, quarter: number): Promis
 }> {
   const startMonth = (quarter - 1) * 3 + 1;
   const endMonth = quarter * 3;
-  const startDate = `${year}-${startMonth.toString().padStart(2, '0')}-01`;
-  const endDate = `${year}-${endMonth.toString().padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
+  const startDate = `${year}-${String(startMonth).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(endMonth).padStart(2, '0')}-${daysOfMonth(endMonth, year)}`;
 
   // 获取季度收入记录
   const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
-  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentIncomeRecordIds = new Set(
+    incomeRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredIncomeRecords = incomeRecords.filter(record => !parentIncomeRecordIds.has(record.id));
+  const totalIncome = filteredIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
 
   // 获取季度支出记录
   const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
-  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentExpenseRecordIds = new Set(
+    expenseRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredExpenseRecords = expenseRecords.filter(record => !parentExpenseRecordIds.has(record.id));
+  const totalExpense = filteredExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
 
-  // 按月份汇总
-  const months = Array.from({ length: 3 }, (_, i) => {
-    const month = startMonth + i;
-    const monthStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const monthEnd = `${year}-${month.toString().padStart(2, '0')}-${daysOfMonth(month, year)}`;
+  // 计算月度数据
+  const months = Array.from({ length: 3 }, (_, i) => startMonth + i).map(month => {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month).padStart(2, '0')}-${daysOfMonth(month, year)}`;
 
-    const monthIncomeRecords = incomeRecords.filter(record => 
+    const monthIncomeRecords = filteredIncomeRecords.filter(record => 
       record.date >= monthStart && record.date <= monthEnd
     );
-    const monthExpenseRecords = expenseRecords.filter(record => 
+    const monthExpenseRecords = filteredExpenseRecords.filter(record => 
       record.date >= monthStart && record.date <= monthEnd
     );
 
     const income = monthIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
-    const expense = monthExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+    const expense = monthExpenseRecords.filter(record => 
+      record.date >= monthStart && record.date <= monthEnd
+    ).reduce((sum, record) => sum + record.actual_amount, 0);
 
     return {
       month,
@@ -706,41 +768,55 @@ export async function getMonthlySummary(year: number, month: number): Promise<{
     amount: number;
   }[];
 }> {
-  const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-  const endDate = `${year}-${month.toString().padStart(2, '0')}-${daysOfMonth(month, year)}`;
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${daysOfMonth(month, year)}`;
 
   // 获取月度收入记录
   const incomeRecords = await getIncomeRecordsInRange(startDate, endDate);
-  const totalIncome = incomeRecords.reduce((sum, record) => sum + record.amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentIncomeRecordIds = new Set(
+    incomeRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredIncomeRecords = incomeRecords.filter(record => !parentIncomeRecordIds.has(record.id));
+  const totalIncome = filteredIncomeRecords.reduce((sum, record) => sum + record.amount, 0);
 
   // 获取月度支出记录
   const expenseRecords = await getExpenseRecordsInRange(startDate, endDate);
-  const totalExpense = expenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+  // 找出所有有子记录的父记录ID
+  const parentExpenseRecordIds = new Set(
+    expenseRecords
+      .filter(record => record.is_sub_record && record.parent_record_id)
+      .map(record => record.parent_record_id)
+  );
+  // 过滤掉父记录
+  const filteredExpenseRecords = expenseRecords.filter(record => !parentExpenseRecordIds.has(record.id));
+  const totalExpense = filteredExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
 
   // 获取所有计划
   const incomePlans = await getIncomePlans();
   const expensePlans = await getExpensePlans();
 
-  // 按计划汇总
+  // 按计划汇总数据
   const plans = [
-    ...incomeRecords.map(record => {
-      const plan = incomePlans.find(p => p.id === record.plan_id);
-      return {
-        planId: record.plan_id,
-        planName: plan?.name || '未知计划',
-        type: 'income' as const,
-        amount: record.amount
-      };
-    }),
-    ...expenseRecords.map(record => {
-      const plan = expensePlans.find(p => p.id === record.plan_id);
-      return {
-        planId: record.plan_id,
-        planName: plan?.name || '未知计划',
-        type: 'expense' as const,
-        amount: record.actual_amount
-      };
-    })
+    ...incomePlans.map(plan => ({
+      planId: plan.id,
+      planName: plan.name,
+      type: 'income' as const,
+      amount: filteredIncomeRecords
+        .filter(record => record.plan_id === plan.id)
+        .reduce((sum, record) => sum + record.amount, 0)
+    })),
+    ...expensePlans.map(plan => ({
+      planId: plan.id,
+      planName: plan.name,
+      type: 'expense' as const,
+      amount: filteredExpenseRecords
+        .filter(record => record.plan_id === plan.id)
+        .reduce((sum, record) => sum + record.actual_amount, 0)
+    }))
   ];
 
   return {

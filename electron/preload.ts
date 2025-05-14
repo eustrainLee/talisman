@@ -118,6 +118,12 @@ interface IElectronAPI {
       expense: number;
       netIncome: number;
     }[];
+    months: {
+      month: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
   }>;
   getQuarterlySummary: (year: number, quarter: number) => Promise<{
     totalIncome: number;

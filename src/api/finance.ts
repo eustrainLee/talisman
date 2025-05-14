@@ -137,6 +137,64 @@ class FinanceAPI {
   async deleteIncomeRecord(recordId: number): Promise<void> {
     return window.electronAPI.deleteIncomeRecord(recordId);
   }
+
+  // 汇总相关 API
+  async getYearlySummary(year: number): Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    quarters: {
+      quarter: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
+    months: {
+      month: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
+  }> {
+    if (USE_IPC) {
+      return window.electronAPI.getYearlySummary(year);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async getQuarterlySummary(year: number, quarter: number): Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    months: {
+      month: number;
+      income: number;
+      expense: number;
+      netIncome: number;
+    }[];
+  }> {
+    if (USE_IPC) {
+      return window.electronAPI.getQuarterlySummary(year, quarter);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async getMonthlySummary(year: number, month: number): Promise<{
+    totalIncome: number;
+    totalExpense: number;
+    netIncome: number;
+    plans: {
+      planId: number;
+      planName: string;
+      type: 'income' | 'expense';
+      amount: number;
+    }[];
+  }> {
+    if (USE_IPC) {
+      return window.electronAPI.getMonthlySummary(year, month);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
 }
 
 export const financeAPI = new FinanceAPI();
