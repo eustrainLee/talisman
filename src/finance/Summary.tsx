@@ -40,11 +40,12 @@ interface MonthlySummaryData {
   totalIncome: number;
   totalExpense: number;
   netIncome: number;
-  plans: {
-    planId: number;
-    planName: string;
+  records: {
+    id: number;
+    name: string;
     type: 'income' | 'expense';
     amount: number;
+    date: string;
   }[];
 }
 
@@ -270,7 +271,7 @@ const Summary: React.FC = () => {
           </>
         )}
 
-        {timeDimension === 'month' && summaryData && 'plans' in summaryData && (
+        {timeDimension === 'month' && summaryData && 'records' in summaryData && (
           <>
             <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={8}>
@@ -305,32 +306,42 @@ const Summary: React.FC = () => {
               </Col>
             </Row>
 
-            <Card title="计划汇总">
-              <Table
-                columns={[
-                  {
-                    title: '计划名称',
-                    dataIndex: 'planName',
-                    key: 'planName',
-                  },
-                  {
-                    title: '类型',
-                    dataIndex: 'type',
-                    key: 'type',
-                    render: (type: 'income' | 'expense') => type === 'income' ? '收入' : '支出',
-                  },
-                  {
-                    title: '金额',
-                    dataIndex: 'amount',
-                    key: 'amount',
-                    render: (value: number) => (value / 100).toFixed(2),
-                  },
-                ]}
-                dataSource={summaryData.plans}
-                pagination={false}
-                loading={loading}
-              />
-            </Card>
+            <Table
+              columns={[
+                {
+                  title: '类型',
+                  dataIndex: 'type',
+                  key: 'type',
+                  width: 80,
+                  render: (type: 'income' | 'expense') => type === 'income' ? '收入' : '支出',
+                },
+                {
+                  title: '时间',
+                  dataIndex: 'date',
+                  key: 'date',
+                  width: 120,
+                  render: (date: string) => dayjs(date).format('YYYY-MM'),
+                },
+                {
+                  title: '计划名称',
+                  dataIndex: 'name',
+                  key: 'name',
+                  ellipsis: true,
+                },
+                {
+                  title: '金额',
+                  dataIndex: 'amount',
+                  key: 'amount',
+                  width: 200,
+                  render: (value: number) => (value / 100).toFixed(2),
+                },
+              ]}
+              dataSource={summaryData.records}
+              pagination={false}
+              loading={loading}
+              size="small"
+              bordered
+            />
           </>
         )}
       </Card>

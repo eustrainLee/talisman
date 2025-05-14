@@ -140,11 +140,12 @@ interface IElectronAPI {
     totalIncome: number;
     totalExpense: number;
     netIncome: number;
-    plans: {
-      planId: number;
-      planName: string;
+    records: {
+      id: number;
+      name: string;
       type: 'income' | 'expense';
       amount: number;
+      date: string;
     }[];
   }>;
 }

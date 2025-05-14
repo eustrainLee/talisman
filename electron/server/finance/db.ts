@@ -761,11 +761,12 @@ export async function getMonthlySummary(year: number, month: number): Promise<{
   totalIncome: number;
   totalExpense: number;
   netIncome: number;
-  plans: {
-    planId: number;
-    planName: string;
+  records: {
+    id: number;
+    name: string;
     type: 'income' | 'expense';
     amount: number;
+    date: string;
   }[];
 }> {
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -793,29 +794,26 @@ export async function getMonthlySummary(year: number, month: number): Promise<{
   );
   // 过滤掉父记录
   const filteredExpenseRecords = expenseRecords.filter(record => !parentExpenseRecordIds.has(record.id));
-  const totalExpense = filteredExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0);
+  const totalExpense = filteredExpenseRecords.reduce((sum, record) => sum + record.actual_amount, 0)
 
-  // 获取所有计划
   const incomePlans = await getIncomePlans();
   const expensePlans = await getExpensePlans();
 
-  // 按计划汇总数据
-  const plans = [
-    ...incomePlans.map(plan => ({
-      planId: plan.id,
-      planName: plan.name,
+  // 获取所有记录
+  const records = [
+    ...filteredIncomeRecords.map(record => ({
+      id: record.id,
+      name: incomePlans.find(plan => plan.id === record.plan_id)?.name || '?',
       type: 'income' as const,
-      amount: filteredIncomeRecords
-        .filter(record => record.plan_id === plan.id)
-        .reduce((sum, record) => sum + record.amount, 0)
+      amount: record.amount,
+      date: record.date
     })),
-    ...expensePlans.map(plan => ({
-      planId: plan.id,
-      planName: plan.name,
+    ...filteredExpenseRecords.map(record => ({
+      id: record.id,
+      name: expensePlans.find(plan => plan.id === record.plan_id)?.name || '?',
       type: 'expense' as const,
-      amount: filteredExpenseRecords
-        .filter(record => record.plan_id === plan.id)
-        .reduce((sum, record) => sum + record.actual_amount, 0)
+      amount: record.actual_amount,
+      date: record.date
     }))
   ];
 
@@ -823,7 +821,7 @@ export async function getMonthlySummary(year: number, month: number): Promise<{
     totalIncome,
     totalExpense,
     netIncome: totalIncome - totalExpense,
-    plans
+    records
   };
 }
   
