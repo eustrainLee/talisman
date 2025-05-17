@@ -56,21 +56,26 @@ export function initializeDatabase() {
     // Create assets table
     db.exec(`
       CREATE TABLE IF NOT EXISTS assets (
-        id TEXT PRIMARY KEY,                -- 唯一标识符
-        name TEXT NOT NULL,                 -- 名称
-        acquisition_date DATE NOT NULL,     -- 获得时间
-        disposal_date DATE,                 -- 失去时间（可以为空）
-        acquisition_method TEXT NOT NULL,   -- 获得方式
-        purchase_price INTEGER NOT NULL,    -- 购入价格（分）
-        source TEXT NOT NULL,               -- 来源
-        description TEXT,                   -- 描述
-        notes TEXT,                         -- 备注
-        planned_disposal_date DATE,         -- 计划失去时间
-        is_lent BOOLEAN NOT NULL DEFAULT 0, -- 是否已被借出
-        lending_date DATE,                  -- 借出时间
-        planned_return_date DATE,           -- 计划收回时间
-        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 创建时间
-        update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP   -- 更新时间
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,                 -- 物件名称
+        description TEXT,                   -- 物件描述
+        location TEXT,                      -- 物件位置
+        status TEXT NOT NULL,               -- 物件状态：pending/owned/borrowed/disposed
+        current_borrow_id INTEGER,          -- 当前借出记录ID
+        
+        -- 生命周期信息
+        acquisition_date TEXT NOT NULL,     -- 获得日期
+        acquisition_source TEXT NOT NULL,   -- 获得来源
+        acquisition_cost INTEGER NOT NULL,  -- 获得成本（分）
+        acquisition_note TEXT,              -- 获得备注
+        planned_disposal_date TEXT,         -- 计划处置日期
+        actual_disposal_date TEXT,          -- 实际处置日期
+        disposal_method TEXT,               -- 处置方式
+        disposal_note TEXT,                 -- 处置备注
+        
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (current_borrow_id) REFERENCES borrow_records (id)
       )
     `)
 
@@ -193,6 +198,65 @@ export function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (plan_id) REFERENCES income_plans (id),
         FOREIGN KEY (parent_record_id) REFERENCES income_records (id)
+      )
+    `)
+
+    // Create tags table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL,                  -- 标签键名
+        value TEXT NOT NULL,                -- 标签值
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(key, value)                  -- 确保标签键值对唯一
+      )
+    `)
+
+    // Create asset_tags table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS asset_tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL,          -- 物件ID
+        tag_id INTEGER NOT NULL,            -- 标签ID
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+        UNIQUE(asset_id, tag_id)            -- 确保物件-标签关联唯一
+      )
+    `)
+
+    // Create borrow_records table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS borrow_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL,          -- 关联的物件ID
+        borrower TEXT NOT NULL,             -- 借出人
+        borrow_date TEXT NOT NULL,          -- 借出日期
+        expected_return_date TEXT NOT NULL, -- 预期归还日期
+        actual_return_date TEXT,            -- 实际归还日期
+        status TEXT NOT NULL,               -- 借出状态：borrowed/returned/overdue
+        note TEXT,                          -- 借出备注
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE
+      )
+    `)
+
+    // Create maintenance_records table
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS maintenance_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_id INTEGER NOT NULL,          -- 关联的物件ID
+        date TEXT NOT NULL,                 -- 维护日期
+        type TEXT NOT NULL,                 -- 维护类型
+        cost INTEGER,                       -- 维护成本（分）
+        description TEXT NOT NULL,          -- 维护描述
+        maintainer TEXT NOT NULL,           -- 维护人
+        next_maintenance_date TEXT,         -- 下次维护日期
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE
       )
     `)
   
