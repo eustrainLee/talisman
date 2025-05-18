@@ -270,7 +270,7 @@ const Assets: React.FC = () => {
       title: '获得成本',
       dataIndex: 'acquisition_cost',
       key: 'acquisition_cost',
-      render: (cost: number) => `¥${(cost / 100).toFixed(2)}`,
+      render: (cost: number | null) => cost ? `${(cost / 100).toFixed(2)}` : '-',
     },
     {
       title: '获得备注',
