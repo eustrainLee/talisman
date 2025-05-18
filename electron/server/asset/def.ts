@@ -10,6 +10,7 @@ export interface Asset {
   location: string;          // 物件位置
   status: AssetStatus;       // 物件状态
   current_borrow_id: number | null; // 当前借出记录ID
+  tags: Tag[];               // 物件标签
   
   // 生命周期信息
   acquisition_date: string;      // 获得日期

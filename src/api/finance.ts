@@ -1,5 +1,6 @@
 import { USE_IPC } from '../config';
 import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from '../../electron/server/finance/def';
+import { Tag } from '../../electron/server/asset/def';
 
 export type PeriodType = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
 
@@ -195,6 +196,15 @@ class FinanceAPI {
       return window.electronAPI.getMonthlySummary(year, month);
     }
     throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  // 获取资产标签
+  async getAssetTags(assetId: number): Promise<Tag[]> {
+    const response = await fetch(`/api/assets/${assetId}/tags`);
+    if (!response.ok) {
+      throw new Error('获取资产标签失败');
+    }
+    return response.json();
   }
 }
 
