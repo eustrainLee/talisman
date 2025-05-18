@@ -48,6 +48,7 @@ const Assets: React.FC = () => {
 
   // 筛选对话框相关状态
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [filterForm] = Form.useForm();
 
   // 获取资产列表
   const fetchAssets = async () => {
@@ -148,6 +149,11 @@ const Assets: React.FC = () => {
     setFilteredAssets(filtered);
   };
 
+  // 处理状态标签移除
+  const handleStatusRemove = (status: string) => {
+    setSelectedStatus(selectedStatus.filter(s => s !== status));
+  };
+
   // 重置筛选
   const handleReset = () => {
     setSearchText('');
@@ -161,6 +167,63 @@ const Assets: React.FC = () => {
   useEffect(() => {
     setFilteredAssets(assets);
   }, [assets]);
+
+  // 打开搜索对话框时，将当前状态复制到表单
+  const handleOpenFilterModal = () => {
+    filterForm.setFieldsValue({
+      name: searchText,
+      status: selectedStatus,
+      dateRange: dateRange,
+      tags: selectedTags,
+      tagKey: selectedTagKey,
+      tagValue: selectedTagValue,
+    });
+    setIsFilterModalVisible(true);
+  };
+
+  // 处理搜索对话框的确定按钮
+  const handleFilterConfirm = async () => {
+    try {
+      const values = await filterForm.validateFields();
+      setSearchText(values.name);
+      setSelectedStatus(values.status);
+      setDateRange(values.dateRange);
+      setSelectedTags(values.tags);
+      setSelectedTagKey(values.tagKey);
+      setSelectedTagValue(values.tagValue);
+      setIsFilterModalVisible(false);
+      handleFilter();
+    } catch (error) {
+      // 表单验证失败
+    }
+  };
+
+  // 处理搜索对话框的取消按钮
+  const handleFilterCancel = () => {
+    setIsFilterModalVisible(false);
+  };
+
+  // 处理临时标签添加
+  const handleTempAddTag = () => {
+    const values = filterForm.getFieldsValue();
+    if (values.tagKey && values.tagValue) {
+      const tag = availableTags.find(t => t.key === values.tagKey && t.value === values.tagValue);
+      if (tag && !values.tags?.some((t: AssetTag) => t.id === tag.id)) {
+        filterForm.setFieldsValue({
+          tags: [...(values.tags || []), tag],
+          tagValue: '',
+        });
+      }
+    }
+  };
+
+  // 处理临时标签移除
+  const handleTempTagRemove = (tag: AssetTag) => {
+    const values = filterForm.getFieldsValue();
+    filterForm.setFieldsValue({
+      tags: values.tags.filter((t: AssetTag) => t.id !== tag.id),
+    });
+  };
 
   // 资产列表列定义
   const assetColumns: ColumnsType<Asset> = [
@@ -455,14 +518,11 @@ const Assets: React.FC = () => {
                       <Button type="primary" onClick={() => setIsCreateModalVisible(true)}>
                         添加资产
                       </Button>
-                      <Button onClick={() => setIsFilterModalVisible(true)}>
-                        搜索
-                      </Button>
                     </Space>
                   </div>
 
                   {/* 当前筛选条件展示 */}
-                  {(searchText || selectedStatus.length > 0 || dateRange || selectedTags.length > 0) && (
+                  {(
                     <div style={{ marginTop: '8px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
                       <Space wrap size="small">
                         <span>当前筛选：</span>
@@ -471,19 +531,23 @@ const Assets: React.FC = () => {
                             名称包含：{searchText}
                           </Tag>
                         )}
-                        {selectedStatus.length > 0 && (
-                          <Tag closable onClose={() => setSelectedStatus(['owned'])}>
-                            状态：{selectedStatus.map(status => {
-                              const statusMap = {
-                                pending: '待获得',
-                                owned: '持有中',
-                                borrowed: '已借出',
-                                disposed: '已处置',
-                              };
-                              return statusMap[status as keyof typeof statusMap];
-                            }).join('、')}
-                          </Tag>
-                        )}
+                        {selectedStatus.map(status => {
+                          const statusMap = {
+                            pending: '待获得',
+                            owned: '持有中',
+                            borrowed: '已借出',
+                            disposed: '已处置',
+                          };
+                          return (
+                            <Tag
+                              key={status}
+                              closable
+                              onClose={() => handleStatusRemove(status)}
+                            >
+                              状态：{statusMap[status as keyof typeof statusMap]}
+                            </Tag>
+                          );
+                        })}
                         {dateRange && (
                           <Tag closable onClose={() => setDateRange(null)}>
                             日期范围：{dateRange[0].format('YYYY-MM-DD')} 至 {dateRange[1].format('YYYY-MM-DD')}
@@ -498,6 +562,9 @@ const Assets: React.FC = () => {
                             {tag.key}: {tag.value}
                           </Tag>
                         ))}
+                        <Button type="link" size="small" onClick={handleOpenFilterModal}>
+                          修改
+                        </Button>
                         <Button type="link" size="small" onClick={handleReset}>
                           清除所有筛选
                         </Button>
@@ -600,14 +667,27 @@ const Assets: React.FC = () => {
           createForm.resetFields();
         }}
         width={600}
+        style={{ padding: '12px 24px' }}
       >
         <Form
           form={createForm}
-          layout="vertical"
+          layout="horizontal"
+          className="compact-form"
+          labelCol={{ span: 6 }}
+          wrapperCol={{ span: 18 }}
+          size="small"
         >
           <Form.Item
             name="name"
-            label="资产名称"
+            label={
+              <span
+                className="form-label"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >资产名称</span>
+            }
             rules={[{ required: true, message: '请输入资产名称' }]}
           >
             <Input placeholder="请输入资产名称" />
@@ -616,7 +696,7 @@ const Assets: React.FC = () => {
             name="description"
             label="描述"
           >
-            <Input.TextArea placeholder="请输入描述" />
+            <Input.TextArea placeholder="请输入描述" rows={2} />
           </Form.Item>
           <Form.Item
             name="location"
@@ -659,11 +739,11 @@ const Assets: React.FC = () => {
             name="acquisition_note"
             label="备注"
           >
-            <Input.TextArea placeholder="请输入备注" />
+            <Input.TextArea placeholder="请输入备注" rows={2} />
           </Form.Item>
           <Form.Item label="标签">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Space>
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Space size="small">
                 <Select
                   placeholder="选择标签类型"
                   style={{ width: 120 }}
@@ -719,29 +799,47 @@ const Assets: React.FC = () => {
       <Modal
         title="搜索条件"
         open={isFilterModalVisible}
-        onOk={() => {
-          setIsFilterModalVisible(false);
-          handleFilter();
-        }}
-        onCancel={() => setIsFilterModalVisible(false)}
+        onOk={handleFilterConfirm}
+        onCancel={handleFilterCancel}
         width={600}
+        styles={{ body: { padding: '12px 24px' } }}
       >
-        <Form layout="vertical">
-          <Form.Item label="资产名称">
+        <Form 
+          form={filterForm}
+          layout="horizontal" 
+          className="compact-form"
+          labelCol={{ span: 6 }}
+          labelAlign="right"
+          labelWrap={false}
+          wrapperCol={{ span: 18 }}
+          size="small"
+        >
+          <Form.Item
+            name="name"
+            label={
+              <span
+                className="form-label"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >名称</span>
+            }
+            rules={[{ message: '请输入名称' }]}
+          >
             <Input
-              placeholder="搜索资产名称"
+              placeholder="搜索名称"
               allowClear
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
             />
           </Form.Item>
-          <Form.Item label="状态">
+          <Form.Item
+            name="status"
+            label="状态"
+          >
             <Select
               mode="multiple"
               placeholder="选择状态"
               style={{ width: '100%' }}
-              value={selectedStatus}
-              onChange={setSelectedStatus}
               options={[
                 { label: '待获得', value: 'pending' },
                 { label: '持有中', value: 'owned' },
@@ -750,23 +848,30 @@ const Assets: React.FC = () => {
               ]}
             />
           </Form.Item>
-          <Form.Item label="日期范围">
+          <Form.Item
+            name="dateRange"
+            label="日期范围"
+          >
             <RangePicker
               style={{ width: '100%' }}
-              value={dateRange}
-              onChange={(dates) => setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
             />
           </Form.Item>
-          <Form.Item label="标签">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Space>
+          <Form.Item
+            name="tags"
+            label="标签"
+            initialValue={[]}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Space size="small">
                 <Select
                   placeholder="选择标签类型"
                   style={{ width: 120 }}
-                  value={selectedTagKey}
+                  value={filterForm.getFieldValue('tagKey')}
                   onChange={(value) => {
-                    setSelectedTagKey(value);
-                    setSelectedTagValue('');
+                    filterForm.setFieldsValue({
+                      tagKey: value,
+                      tagValue: '',
+                    });
                   }}
                   options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
                     label: key,
@@ -777,29 +882,30 @@ const Assets: React.FC = () => {
                 <Select
                   placeholder="选择标签值"
                   style={{ width: 120 }}
-                  value={selectedTagValue}
-                  onChange={setSelectedTagValue}
-                  options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                  value={filterForm.getFieldValue('tagValue')}
+                  onChange={(value) => filterForm.setFieldValue('tagValue', value)}
+                  options={filterForm.getFieldValue('tagKey') ? getTagValues(filterForm.getFieldValue('tagKey')).map(value => ({
                     label: value,
                     value: value,
                   })) : []}
-                  disabled={!selectedTagKey}
+                  disabled={!filterForm.getFieldValue('tagKey')}
                   allowClear
                 />
                 <Button
                   type="primary"
-                  onClick={handleAddTag}
-                  disabled={!selectedTagKey || !selectedTagValue}
+                  onClick={handleTempAddTag}
+                  disabled={!filterForm.getFieldValue('tagKey') || !filterForm.getFieldValue('tagValue')}
+                  size="small"
                 >
                   添加标签
                 </Button>
               </Space>
-              <div style={{ marginTop: '8px' }}>
-                {selectedTags.map(tag => (
+              <div>
+                {filterForm.getFieldValue('tags')?.map((tag: AssetTag) => (
                   <Tag
                     key={tag.id}
                     closable
-                    onClose={() => handleTagRemove(tag)}
+                    onClose={() => handleTempTagRemove(tag)}
                     style={{ marginBottom: '4px', marginRight: '4px' }}
                   >
                     {tag.key}: {tag.value}
