@@ -510,6 +510,55 @@ const Assets: React.FC = () => {
           style={{ fontSize: '12px' }}
         />
       </TabPane>
+
+      <TabPane tab="标签" key="tags">
+        <Card type='inner'>
+          <Button type="primary" onClick={() => setIsTagModalVisible(true)}>
+            创建标签
+          </Button>
+        </Card>
+
+        <Table<AssetTag>
+          columns={tagColumns}
+          dataSource={tags}
+          loading={loading}
+          pagination={{
+            defaultPageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+          }}
+          size="small"
+          style={{ fontSize: '12px' }}
+        />
+
+        <Modal
+          title="创建标签"
+          open={isTagModalVisible}
+          onOk={handleTagSubmit}
+          onCancel={() => setIsTagModalVisible(false)}
+          width={400}
+        >
+          <Form
+            form={tagForm}
+            layout="vertical"
+          >
+            <Form.Item
+              name="key"
+              label="标签键名"
+              rules={[{ required: true, message: '请输入标签键名' }]}
+            >
+              <Input placeholder="请输入标签键名" />
+            </Form.Item>
+            <Form.Item
+              name="value"
+              label="标签值"
+              rules={[{ required: true, message: '请输入标签值' }]}
+            >
+              <Input placeholder="请输入标签值" />
+            </Form.Item>
+          </Form>
+        </Modal>
+      </TabPane>
     </Tabs>
   );
 };
