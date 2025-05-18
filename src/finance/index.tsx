@@ -7,28 +7,38 @@ import Summary from './Summary';
 import Assets from './Assets';
 import styles from './index.module.css';
 
-const { TabPane } = Tabs;
-
 const Finance: React.FC = () => {
+  const items = [
+    {
+      key: 'overview',
+      label: '概览',
+      children: <Overview />,
+    },
+    {
+      key: 'income',
+      label: '收入',
+      children: <Income />,
+    },
+    {
+      key: 'expense',
+      label: '支出',
+      children: <Expense />,
+    },
+    {
+      key: 'summary',
+      label: '汇总',
+      children: <Summary />,
+    },
+    {
+      key: 'assets',
+      label: '资产',
+      children: <Assets />,
+    },
+  ];
+
   return (
     <div className={styles.container}>
-      <Tabs defaultActiveKey="overview" type="card" className={styles.tabs}>
-        <TabPane tab="概览" key="overview">
-          <Overview />
-        </TabPane>
-        <TabPane tab="收入" key="income">
-          <Income />
-        </TabPane>
-        <TabPane tab="支出" key="expense">
-          <Expense />
-        </TabPane>
-        <TabPane tab="汇总" key="summary">
-          <Summary />
-        </TabPane>
-        <TabPane tab="资产" key="assets">
-          <Assets />
-        </TabPane>
-      </Tabs>
+      <Tabs defaultActiveKey="overview" type="card" className={styles.tabs} items={items} />
     </div>
   );
 };

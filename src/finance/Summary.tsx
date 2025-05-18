@@ -211,6 +211,7 @@ const Summary: React.FC = () => {
                 dataSource={summaryData.quarters}
                 pagination={false}
                 loading={loading}
+                rowKey="quarter"
               />
             </Card>
 
@@ -220,6 +221,7 @@ const Summary: React.FC = () => {
                 dataSource={summaryData.months}
                 pagination={false}
                 loading={loading}
+                rowKey="month"
               />
             </Card>
           </>
@@ -266,6 +268,7 @@ const Summary: React.FC = () => {
                 dataSource={summaryData.months}
                 pagination={false}
                 loading={loading}
+                rowKey="month"
               />
             </Card>
           </>

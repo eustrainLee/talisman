@@ -440,381 +440,406 @@ const Assets: React.FC = () => {
   };
 
   return (
-    <Tabs defaultActiveKey="assets">
-      <TabPane tab="资产列表" key="assets">
-        <Card style={{ marginBottom: '8px' }} styles={{ body: { padding: '12px' } }}>
-          <Space direction="vertical" style={{ width: '100%' }} size="small">
-            {/* 操作按钮 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Space size="small">
-                <Button type="primary" onClick={() => setIsCreateModalVisible(true)}>
-                  添加资产
-                </Button>
-                <Button onClick={() => setIsFilterModalVisible(true)}>
-                  搜索
-                </Button>
-              </Space>
-            </div>
-
-            {/* 当前筛选条件展示 */}
-            {(searchText || selectedStatus.length > 0 || dateRange || selectedTags.length > 0) && (
-              <div style={{ marginTop: '8px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
-                <Space wrap size="small">
-                  <span>当前筛选：</span>
-                  {searchText && (
-                    <Tag closable onClose={() => setSearchText('')}>
-                      名称包含：{searchText}
-                    </Tag>
-                  )}
-                  {selectedStatus.length > 0 && (
-                    <Tag closable onClose={() => setSelectedStatus(['owned'])}>
-                      状态：{selectedStatus.map(status => {
-                        const statusMap = {
-                          pending: '待获得',
-                          owned: '持有中',
-                          borrowed: '已借出',
-                          disposed: '已处置',
-                        };
-                        return statusMap[status as keyof typeof statusMap];
-                      }).join('、')}
-                    </Tag>
-                  )}
-                  {dateRange && (
-                    <Tag closable onClose={() => setDateRange(null)}>
-                      日期范围：{dateRange[0].format('YYYY-MM-DD')} 至 {dateRange[1].format('YYYY-MM-DD')}
-                    </Tag>
-                  )}
-                  {selectedTags.map(tag => (
-                    <Tag
-                      key={tag.id}
-                      closable
-                      onClose={() => handleTagRemove(tag)}
-                    >
-                      {tag.key}: {tag.value}
-                    </Tag>
-                  ))}
-                  <Button type="link" size="small" onClick={handleReset}>
-                    清除所有筛选
-                  </Button>
-                </Space>
-              </div>
-            )}
-
-            {/* 筛选对话框 */}
-            <Modal
-              title="搜索条件"
-              open={isFilterModalVisible}
-              onOk={() => {
-                setIsFilterModalVisible(false);
-                handleFilter();
-              }}
-              onCancel={() => setIsFilterModalVisible(false)}
-              width={600}
-            >
-              <Form layout="vertical">
-                <Form.Item label="资产名称">
-                  <Input
-                    placeholder="搜索资产名称"
-                    allowClear
-                    value={searchText}
-                    onChange={e => setSearchText(e.target.value)}
-                  />
-                </Form.Item>
-                <Form.Item label="状态">
-                  <Select
-                    mode="multiple"
-                    placeholder="选择状态"
-                    style={{ width: '100%' }}
-                    value={selectedStatus}
-                    onChange={setSelectedStatus}
-                    options={[
-                      { label: '待获得', value: 'pending' },
-                      { label: '持有中', value: 'owned' },
-                      { label: '已借出', value: 'borrowed' },
-                      { label: '已处置', value: 'disposed' },
-                    ]}
-                  />
-                </Form.Item>
-                <Form.Item label="日期范围">
-                  <RangePicker
-                    style={{ width: '100%' }}
-                    value={dateRange}
-                    onChange={(dates) => setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
-                  />
-                </Form.Item>
-                <Form.Item label="标签">
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Space>
-                      <Select
-                        placeholder="选择标签类型"
-                        style={{ width: 120 }}
-                        value={selectedTagKey}
-                        onChange={(value) => {
-                          setSelectedTagKey(value);
-                          setSelectedTagValue('');
-                        }}
-                        options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
-                          label: key,
-                          value: key,
-                        }))}
-                        allowClear
-                      />
-                      <Select
-                        placeholder="选择标签值"
-                        style={{ width: 120 }}
-                        value={selectedTagValue}
-                        onChange={setSelectedTagValue}
-                        options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
-                          label: value,
-                          value: value,
-                        })) : []}
-                        disabled={!selectedTagKey}
-                        allowClear
-                      />
-                      <Button
-                        type="primary"
-                        onClick={handleAddTag}
-                        disabled={!selectedTagKey || !selectedTagValue}
-                      >
-                        添加标签
+    <>
+      <Tabs defaultActiveKey="assets" items={[
+        {
+          key: 'assets',
+          label: '资产列表',
+          children: (
+            <>
+              <Card style={{ marginBottom: '8px' }} styles={{ body: { padding: '12px' } }}>
+                <Space direction="vertical" style={{ width: '100%' }} size="small">
+                  {/* 操作按钮 */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Space size="small">
+                      <Button type="primary" onClick={() => setIsCreateModalVisible(true)}>
+                        添加资产
+                      </Button>
+                      <Button onClick={() => setIsFilterModalVisible(true)}>
+                        搜索
                       </Button>
                     </Space>
-                    <div style={{ marginTop: '8px' }}>
-                      {selectedTags.map(tag => (
-                        <Tag
-                          key={tag.id}
-                          closable
-                          onClose={() => handleTagRemove(tag)}
-                          style={{ marginBottom: '4px', marginRight: '4px' }}
-                        >
-                          {tag.key}: {tag.value}
-                        </Tag>
-                      ))}
+                  </div>
+
+                  {/* 当前筛选条件展示 */}
+                  {(searchText || selectedStatus.length > 0 || dateRange || selectedTags.length > 0) && (
+                    <div style={{ marginTop: '8px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
+                      <Space wrap size="small">
+                        <span>当前筛选：</span>
+                        {searchText && (
+                          <Tag closable onClose={() => setSearchText('')}>
+                            名称包含：{searchText}
+                          </Tag>
+                        )}
+                        {selectedStatus.length > 0 && (
+                          <Tag closable onClose={() => setSelectedStatus(['owned'])}>
+                            状态：{selectedStatus.map(status => {
+                              const statusMap = {
+                                pending: '待获得',
+                                owned: '持有中',
+                                borrowed: '已借出',
+                                disposed: '已处置',
+                              };
+                              return statusMap[status as keyof typeof statusMap];
+                            }).join('、')}
+                          </Tag>
+                        )}
+                        {dateRange && (
+                          <Tag closable onClose={() => setDateRange(null)}>
+                            日期范围：{dateRange[0].format('YYYY-MM-DD')} 至 {dateRange[1].format('YYYY-MM-DD')}
+                          </Tag>
+                        )}
+                        {selectedTags.map(tag => (
+                          <Tag
+                            key={tag.id}
+                            closable
+                            onClose={() => handleTagRemove(tag)}
+                          >
+                            {tag.key}: {tag.value}
+                          </Tag>
+                        ))}
+                        <Button type="link" size="small" onClick={handleReset}>
+                          清除所有筛选
+                        </Button>
+                      </Space>
                     </div>
-                  </Space>
-                </Form.Item>
-              </Form>
-            </Modal>
-          </Space>
-        </Card>
-
-        <Table<Asset>
-          columns={assetColumns}
-          dataSource={filteredAssets}
-          loading={loading}
-          pagination={{
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-          size="small"
-          style={{ fontSize: '12px' }}
-        />
-
-        <Modal
-          title="创建资产"
-          open={isCreateModalVisible}
-          onOk={handleCreateSubmit}
-          onCancel={() => {
-            setIsCreateModalVisible(false);
-            createForm.resetFields();
-          }}
-          width={600}
-        >
-          <Form
-            form={createForm}
-            layout="vertical"
-          >
-            <Form.Item
-              name="name"
-              label="资产名称"
-              rules={[{ required: true, message: '请输入资产名称' }]}
-            >
-              <Input placeholder="请输入资产名称" />
-            </Form.Item>
-            <Form.Item
-              name="description"
-              label="描述"
-            >
-              <Input.TextArea placeholder="请输入描述" />
-            </Form.Item>
-            <Form.Item
-              name="location"
-              label="位置"
-            >
-              <Input placeholder="请输入位置" />
-            </Form.Item>
-            <Form.Item
-              name="status"
-              label="状态"
-              rules={[{ required: true, message: '请选择状态' }]}
-              initialValue="owned"
-            >
-              <Select placeholder="请选择状态">
-                <Select.Option value="pending">待获得</Select.Option>
-                <Select.Option value="owned">持有中</Select.Option>
-                <Select.Option value="borrowed">已借出</Select.Option>
-                <Select.Option value="disposed">已处置</Select.Option>
-              </Select>
-            </Form.Item>
-            <Form.Item
-              name="acquisition_date"
-              label="日期"
-            >
-              <DatePicker style={{ width: '100%' }} />
-            </Form.Item>
-            <Form.Item
-              name="acquisition_source"
-              label="来源"
-            >
-              <Input placeholder="请输入来源" />
-            </Form.Item>
-            <Form.Item
-              name="acquisition_cost"
-              label="成本"
-            >
-              <Input type="number" placeholder="请输入成本" />
-            </Form.Item>
-            <Form.Item
-              name="acquisition_note"
-              label="备注"
-            >
-              <Input.TextArea placeholder="请输入备注" />
-            </Form.Item>
-            <Form.Item label="标签">
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space>
-                  <Select
-                    placeholder="选择标签类型"
-                    style={{ width: 120 }}
-                    value={selectedTagKey}
-                    onChange={(value) => {
-                      setSelectedTagKey(value);
-                      setSelectedTagValue('');
-                    }}
-                    options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
-                      label: key,
-                      value: key,
-                    }))}
-                    allowClear
-                  />
-                  <Select
-                    placeholder="选择标签值"
-                    style={{ width: 120 }}
-                    value={selectedTagValue}
-                    onChange={setSelectedTagValue}
-                    options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
-                      label: value,
-                      value: value,
-                    })) : []}
-                    disabled={!selectedTagKey}
-                    allowClear
-                  />
-                  <Button
-                    type="primary"
-                    onClick={handleAddTag}
-                    disabled={!selectedTagKey || !selectedTagValue}
-                  >
-                    添加标签
-                  </Button>
+                  )}
                 </Space>
-                <div>
-                  {selectedTags.map(tag => (
-                    <Tag
-                      key={tag.id}
-                      closable
-                      onClose={() => handleTagRemove(tag)}
-                      style={{ marginBottom: '4px', marginRight: '4px' }}
-                    >
-                      {tag.key}: {tag.value}
-                    </Tag>
-                  ))}
-                </div>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
-      </TabPane>
+              </Card>
 
-      <TabPane tab="借出记录" key="borrow">
-        <Table<BorrowRecord>
-          columns={borrowColumns}
-          dataSource={borrowRecords}
-          loading={loading}
-          pagination={{
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-          size="small"
-          style={{ fontSize: '12px' }}
-        />
-      </TabPane>
+              <Table<Asset>
+                columns={assetColumns}
+                dataSource={filteredAssets}
+                loading={loading}
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                }}
+                size="small"
+                style={{ fontSize: '12px' }}
+                rowKey="id"
+              />
+            </>
+          ),
+        },
+        {
+          key: 'borrow',
+          label: '借出记录',
+          children: (
+            <Table<BorrowRecord>
+              columns={borrowColumns}
+              dataSource={borrowRecords}
+              loading={loading}
+              pagination={{
+                defaultPageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条`,
+              }}
+              size="small"
+              style={{ fontSize: '12px' }}
+              rowKey="id"
+            />
+          ),
+        },
+        {
+          key: 'maintenance',
+          label: '维护记录',
+          children: (
+            <Table<MaintenanceRecord>
+              columns={maintenanceColumns}
+              dataSource={maintenanceRecords}
+              loading={loading}
+              pagination={{
+                defaultPageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `共 ${total} 条`,
+              }}
+              size="small"
+              style={{ fontSize: '12px' }}
+              rowKey="id"
+            />
+          ),
+        },
+        {
+          key: 'tags',
+          label: '标签',
+          children: (
+            <>
+              <Card type='inner'>
+                <Button type="primary" onClick={() => setIsTagModalVisible(true)}>
+                  创建标签
+                </Button>
+              </Card>
 
-      <TabPane tab="维护记录" key="maintenance">
-        <Table<MaintenanceRecord>
-          columns={maintenanceColumns}
-          dataSource={maintenanceRecords}
-          loading={loading}
-          pagination={{
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-          size="small"
-          style={{ fontSize: '12px' }}
-        />
-      </TabPane>
+              <Table<AssetTag>
+                columns={tagColumns}
+                dataSource={tags}
+                loading={loading}
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 条`,
+                }}
+                size="small"
+                style={{ fontSize: '12px' }}
+                rowKey="id"
+              />
+            </>
+          ),
+        },
+      ]} />
 
-      <TabPane tab="标签" key="tags">
-        <Card type='inner'>
-          <Button type="primary" onClick={() => setIsTagModalVisible(true)}>
-            创建标签
-          </Button>
-        </Card>
-
-        <Table<AssetTag>
-          columns={tagColumns}
-          dataSource={tags}
-          loading={loading}
-          pagination={{
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 条`,
-          }}
-          size="small"
-          style={{ fontSize: '12px' }}
-        />
-
-        <Modal
-          title="创建标签"
-          open={isTagModalVisible}
-          onOk={handleTagSubmit}
-          onCancel={() => setIsTagModalVisible(false)}
-          width={400}
+      {/* 创建资产对话框 */}
+      <Modal
+        title="创建资产"
+        open={isCreateModalVisible}
+        onOk={handleCreateSubmit}
+        onCancel={() => {
+          setIsCreateModalVisible(false);
+          createForm.resetFields();
+        }}
+        width={600}
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
         >
-          <Form
-            form={tagForm}
-            layout="vertical"
+          <Form.Item
+            name="name"
+            label="资产名称"
+            rules={[{ required: true, message: '请输入资产名称' }]}
           >
-            <Form.Item
-              name="key"
-              label="标签键名"
-              rules={[{ required: true, message: '请输入标签键名' }]}
-            >
-              <Input placeholder="请输入标签键名" />
-            </Form.Item>
-            <Form.Item
-              name="value"
-              label="标签值"
-              rules={[{ required: true, message: '请输入标签值' }]}
-            >
-              <Input placeholder="请输入标签值" />
-            </Form.Item>
-          </Form>
-        </Modal>
-      </TabPane>
-    </Tabs>
+            <Input placeholder="请输入资产名称" />
+          </Form.Item>
+          <Form.Item
+            name="description"
+            label="描述"
+          >
+            <Input.TextArea placeholder="请输入描述" />
+          </Form.Item>
+          <Form.Item
+            name="location"
+            label="位置"
+          >
+            <Input placeholder="请输入位置" />
+          </Form.Item>
+          <Form.Item
+            name="status"
+            label="状态"
+            rules={[{ required: true, message: '请选择状态' }]}
+            initialValue="owned"
+          >
+            <Select placeholder="请选择状态">
+              <Select.Option value="pending">待获得</Select.Option>
+              <Select.Option value="owned">持有中</Select.Option>
+              <Select.Option value="borrowed">已借出</Select.Option>
+              <Select.Option value="disposed">已处置</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="acquisition_date"
+            label="日期"
+          >
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_source"
+            label="来源"
+          >
+            <Input placeholder="请输入来源" />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_cost"
+            label="成本"
+          >
+            <Input type="number" placeholder="请输入成本" />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_note"
+            label="备注"
+          >
+            <Input.TextArea placeholder="请输入备注" />
+          </Form.Item>
+          <Form.Item label="标签">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space>
+                <Select
+                  placeholder="选择标签类型"
+                  style={{ width: 120 }}
+                  value={selectedTagKey}
+                  onChange={(value) => {
+                    setSelectedTagKey(value);
+                    setSelectedTagValue('');
+                  }}
+                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                    label: key,
+                    value: key,
+                  }))}
+                  allowClear
+                />
+                <Select
+                  placeholder="选择标签值"
+                  style={{ width: 120 }}
+                  value={selectedTagValue}
+                  onChange={setSelectedTagValue}
+                  options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                    label: value,
+                    value: value,
+                  })) : []}
+                  disabled={!selectedTagKey}
+                  allowClear
+                />
+                <Button
+                  type="primary"
+                  onClick={handleAddTag}
+                  disabled={!selectedTagKey || !selectedTagValue}
+                >
+                  添加标签
+                </Button>
+              </Space>
+              <div>
+                {selectedTags.map(tag => (
+                  <Tag
+                    key={tag.id}
+                    closable
+                    onClose={() => handleTagRemove(tag)}
+                    style={{ marginBottom: '4px', marginRight: '4px' }}
+                  >
+                    {tag.key}: {tag.value}
+                  </Tag>
+                ))}
+              </div>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 筛选对话框 */}
+      <Modal
+        title="搜索条件"
+        open={isFilterModalVisible}
+        onOk={() => {
+          setIsFilterModalVisible(false);
+          handleFilter();
+        }}
+        onCancel={() => setIsFilterModalVisible(false)}
+        width={600}
+      >
+        <Form layout="vertical">
+          <Form.Item label="资产名称">
+            <Input
+              placeholder="搜索资产名称"
+              allowClear
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+            />
+          </Form.Item>
+          <Form.Item label="状态">
+            <Select
+              mode="multiple"
+              placeholder="选择状态"
+              style={{ width: '100%' }}
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              options={[
+                { label: '待获得', value: 'pending' },
+                { label: '持有中', value: 'owned' },
+                { label: '已借出', value: 'borrowed' },
+                { label: '已处置', value: 'disposed' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="日期范围">
+            <RangePicker
+              style={{ width: '100%' }}
+              value={dateRange}
+              onChange={(dates) => setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
+            />
+          </Form.Item>
+          <Form.Item label="标签">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Space>
+                <Select
+                  placeholder="选择标签类型"
+                  style={{ width: 120 }}
+                  value={selectedTagKey}
+                  onChange={(value) => {
+                    setSelectedTagKey(value);
+                    setSelectedTagValue('');
+                  }}
+                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                    label: key,
+                    value: key,
+                  }))}
+                  allowClear
+                />
+                <Select
+                  placeholder="选择标签值"
+                  style={{ width: 120 }}
+                  value={selectedTagValue}
+                  onChange={setSelectedTagValue}
+                  options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                    label: value,
+                    value: value,
+                  })) : []}
+                  disabled={!selectedTagKey}
+                  allowClear
+                />
+                <Button
+                  type="primary"
+                  onClick={handleAddTag}
+                  disabled={!selectedTagKey || !selectedTagValue}
+                >
+                  添加标签
+                </Button>
+              </Space>
+              <div style={{ marginTop: '8px' }}>
+                {selectedTags.map(tag => (
+                  <Tag
+                    key={tag.id}
+                    closable
+                    onClose={() => handleTagRemove(tag)}
+                    style={{ marginBottom: '4px', marginRight: '4px' }}
+                  >
+                    {tag.key}: {tag.value}
+                  </Tag>
+                ))}
+              </div>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 创建标签对话框 */}
+      <Modal
+        title="创建标签"
+        open={isTagModalVisible}
+        onOk={handleTagSubmit}
+        onCancel={() => setIsTagModalVisible(false)}
+        width={400}
+      >
+        <Form
+          form={tagForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="key"
+            label="标签键名"
+            rules={[{ required: true, message: '请输入标签键名' }]}
+          >
+            <Input placeholder="请输入标签键名" />
+          </Form.Item>
+          <Form.Item
+            name="value"
+            label="标签值"
+            rules={[{ required: true, message: '请输入标签值' }]}
+          >
+            <Input placeholder="请输入标签值" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 };
 

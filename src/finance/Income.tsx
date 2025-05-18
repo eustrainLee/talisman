@@ -253,10 +253,12 @@ const Income: React.FC = () => {
     editForm.setFieldsValue({ closing_cumulative: closingCumulative });
   };
 
-  return (
-    <div>
-      <Tabs defaultActiveKey="1">
-        <Tabs.TabPane tab="收入记录" key="1">
+  const items = [
+    {
+      key: '1',
+      label: '收入记录',
+      children: (
+        <>
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', gap: 16 }}>
               <Select
@@ -289,11 +291,19 @@ const Income: React.FC = () => {
             style={{ fontSize: '12px' }}
             rowKey="id"
           />
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="收入计划" key="2">
-          <IncomePlanComponent onRecordCreated={fetchRecords} />
-        </Tabs.TabPane>
-      </Tabs>
+        </>
+      ),
+    },
+    {
+      key: '2',
+      label: '收入计划',
+      children: <IncomePlanComponent onRecordCreated={fetchRecords} />,
+    },
+  ];
+
+  return (
+    <div>
+      <Tabs defaultActiveKey="1" items={items} />
 
       <Modal
         title="编辑收入记录"

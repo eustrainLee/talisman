@@ -521,12 +521,14 @@ const Expense: React.FC = () => {
     },
   ];
 
-  return (
-    <div>
-      <Tabs defaultActiveKey="1">
-        <Tabs.TabPane tab="开支记录" key="1">
-          <Card type='inner'>
-            <div>
+  const items = [
+    {
+      key: '1',
+      label: '开支记录',
+      children: (
+        <>
+          <Card style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
               <Select
                 value={periodType}
                 onChange={handlePeriodTypeChange}
@@ -568,92 +570,100 @@ const Expense: React.FC = () => {
             size="small"
             style={{ fontSize: '12px' }}
           />
+        </>
+      ),
+    },
+    {
+      key: '2',
+      label: '开支计划',
+      children: <ExpensePlanComponent onRecordCreated={fetchRecords} />,
+    },
+  ];
 
-          <Modal
-            title="编辑开支记录"
-            open={isEditModalVisible}
-            onOk={handleEditSubmit}
-            onCancel={() => setIsEditModalVisible(false)}
-            width={600}
-            okButtonProps={{ disabled: !!existingRecord }}
+  return (
+    <div>
+      <Tabs defaultActiveKey="1" items={items} />
+
+      <Modal
+        title="编辑开支记录"
+        open={isEditModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => setIsEditModalVisible(false)}
+        width={600}
+        okButtonProps={{ disabled: !!existingRecord }}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onValuesChange={handleFormValuesChange}
+        >
+          <Form.Item
+            name="date"
+            label="时间"
+            rules={[{ required: true, message: '请选择时间' }]}
+            extra={existingRecord && (
+              <span style={{ color: 'red' }}>
+                该周期已存在记录
+              </span>
+            )}
           >
-            <Form
-              form={editForm}
-              layout="vertical"
-              onValuesChange={handleFormValuesChange}
-            >
-              <Form.Item
-                name="date"
-                label="时间"
-                rules={[{ required: true, message: '请选择时间' }]}
-                extra={existingRecord && (
-                  <span style={{ color: 'red' }}>
-                    该周期已存在记录
-                  </span>
-                )}
-              >
-                <DatePicker
-                  picker={selectedRecord ? plans.find(p => p.id === selectedRecord.plan_id)?.period.toLowerCase() as any : undefined}
-                  style={{ width: '100%' }}
-                  onChange={handleDateChange}
-                />
-              </Form.Item>
-              <Form.Item
-                name="budget_amount"
-                label="预算额度"
-                rules={[{ required: true, message: '请输入预算额度' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="actual_amount"
-                label="实际开销"
-                rules={[{ required: true, message: '请输入实际开销' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="balance"
-                label="结余"
-                rules={[{ required: true, message: '请输入结余' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="opening_cumulative_balance"
-                label="期初累计结余"
-                rules={[{ required: true, message: '请输入期初累计结余' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="closing_cumulative_balance"
-                label="期末累计结余"
-                rules={[{ required: true, message: '请输入期末累计结余' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="opening_cumulative_expense"
-                label="期初累计开支"
-                rules={[{ required: true, message: '请输入期初累计开支' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-              <Form.Item
-                name="closing_cumulative_expense"
-                label="期末累计开支"
-                rules={[{ required: true, message: '请输入期末累计开支' }]}
-              >
-                <Input type="number" disabled={isFormDisabled} />
-              </Form.Item>
-            </Form>
-          </Modal>
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="开支计划" key="2">
-          <ExpensePlanComponent onRecordCreated={fetchRecords} />
-        </Tabs.TabPane>
-      </Tabs>
+            <DatePicker
+              picker={selectedRecord ? plans.find(p => p.id === selectedRecord.plan_id)?.period.toLowerCase() as any : undefined}
+              style={{ width: '100%' }}
+              onChange={handleDateChange}
+            />
+          </Form.Item>
+          <Form.Item
+            name="budget_amount"
+            label="预算额度"
+            rules={[{ required: true, message: '请输入预算额度' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="actual_amount"
+            label="实际开销"
+            rules={[{ required: true, message: '请输入实际开销' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="balance"
+            label="结余"
+            rules={[{ required: true, message: '请输入结余' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="opening_cumulative_balance"
+            label="期初累计结余"
+            rules={[{ required: true, message: '请输入期初累计结余' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="closing_cumulative_balance"
+            label="期末累计结余"
+            rules={[{ required: true, message: '请输入期末累计结余' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="opening_cumulative_expense"
+            label="期初累计开支"
+            rules={[{ required: true, message: '请输入期初累计开支' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+          <Form.Item
+            name="closing_cumulative_expense"
+            label="期末累计开支"
+            rules={[{ required: true, message: '请输入期末累计开支' }]}
+          >
+            <Input type="number" disabled={isFormDisabled} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };
