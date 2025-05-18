@@ -247,13 +247,6 @@ const Assets: React.FC = () => {
         const { text, color } = statusMap[status as keyof typeof statusMap];
         return <Tag color={color}>{text}</Tag>;
       },
-      filters: [
-        { text: '待获得', value: 'pending' },
-        { text: '持有中', value: 'owned' },
-        { text: '已借出', value: 'borrowed' },
-        { text: '已处置', value: 'disposed' },
-      ],
-      onFilter: (value, record) => record.status === value,
     },
     {
       title: '位置',
@@ -265,11 +258,13 @@ const Assets: React.FC = () => {
       title: '获得日期',
       dataIndex: 'acquisition_date',
       key: 'acquisition_date',
+      render: (date: string | null) => date ? dayjs(date).format('YYYY-MM-DD') : '-',
     },
     {
       title: '获得来源',
       dataIndex: 'acquisition_source',
       key: 'acquisition_source',
+      render: (source: string | null) => source || '-',
     },
     {
       title: '获得成本',
@@ -566,7 +561,7 @@ const Assets: React.FC = () => {
                           修改
                         </Button>
                         <Button type="link" size="small" onClick={handleReset}>
-                          清除所有筛选
+                          重置
                         </Button>
                       </Space>
                     </div>
