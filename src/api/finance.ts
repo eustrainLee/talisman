@@ -221,6 +221,14 @@ class FinanceAPI {
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
+
+  // 删除资产
+  async deleteAsset(id: number): Promise<void> {
+    if (USE_IPC) {
+      return window.electronAPI.deleteAsset(id);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
 }
 
 export const financeAPI = new FinanceAPI();

@@ -954,4 +954,14 @@ export function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // 删除资产
+  ipcMain.handle('finance:delete-asset', async (_, id: number) => {
+    try {
+      await assetApi.deleteAsset(id);
+    } catch (error) {
+      console.error('删除资产失败:', error);
+      throw error;
+    }
+  });
 } 

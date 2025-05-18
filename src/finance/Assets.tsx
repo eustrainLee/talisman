@@ -225,6 +225,19 @@ const Assets: React.FC = () => {
     });
   };
 
+  // 处理删除资产
+  const handleDelete = async (asset: Asset) => {
+    try {
+      await financeAPI.deleteAsset(asset.id);
+      message.success('删除成功');
+      // 刷新资产列表
+      fetchAssets();
+    } catch (error) {
+      console.error('删除资产失败:', error);
+      message.error('删除失败');
+    }
+  };
+
   // 资产列表列定义
   const assetColumns: ColumnsType<Asset> = [
     {
@@ -290,6 +303,22 @@ const Assets: React.FC = () => {
             维护
           </Button>
           <Button type="link" size="small">编辑</Button>
+          <Button 
+            type="link" 
+            danger 
+            size="small" 
+            onClick={() => {
+              Modal.confirm({
+                title: '确认删除',
+                content: `确定要删除资产"${record.name}"吗？`,
+                okText: '确认',
+                cancelText: '取消',
+                onOk: () => handleDelete(record)
+              });
+            }}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
