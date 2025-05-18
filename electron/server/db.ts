@@ -64,9 +64,9 @@ export function initializeDatabase() {
         current_borrow_id INTEGER,          -- 当前借出记录ID
         
         -- 生命周期信息
-        acquisition_date TEXT NOT NULL,     -- 获得日期
-        acquisition_source TEXT NOT NULL,   -- 获得来源
-        acquisition_cost INTEGER NOT NULL,  -- 获得成本（分）
+        acquisition_date TEXT,              -- 获得日期
+        acquisition_source TEXT,            -- 获得来源
+        acquisition_cost INTEGER,           -- 获得成本（分）
         acquisition_note TEXT,              -- 获得备注
         planned_disposal_date TEXT,         -- 计划处置日期
         actual_disposal_date TEXT,          -- 实际处置日期

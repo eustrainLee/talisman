@@ -49,6 +49,26 @@ const Assets: React.FC = () => {
   // 筛选对话框相关状态
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
 
+  // 获取资产列表
+  const fetchAssets = async () => {
+    try {
+      setLoading(true);
+      const data = await financeAPI.getAssets();
+      setAssets(data);
+      setFilteredAssets(data);
+    } catch (error) {
+      console.error('获取资产列表失败:', error);
+      message.error('获取资产列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 初始化时获取资产列表
+  useEffect(() => {
+    fetchAssets();
+  }, []);
+
   // 获取所有可用的标签
   useEffect(() => {
     const fetchTags = async () => {
@@ -176,20 +196,29 @@ const Assets: React.FC = () => {
       title: '位置',
       dataIndex: 'location',
       key: 'location',
-      sorter: (a, b) => a.location.localeCompare(b.location),
+      render: (location: string | null) => location || '-',
     },
     {
       title: '获得日期',
       dataIndex: 'acquisition_date',
       key: 'acquisition_date',
-      sorter: (a, b) => a.acquisition_date.localeCompare(b.acquisition_date),
+    },
+    {
+      title: '获得来源',
+      dataIndex: 'acquisition_source',
+      key: 'acquisition_source',
     },
     {
       title: '获得成本',
       dataIndex: 'acquisition_cost',
       key: 'acquisition_cost',
-      render: (value: number) => `¥${(value / 100).toFixed(2)}`,
-      sorter: (a, b) => a.acquisition_cost - b.acquisition_cost,
+      render: (cost: number) => `¥${(cost / 100).toFixed(2)}`,
+    },
+    {
+      title: '获得备注',
+      dataIndex: 'acquisition_note',
+      key: 'acquisition_note',
+      render: (note: string | null) => note || '-',
     },
     {
       title: '操作',
@@ -378,6 +407,38 @@ const Assets: React.FC = () => {
     }
   };
 
+  // 处理创建资产提交
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      const asset = await financeAPI.createAsset({
+        name: values.name,
+        description: values.description || null,
+        location: values.location || null,
+        status: values.status,
+        current_borrow_id: null,
+        acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
+        acquisition_source: values.acquisition_source,
+        acquisition_cost: Math.round(values.acquisition_cost * 100),
+        acquisition_note: values.acquisition_note || null,
+        planned_disposal_date: null,
+        actual_disposal_date: null,
+        disposal_method: null,
+        disposal_note: null,
+        tags: selectedTags,
+      });
+      message.success('创建成功');
+      setIsCreateModalVisible(false);
+      createForm.resetFields();
+      setSelectedTags([]);
+      // 刷新资产列表
+      fetchAssets();
+    } catch (error) {
+      console.error('创建资产失败:', error);
+      message.error('创建失败');
+    }
+  };
+
   return (
     <Tabs defaultActiveKey="assets">
       <TabPane tab="资产列表" key="assets">
@@ -553,17 +614,7 @@ const Assets: React.FC = () => {
         <Modal
           title="创建资产"
           open={isCreateModalVisible}
-          onOk={async () => {
-            try {
-              const values = await createForm.validateFields();
-              // TODO: 调用API创建资产
-              message.success('创建成功');
-              setIsCreateModalVisible(false);
-              createForm.resetFields();
-            } catch (error) {
-              message.error('创建失败');
-            }
-          }}
+          onOk={handleCreateSubmit}
           onCancel={() => {
             setIsCreateModalVisible(false);
             createForm.resetFields();
@@ -590,7 +641,6 @@ const Assets: React.FC = () => {
             <Form.Item
               name="location"
               label="位置"
-              rules={[{ required: true, message: '请输入位置' }]}
             >
               <Input placeholder="请输入位置" />
             </Form.Item>
@@ -610,21 +660,18 @@ const Assets: React.FC = () => {
             <Form.Item
               name="acquisition_date"
               label="日期"
-              rules={[{ required: true, message: '请选择日期' }]}
             >
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item
               name="acquisition_source"
               label="来源"
-              rules={[{ required: true, message: '请输入来源' }]}
             >
               <Input placeholder="请输入来源" />
             </Form.Item>
             <Form.Item
               name="acquisition_cost"
               label="成本"
-              rules={[{ required: true, message: '请输入成本' }]}
             >
               <Input type="number" placeholder="请输入成本" />
             </Form.Item>
@@ -633,6 +680,57 @@ const Assets: React.FC = () => {
               label="备注"
             >
               <Input.TextArea placeholder="请输入备注" />
+            </Form.Item>
+            <Form.Item label="标签">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <Select
+                    placeholder="选择标签类型"
+                    style={{ width: 120 }}
+                    value={selectedTagKey}
+                    onChange={(value) => {
+                      setSelectedTagKey(value);
+                      setSelectedTagValue('');
+                    }}
+                    options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                      label: key,
+                      value: key,
+                    }))}
+                    allowClear
+                  />
+                  <Select
+                    placeholder="选择标签值"
+                    style={{ width: 120 }}
+                    value={selectedTagValue}
+                    onChange={setSelectedTagValue}
+                    options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                      label: value,
+                      value: value,
+                    })) : []}
+                    disabled={!selectedTagKey}
+                    allowClear
+                  />
+                  <Button
+                    type="primary"
+                    onClick={handleAddTag}
+                    disabled={!selectedTagKey || !selectedTagValue}
+                  >
+                    添加标签
+                  </Button>
+                </Space>
+                <div>
+                  {selectedTags.map(tag => (
+                    <Tag
+                      key={tag.id}
+                      closable
+                      onClose={() => handleTagRemove(tag)}
+                      style={{ marginBottom: '4px', marginRight: '4px' }}
+                    >
+                      {tag.key}: {tag.value}
+                    </Tag>
+                  ))}
+                </div>
+              </Space>
             </Form.Item>
           </Form>
         </Modal>

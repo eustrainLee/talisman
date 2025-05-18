@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from './server/finance/def';
+import { Asset, CreateAsset, Tag } from './server/asset/def';
 
 interface DocFile {
   title: string;
@@ -148,6 +149,10 @@ interface IElectronAPI {
       date: string;
     }[];
   }>;
+  // 资产相关 API
+  getAssets: () => Promise<Asset[]>;
+  createAsset: (asset: CreateAsset) => Promise<Asset>;
+  getAssetTags: (assetId: number) => Promise<Tag[]>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -222,6 +227,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getYearlySummary: (year: number) => ipcRenderer.invoke('finance:get-yearly-summary', year),
   getQuarterlySummary: (year: number, quarter: number) => ipcRenderer.invoke('finance:get-quarterly-summary', year, quarter),
   getMonthlySummary: (year: number, month: number) => ipcRenderer.invoke('finance:get-monthly-summary', year, month),
+  // 资产相关 API
+  getAssets: () => ipcRenderer.invoke('finance:get-assets'),
+  createAsset: (asset: CreateAsset) => ipcRenderer.invoke('finance:create-asset', asset),
+  getAssetTags: (assetId: number) => ipcRenderer.invoke('finance:get-asset-tags', assetId),
 })
 
 // 声明全局类型

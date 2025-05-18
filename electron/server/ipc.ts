@@ -6,6 +6,7 @@ import log from 'electron-log'
 import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as gitModule from './git'
 import * as financeApi from './finance/api'
+import * as assetApi from './asset/api'
 // import * as financeDB from './finance/db'
 
 // 配置日志
@@ -921,6 +922,35 @@ export function setupIpcHandlers() {
       return await financeApi.getMonthlySummary(year, month);
     } catch (error) {
       console.error('获取月度汇总数据失败:', error);
+      throw error;
+    }
+  });
+
+  // 资产相关 API
+  ipcMain.handle('finance:get-assets', async () => {
+    try {
+      return await assetApi.getAssets();
+    } catch (error) {
+      console.error('获取资产列表失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('finance:create-asset', async (_, asset) => {
+    try {
+      return await assetApi.createAsset(asset);
+    } catch (error) {
+      console.error('创建资产失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取资产标签
+  ipcMain.handle('finance:get-asset-tags', async (_, assetId: number) => {
+    try {
+      return await assetApi.getAssetTags(assetId);
+    } catch (error) {
+      console.error('获取资产标签失败:', error);
       throw error;
     }
   });

@@ -6,8 +6,8 @@ export type BorrowStatus = 'borrowed' | 'returned' | 'overdue';
 export interface Asset {
   id: number;                // 唯一标识
   name: string;              // 物件名称
-  description: string;       // 物件描述
-  location: string;          // 物件位置
+  description: string | null;       // 物件描述
+  location: string | null;          // 物件位置
   status: AssetStatus;       // 物件状态
   current_borrow_id: number | null; // 当前借出记录ID
   tags: Tag[];               // 物件标签
@@ -16,11 +16,11 @@ export interface Asset {
   acquisition_date: string;      // 获得日期
   acquisition_source: string;    // 获得来源
   acquisition_cost: number;      // 获得成本（分）
-  acquisition_note: string;      // 获得备注
-  planned_disposal_date: string; // 计划处置日期
-  actual_disposal_date: string;  // 实际处置日期
-  disposal_method: string;       // 处置方式
-  disposal_note: string;         // 处置备注
+  acquisition_note: string | null;      // 获得备注
+  planned_disposal_date: string | null; // 计划处置日期
+  actual_disposal_date: string | null;  // 实际处置日期
+  disposal_method: string | null;       // 处置方式
+  disposal_note: string | null;         // 处置备注
   
   created_at: string;        // 创建时间
   updated_at: string;        // 更新时间

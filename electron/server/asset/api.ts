@@ -8,6 +8,7 @@ export const getAsset = (id: number) => db.getAsset(id);
 export const createAsset = (asset: CreateAsset) => db.createAsset(asset);
 export const updateAsset = (id: number, data: UpdateAsset) => db.updateAsset(id, data);
 export const deleteAsset = (id: number) => db.deleteAsset(id);
+export const getAssetTags = (assetId: number) => db.getAssetTags(assetId);
 
 // 借出记录相关操作
 export const getBorrowRecords = (assetId: number) => db.getBorrowRecords(assetId);

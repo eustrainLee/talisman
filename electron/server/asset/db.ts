@@ -1,6 +1,6 @@
 // 封装数据库操作
 import { getDatabase } from '../db';
-import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord } from './def';
+import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, Tag } from './def';
 
 // 获取所有物件
 export async function getAssets(): Promise<Asset[]> {
@@ -24,31 +24,59 @@ export async function getAsset(id: number): Promise<Asset> {
 // 创建物件
 export async function createAsset(asset: CreateAsset): Promise<Asset> {
   const db = getDatabase();
-  const stmt = db.prepare(`
-    INSERT INTO assets (
-      name, description, location, status, current_borrow_id,
-      acquisition_date, acquisition_source, acquisition_cost, acquisition_note,
-      planned_disposal_date, actual_disposal_date, disposal_method, disposal_note
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
   
-  const result = stmt.run(
-    asset.name,
-    asset.description,
-    asset.location,
-    asset.status,
-    asset.current_borrow_id || null,
-    asset.acquisition_date,
-    asset.acquisition_source,
-    asset.acquisition_cost,
-    asset.acquisition_note,
-    asset.planned_disposal_date,
-    asset.actual_disposal_date,
-    asset.disposal_method,
-    asset.disposal_note
-  );
+  // 开始事务
+  db.exec('BEGIN TRANSACTION');
   
-  return getAsset(result.lastInsertRowid as number);
+  try {
+    // 插入资产记录
+    const stmt = db.prepare(`
+      INSERT INTO assets (
+        name, description, location, status, current_borrow_id,
+        acquisition_date, acquisition_source, acquisition_cost, acquisition_note,
+        planned_disposal_date, actual_disposal_date, disposal_method, disposal_note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    const result = stmt.run(
+      asset.name,
+      asset.description,
+      asset.location,
+      asset.status,
+      asset.current_borrow_id || null,
+      asset.acquisition_date,
+      asset.acquisition_source,
+      asset.acquisition_cost,
+      asset.acquisition_note,
+      asset.planned_disposal_date,
+      asset.actual_disposal_date,
+      asset.disposal_method,
+      asset.disposal_note
+    );
+    
+    const assetId = result.lastInsertRowid as number;
+    
+    // 处理标签
+    if (asset.tags && asset.tags.length > 0) {
+      const tagStmt = db.prepare(`
+        INSERT INTO asset_tags (asset_id, tag_id)
+        VALUES (?, ?)
+      `);
+      
+      for (const tag of asset.tags) {
+        tagStmt.run(assetId, tag.id);
+      }
+    }
+    
+    // 提交事务
+    db.exec('COMMIT');
+    
+    return getAsset(assetId);
+  } catch (error) {
+    // 回滚事务
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 // 更新物件
@@ -282,4 +310,15 @@ export async function updateMaintenanceRecord(id: number, data: UpdateMaintenanc
   );
   
   return db.prepare('SELECT * FROM maintenance_records WHERE id = ?').get(id) as MaintenanceRecord;
+}
+
+// 获取物件的标签
+export async function getAssetTags(assetId: number): Promise<Tag[]> {
+  const stmt = getDatabase().prepare(`
+    SELECT t.* FROM tags t
+    INNER JOIN asset_tags at ON t.id = at.tag_id
+    WHERE at.asset_id = ?
+    ORDER BY t.key, t.value
+  `);
+  return stmt.all(assetId) as Tag[];
 } 
