@@ -798,6 +798,7 @@ const Assets: React.FC = () => {
           <Form.Item
             name="acquisition_date"
             label="日期"
+            initialValue={dayjs()}
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
