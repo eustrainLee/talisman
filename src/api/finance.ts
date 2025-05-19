@@ -229,6 +229,14 @@ class FinanceAPI {
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }
+
+  // 更新资产
+  async updateAsset(id: number, asset: Partial<Asset>): Promise<Asset> {
+    if (USE_IPC) {
+      return window.electronAPI.updateAsset(id, asset);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
 }
 
 export const financeAPI = new FinanceAPI();

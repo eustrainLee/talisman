@@ -46,6 +46,11 @@ const Assets: React.FC = () => {
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [createForm] = Form.useForm();
 
+  // 编辑资产相关状态
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+
   // 筛选对话框相关状态
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [filterForm] = Form.useForm();
@@ -238,6 +243,53 @@ const Assets: React.FC = () => {
     }
   };
 
+  // 处理编辑资产
+  const handleEdit = (asset: Asset) => {
+    setEditingAsset(asset);
+    editForm.setFieldsValue({
+      name: asset.name,
+      description: asset.description,
+      location: asset.location,
+      status: asset.status,
+      acquisition_date: asset.acquisition_date ? dayjs(asset.acquisition_date) : null,
+      acquisition_source: asset.acquisition_source,
+      acquisition_cost: asset.acquisition_cost / 100,
+      acquisition_note: asset.acquisition_note,
+    });
+    setSelectedTags(asset.tags || []);
+    setIsEditModalVisible(true);
+  };
+
+  // 处理编辑提交
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      if (!editingAsset) return;
+
+      await financeAPI.updateAsset(editingAsset.id, {
+        name: values.name,
+        description: values.description || null,
+        location: values.location || null,
+        status: values.status,
+        acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
+        acquisition_source: values.acquisition_source,
+        acquisition_cost: Math.round(values.acquisition_cost * 100),
+        acquisition_note: values.acquisition_note || null,
+        tags: selectedTags,
+      });
+
+      message.success('更新成功');
+      setIsEditModalVisible(false);
+      editForm.resetFields();
+      setSelectedTags([]);
+      // 刷新资产列表
+      fetchAssets();
+    } catch (error) {
+      console.error('更新资产失败:', error);
+      message.error('更新失败');
+    }
+  };
+
   // 资产列表列定义
   const assetColumns: ColumnsType<Asset> = [
     {
@@ -302,7 +354,9 @@ const Assets: React.FC = () => {
           <Button type="link" size="small" onClick={() => handleMaintenance(record)}>
             维护
           </Button>
-          <Button type="link" size="small">编辑</Button>
+          <Button type="link" size="small" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
           <Button 
             type="link" 
             danger 
@@ -733,6 +787,144 @@ const Assets: React.FC = () => {
             label="状态"
             rules={[{ required: true, message: '请选择状态' }]}
             initialValue="owned"
+          >
+            <Select placeholder="请选择状态">
+              <Select.Option value="pending">待获得</Select.Option>
+              <Select.Option value="owned">持有中</Select.Option>
+              <Select.Option value="borrowed">已借出</Select.Option>
+              <Select.Option value="disposed">已处置</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item
+            name="acquisition_date"
+            label="日期"
+          >
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_source"
+            label="来源"
+          >
+            <Input placeholder="请输入来源" />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_cost"
+            label="成本"
+          >
+            <Input type="number" placeholder="请输入成本" />
+          </Form.Item>
+          <Form.Item
+            name="acquisition_note"
+            label="备注"
+          >
+            <Input.TextArea placeholder="请输入备注" rows={2} />
+          </Form.Item>
+          <Form.Item label="标签">
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Space size="small">
+                <Select
+                  placeholder="选择标签类型"
+                  style={{ width: 120 }}
+                  value={selectedTagKey}
+                  onChange={(value) => {
+                    setSelectedTagKey(value);
+                    setSelectedTagValue('');
+                  }}
+                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                    label: key,
+                    value: key,
+                  }))}
+                  allowClear
+                />
+                <Select
+                  placeholder="选择标签值"
+                  style={{ width: 120 }}
+                  value={selectedTagValue}
+                  onChange={setSelectedTagValue}
+                  options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                    label: value,
+                    value: value,
+                  })) : []}
+                  disabled={!selectedTagKey}
+                  allowClear
+                />
+                <Button
+                  type="primary"
+                  onClick={handleAddTag}
+                  disabled={!selectedTagKey || !selectedTagValue}
+                >
+                  添加标签
+                </Button>
+              </Space>
+              <div>
+                {selectedTags.map(tag => (
+                  <Tag
+                    key={tag.id}
+                    closable
+                    onClose={() => handleTagRemove(tag)}
+                    style={{ marginBottom: '4px', marginRight: '4px' }}
+                  >
+                    {tag.key}: {tag.value}
+                  </Tag>
+                ))}
+              </div>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑资产对话框 */}
+      <Modal
+        title="编辑资产"
+        open={isEditModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          editForm.resetFields();
+          setSelectedTags([]);
+        }}
+        width={600}
+        style={{ padding: '12px 24px' }}
+      >
+        <Form
+          form={editForm}
+          layout="horizontal"
+          className="compact-form"
+          labelCol={{ span: 6 }}
+          wrapperCol={{ span: 18 }}
+          size="small"
+        >
+          <Form.Item
+            name="name"
+            label={
+              <span
+                className="form-label"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >资产名称</span>
+            }
+            rules={[{ required: true, message: '请输入资产名称' }]}
+          >
+            <Input placeholder="请输入资产名称" />
+          </Form.Item>
+          <Form.Item
+            name="description"
+            label="描述"
+          >
+            <Input.TextArea placeholder="请输入描述" rows={2} />
+          </Form.Item>
+          <Form.Item
+            name="location"
+            label="位置"
+          >
+            <Input placeholder="请输入位置" />
+          </Form.Item>
+          <Form.Item
+            name="status"
+            label="状态"
+            rules={[{ required: true, message: '请选择状态' }]}
           >
             <Select placeholder="请选择状态">
               <Select.Option value="pending">待获得</Select.Option>

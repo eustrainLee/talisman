@@ -154,6 +154,7 @@ interface IElectronAPI {
   createAsset: (asset: CreateAsset) => Promise<Asset>;
   getAssetTags: (assetId: number) => Promise<Tag[]>;
   deleteAsset: (id: number) => Promise<void>;
+  updateAsset: (id: number, asset: Partial<Asset>) => Promise<Asset>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -233,6 +234,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createAsset: (asset: CreateAsset) => ipcRenderer.invoke('finance:create-asset', asset),
   getAssetTags: (assetId: number) => ipcRenderer.invoke('finance:get-asset-tags', assetId),
   deleteAsset: (id: number) => ipcRenderer.invoke('finance:delete-asset', id),
+  updateAsset: (id: number, asset: Partial<Asset>) => ipcRenderer.invoke('finance:update-asset', id, asset),
 })
 
 // 声明全局类型

@@ -7,6 +7,7 @@ import { app, dialog, shell, BrowserWindow } from 'electron'
 import * as gitModule from './git'
 import * as financeApi from './finance/api'
 import * as assetApi from './asset/api'
+import { Asset } from './asset/def'
 // import * as financeDB from './finance/db'
 
 // 配置日志
@@ -961,6 +962,16 @@ export function setupIpcHandlers() {
       await assetApi.deleteAsset(id);
     } catch (error) {
       console.error('删除资产失败:', error);
+      throw error;
+    }
+  });
+
+  // 更新资产
+  ipcMain.handle('finance:update-asset', async (_, id: number, asset: Partial<Asset>) => {
+    try {
+      return await assetApi.updateAsset(id, asset);
+    } catch (error) {
+      console.error('更新资产失败:', error);
       throw error;
     }
   });
