@@ -1,5 +1,5 @@
 // 对外提供接口
-import { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord } from './def';
+import { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, CreateTag } from './def';
 import * as db from './db';
 
 // 物件相关操作
@@ -118,4 +118,10 @@ export const getAssetValueSummary = async () => {
   });
   
   return summary;
-}; 
+};
+
+// 标签相关操作
+export const getAllTags = () => db.getAllTags();
+export const createTag = (tag: CreateTag) => db.createTag(tag);
+export const updateTag = (id: number, data: Partial<CreateTag>) => db.updateTag(id, data);
+export const deleteTag = (id: number) => db.deleteTag(id); 

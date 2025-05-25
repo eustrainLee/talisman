@@ -1,6 +1,6 @@
 // 封装数据库操作
 import { getDatabase } from '../db';
-import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, Tag } from './def';
+import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, Tag, CreateTag } from './def';
 
 // 获取所有物件
 export async function getAssets(): Promise<Asset[]> {
@@ -321,4 +321,77 @@ export async function getAssetTags(assetId: number): Promise<Tag[]> {
     ORDER BY t.key, t.value
   `);
   return stmt.all(assetId) as Tag[];
+}
+
+// 获取所有标签
+export async function getAllTags(): Promise<Tag[]> {
+  const stmt = getDatabase().prepare(`
+    SELECT * FROM tags 
+    ORDER BY key, value
+  `);
+  return stmt.all() as Tag[];
+}
+
+// 创建标签
+export async function createTag(tag: CreateTag): Promise<Tag> {
+  const db = getDatabase();
+  
+  // 检查标签是否已存在
+  const existingTag = db.prepare('SELECT * FROM tags WHERE key = ? AND value = ?').get(tag.key, tag.value) as Tag | undefined;
+  if (existingTag) {
+    return existingTag;
+  }
+  
+  const stmt = db.prepare(`
+    INSERT INTO tags (key, value)
+    VALUES (?, ?)
+  `);
+  
+  const result = stmt.run(tag.key, tag.value);
+  return db.prepare('SELECT * FROM tags WHERE id = ?').get(result.lastInsertRowid) as Tag;
+}
+
+// 更新标签
+export async function updateTag(id: number, data: Partial<CreateTag>): Promise<Tag> {
+  const db = getDatabase();
+  const stmt = db.prepare('SELECT * FROM tags WHERE id = ?');
+  const tag = stmt.get(id) as Tag | undefined;
+  
+  if (!tag) {
+    throw new Error('标签不存在');
+  }
+  
+  const updateStmt = db.prepare(`
+    UPDATE tags 
+    SET key = ?,
+        value = ?,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  
+  updateStmt.run(
+    data.key || tag.key,
+    data.value || tag.value,
+    id
+  );
+  
+  return db.prepare('SELECT * FROM tags WHERE id = ?').get(id) as Tag;
+}
+
+// 删除标签
+export async function deleteTag(id: number): Promise<void> {
+  const db = getDatabase();
+  
+  // 检查标签是否被使用
+  const hasAssetTags = db.prepare('SELECT COUNT(*) as count FROM asset_tags WHERE tag_id = ?').get(id) as { count: number };
+  if (hasAssetTags.count > 0) {
+    throw new Error('标签正在被使用，无法删除');
+  }
+  
+  const stmt = db.prepare('DELETE FROM tags WHERE id = ?');
+  const result = stmt.run(id) as { changes: number };
+  
+  if (result.changes === 0) {
+    throw new Error('标签不存在');
+  }
 } 

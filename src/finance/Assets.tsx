@@ -41,6 +41,7 @@ const Assets: React.FC = () => {
   const [tags, setTags] = useState<AssetTag[]>([]);
   const [isTagModalVisible, setIsTagModalVisible] = useState(false);
   const [tagForm] = Form.useForm();
+  const [tagLoading, setTagLoading] = useState(false);
 
   // 创建资产相关状态
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -536,15 +537,41 @@ const Assets: React.FC = () => {
     }
   };
 
+  // 获取所有标签
+  const fetchTags = async () => {
+    try {
+      setTagLoading(true);
+      const data = await financeAPI.getAllTags();
+      setTags(data);
+    } catch (error) {
+      console.error('获取标签列表失败:', error);
+      message.error('获取标签列表失败');
+    } finally {
+      setTagLoading(false);
+    }
+  };
+
+  // 初始化时获取标签列表
+  useEffect(() => {
+    fetchTags();
+  }, []);
+
   // 处理标签提交
   const handleTagSubmit = async () => {
     try {
       const values = await tagForm.validateFields();
-      // TODO: 调用API创建标签
+      await financeAPI.createTag({
+        key: values.key,
+        value: values.value,
+      });
       message.success('标签创建成功');
       setIsTagModalVisible(false);
+      tagForm.resetFields();
+      // 刷新标签列表
+      fetchTags();
     } catch (error) {
-      message.error('标签创建失败');
+      console.error('创建标签失败:', error);
+      message.error('创建标签失败');
     }
   };
 
@@ -1139,8 +1166,12 @@ const Assets: React.FC = () => {
         title="创建标签"
         open={isTagModalVisible}
         onOk={handleTagSubmit}
-        onCancel={() => setIsTagModalVisible(false)}
+        onCancel={() => {
+          setIsTagModalVisible(false);
+          tagForm.resetFields();
+        }}
         width={400}
+        confirmLoading={tagLoading}
       >
         <Form
           form={tagForm}

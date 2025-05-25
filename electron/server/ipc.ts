@@ -975,4 +975,41 @@ export function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // 标签相关 API
+  ipcMain.handle('finance:get-all-tags', async () => {
+    try {
+      return await assetApi.getAllTags();
+    } catch (error) {
+      console.error('获取所有标签失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('finance:create-tag', async (_, tag) => {
+    try {
+      return await assetApi.createTag(tag);
+    } catch (error) {
+      console.error('创建标签失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('finance:update-tag', async (_, id: number, data) => {
+    try {
+      return await assetApi.updateTag(id, data);
+    } catch (error) {
+      console.error('更新标签失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('finance:delete-tag', async (_, id: number) => {
+    try {
+      await assetApi.deleteTag(id);
+    } catch (error) {
+      console.error('删除标签失败:', error);
+      throw error;
+    }
+  });
 } 

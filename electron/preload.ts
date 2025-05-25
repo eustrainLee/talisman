@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from './server/finance/def';
-import { Asset, CreateAsset, Tag } from './server/asset/def';
+import { Asset, CreateAsset, Tag, CreateTag } from './server/asset/def';
 
 interface DocFile {
   title: string;
@@ -155,6 +155,11 @@ interface IElectronAPI {
   getAssetTags: (assetId: number) => Promise<Tag[]>;
   deleteAsset: (id: number) => Promise<void>;
   updateAsset: (id: number, asset: Partial<Asset>) => Promise<Asset>;
+  // 标签相关 API
+  getAllTags: () => Promise<Tag[]>;
+  createTag: (tag: CreateTag) => Promise<Tag>;
+  updateTag: (id: number, data: Partial<CreateTag>) => Promise<Tag>;
+  deleteTag: (id: number) => Promise<void>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -235,6 +240,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAssetTags: (assetId: number) => ipcRenderer.invoke('finance:get-asset-tags', assetId),
   deleteAsset: (id: number) => ipcRenderer.invoke('finance:delete-asset', id),
   updateAsset: (id: number, asset: Partial<Asset>) => ipcRenderer.invoke('finance:update-asset', id, asset),
+  // 标签相关 API
+  getAllTags: () => ipcRenderer.invoke('finance:get-all-tags'),
+  createTag: (tag: CreateTag) => ipcRenderer.invoke('finance:create-tag', tag),
+  updateTag: (id: number, data: Partial<CreateTag>) => ipcRenderer.invoke('finance:update-tag', id, data),
+  deleteTag: (id: number) => ipcRenderer.invoke('finance:delete-tag', id),
 })
 
 // 声明全局类型
