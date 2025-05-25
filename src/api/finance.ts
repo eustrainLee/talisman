@@ -1,6 +1,6 @@
 import { USE_IPC } from '../config';
 import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from '../../electron/server/finance/def';
-import { Asset, CreateAsset, Tag, CreateTag } from '../../electron/server/asset/def';
+import { Asset, CreateAsset, Tag, CreateTag, AssetTag } from '../../electron/server/asset/def';
 
 export type PeriodType = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
 
@@ -263,6 +263,29 @@ class FinanceAPI {
   async deleteTag(id: number): Promise<void> {
     if (USE_IPC) {
       return window.electronAPI.deleteTag(id);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  // 标签绑定相关 API
+  async bindTag(assetId: number, tagId: number): Promise<void> {
+    if (USE_IPC) {
+      return window.electronAPI.bindTag(assetId, tagId);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  async unbindTag(assetId: number, tagId: number): Promise<void> {
+    if (USE_IPC) {
+      return window.electronAPI.unbindTag(assetId, tagId);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
+  // 获取标签绑定关系
+  async getTagBindings(tagId?: number, assetId?: number): Promise<AssetTag[]> {
+    if (USE_IPC) {
+      return window.electronAPI.getTagBindings(tagId, assetId);
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }

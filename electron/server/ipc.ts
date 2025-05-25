@@ -1012,4 +1012,33 @@ export function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // 标签绑定相关 API
+  ipcMain.handle('finance:bind-tag', async (_, assetId: number, tagId: number) => {
+    try {
+      await assetApi.bindTag(assetId, tagId);
+    } catch (error) {
+      console.error('绑定标签失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('finance:unbind-tag', async (_, assetId: number, tagId: number) => {
+    try {
+      await assetApi.unbindTag(assetId, tagId);
+    } catch (error) {
+      console.error('解绑标签失败:', error);
+      throw error;
+    }
+  });
+
+  // 获取标签绑定关系
+  ipcMain.handle('finance:get-tag-bindings', async (_, tagId?: number, assetId?: number) => {
+    try {
+      return await assetApi.getTagBindings(tagId, assetId);
+    } catch (error) {
+      console.error('获取标签绑定关系失败:', error);
+      throw error;
+    }
+  });
 } 

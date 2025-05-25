@@ -1,6 +1,6 @@
 // 封装数据库操作
 import { getDatabase } from '../db';
-import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, Tag, CreateTag } from './def';
+import type { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, CreateBorrowRecord, UpdateBorrowRecord, CreateMaintenanceRecord, UpdateMaintenanceRecord, Tag, CreateTag, AssetTag } from './def';
 
 // 获取所有物件
 export async function getAssets(): Promise<Asset[]> {
@@ -394,4 +394,46 @@ export async function deleteTag(id: number): Promise<void> {
   if (result.changes === 0) {
     throw new Error('标签不存在');
   }
+}
+
+// 绑定标签到资产
+export async function bindTag(assetId: number, tagId: number): Promise<void> {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    INSERT INTO asset_tags (asset_id, tag_id)
+    VALUES (?, ?)
+  `);
+  stmt.run(assetId, tagId);
+}
+
+// 从资产解绑标签
+export async function unbindTag(assetId: number, tagId: number): Promise<void> {
+  const db = getDatabase();
+  const stmt = db.prepare(`
+    DELETE FROM asset_tags
+    WHERE asset_id = ? AND tag_id = ?
+  `);
+  stmt.run(assetId, tagId);
+}
+
+// 获取标签绑定关系
+export async function getTagBindings(tagId?: number, assetId?: number): Promise<AssetTag[]> {
+  const db = getDatabase();
+  let sql = 'SELECT id, asset_id, tag_id, created_at FROM asset_tags';
+  const params: any[] = [];
+
+  if (tagId !== undefined && assetId !== undefined) {
+    sql += ' WHERE tag_id = ? AND asset_id = ?';
+    params.push(tagId, assetId);
+  } else if (tagId !== undefined) {
+    sql += ' WHERE tag_id = ?';
+    params.push(tagId);
+  } else if (assetId !== undefined) {
+    sql += ' WHERE asset_id = ?';
+    params.push(assetId);
+  }
+
+  const stmt = db.prepare(sql);
+  const results = stmt.all(...params) as AssetTag[];
+  return results;
 } 

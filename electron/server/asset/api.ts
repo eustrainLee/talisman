@@ -124,4 +124,11 @@ export const getAssetValueSummary = async () => {
 export const getAllTags = () => db.getAllTags();
 export const createTag = (tag: CreateTag) => db.createTag(tag);
 export const updateTag = (id: number, data: Partial<CreateTag>) => db.updateTag(id, data);
-export const deleteTag = (id: number) => db.deleteTag(id); 
+export const deleteTag = (id: number) => db.deleteTag(id);
+
+// 标签绑定相关操作
+export const bindTag = (assetId: number, tagId: number) => db.bindTag(assetId, tagId);
+export const unbindTag = (assetId: number, tagId: number) => db.unbindTag(assetId, tagId);
+
+// 获取标签绑定关系
+export const getTagBindings = (tagId?: number, assetId?: number) => db.getTagBindings(tagId, assetId); 

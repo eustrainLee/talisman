@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ExpensePlan, ExpenseRecord, IncomePlan, IncomeRecord } from './server/finance/def';
-import { Asset, CreateAsset, Tag, CreateTag } from './server/asset/def';
+import { Asset, CreateAsset, Tag, CreateTag, AssetTag } from './server/asset/def';
 
 interface DocFile {
   title: string;
@@ -160,6 +160,11 @@ interface IElectronAPI {
   createTag: (tag: CreateTag) => Promise<Tag>;
   updateTag: (id: number, data: Partial<CreateTag>) => Promise<Tag>;
   deleteTag: (id: number) => Promise<void>;
+  // 标签绑定相关 API
+  bindTag: (assetId: number, tagId: number) => Promise<void>;
+  unbindTag: (assetId: number, tagId: number) => Promise<void>;
+  // 获取标签绑定关系
+  getTagBindings: (tagId?: number, assetId?: number) => Promise<AssetTag[]>;
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -245,6 +250,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createTag: (tag: CreateTag) => ipcRenderer.invoke('finance:create-tag', tag),
   updateTag: (id: number, data: Partial<CreateTag>) => ipcRenderer.invoke('finance:update-tag', id, data),
   deleteTag: (id: number) => ipcRenderer.invoke('finance:delete-tag', id),
+  // 标签绑定相关 API
+  bindTag: (assetId: number, tagId: number) => ipcRenderer.invoke('finance:bind-tag', assetId, tagId),
+  unbindTag: (assetId: number, tagId: number) => ipcRenderer.invoke('finance:unbind-tag', assetId, tagId),
+  // 获取标签绑定关系
+  getTagBindings: (tagId?: number, assetId?: number) => ipcRenderer.invoke('finance:get-tag-bindings', tagId, assetId),
 })
 
 // 声明全局类型

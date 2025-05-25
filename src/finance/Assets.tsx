@@ -54,6 +54,9 @@ const Assets: React.FC = () => {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [editSelectedTags, setEditSelectedTags] = useState<AssetTag[]>([]);
+  const [editSelectedTagKey, setEditSelectedTagKey] = useState<string>('');
+  const [editSelectedTagValue, setEditSelectedTagValue] = useState<string>('');
 
   // 筛选对话框相关状态
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -83,27 +86,15 @@ const Assets: React.FC = () => {
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        // 从API获取所有标签
-        const allTags = await Promise.all(assets.map(async (asset) => {
-          const tags = await financeAPI.getAssetTags(asset.id);
-          return tags;
-        }));
-        const uniqueTags = Array.from(new Set(allTags.flat().map(tag => `${tag.key}:${tag.value}`)))
-          .map(tagStr => {
-            const [key, value] = (tagStr as string).split(':');
-            return allTags.flat().find(tag => tag.key === key && tag.value === value);
-          })
-          .filter((tag): tag is AssetTag => tag !== undefined);
-        setAvailableTags(uniqueTags);
+        const allTags = await financeAPI.getAllTags();
+        setAvailableTags(allTags);
       } catch (error) {
         console.error('获取标签失败:', error);
       }
     };
 
-    if (assets.length > 0) {
-      fetchTags();
-    }
-  }, [assets]);
+    fetchTags();
+  }, []);
 
   // 处理标签添加
   const handleAddTag = () => {
@@ -260,8 +251,25 @@ const Assets: React.FC = () => {
       acquisition_cost: asset.acquisition_cost / 100,
       acquisition_note: asset.acquisition_note,
     });
-    setSelectedTags(asset.tags || []);
+    setEditSelectedTags(asset.tags || []);
     setIsEditModalVisible(true);
+  };
+
+  // 处理编辑资产中的标签添加
+  const handleEditAddTag = () => {
+    if (editSelectedTagKey && editSelectedTagValue) {
+      const tag = availableTags.find(t => t.key === editSelectedTagKey && t.value === editSelectedTagValue);
+      if (tag && !editSelectedTags.some(t => t.id === tag.id)) {
+        setEditSelectedTags([...editSelectedTags, tag]);
+        // 清空选择
+        setEditSelectedTagValue('');
+      }
+    }
+  };
+
+  // 处理编辑资产中的标签移除
+  const handleEditTagRemove = (tag: AssetTag) => {
+    setEditSelectedTags(editSelectedTags.filter(t => t.id !== tag.id));
   };
 
   // 处理编辑提交
@@ -270,6 +278,7 @@ const Assets: React.FC = () => {
       const values = await editForm.validateFields();
       if (!editingAsset) return;
 
+      // 更新资产基本信息
       await financeAPI.updateAsset(editingAsset.id, {
         name: values.name,
         description: values.description || null,
@@ -279,13 +288,34 @@ const Assets: React.FC = () => {
         acquisition_source: values.acquisition_source,
         acquisition_cost: Math.round(values.acquisition_cost * 100),
         acquisition_note: values.acquisition_note || null,
-        tags: selectedTags,
       });
+
+      // 获取当前资产的标签绑定关系
+      const currentBindings = await financeAPI.getTagBindings(undefined, editingAsset.id);
+      const currentTagIds = currentBindings.map(binding => binding.tag_id);
+      const newTagIds = editSelectedTags.map(tag => tag.id);
+
+      // 计算需要解绑的标签
+      const tagsToUnbind = currentTagIds.filter(tagId => !newTagIds.includes(tagId));
+      // 计算需要绑定的标签
+      const tagsToBind = newTagIds.filter(tagId => !currentTagIds.includes(tagId));
+
+      // 执行解绑操作
+      for (const tagId of tagsToUnbind) {
+        await financeAPI.unbindTag(editingAsset.id, tagId);
+      }
+
+      // 执行绑定操作
+      for (const tagId of tagsToBind) {
+        await financeAPI.bindTag(editingAsset.id, tagId);
+      }
 
       message.success('更新成功');
       setIsEditModalVisible(false);
       editForm.resetFields();
-      setSelectedTags([]);
+      setEditSelectedTags([]);
+      setEditSelectedTagKey('');
+      setEditSelectedTagValue('');
       // 刷新资产列表
       fetchAssets();
     } catch (error) {
@@ -977,7 +1007,9 @@ const Assets: React.FC = () => {
         onCancel={() => {
           setIsEditModalVisible(false);
           editForm.resetFields();
-          setSelectedTags([]);
+          setEditSelectedTags([]);
+          setEditSelectedTagKey('');
+          setEditSelectedTagValue('');
         }}
         width={600}
         style={{ padding: '12px 24px' }}
@@ -1059,10 +1091,10 @@ const Assets: React.FC = () => {
                 <Select
                   placeholder="选择标签类型"
                   style={{ width: 120 }}
-                  value={selectedTagKey}
+                  value={editSelectedTagKey}
                   onChange={(value) => {
-                    setSelectedTagKey(value);
-                    setSelectedTagValue('');
+                    setEditSelectedTagKey(value);
+                    setEditSelectedTagValue('');
                   }}
                   options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
                     label: key,
@@ -1073,29 +1105,29 @@ const Assets: React.FC = () => {
                 <Select
                   placeholder="选择标签值"
                   style={{ width: 120 }}
-                  value={selectedTagValue}
-                  onChange={setSelectedTagValue}
-                  options={selectedTagKey ? getTagValues(selectedTagKey).map(value => ({
+                  value={editSelectedTagValue}
+                  onChange={setEditSelectedTagValue}
+                  options={editSelectedTagKey ? getTagValues(editSelectedTagKey).map(value => ({
                     label: value,
                     value: value,
                   })) : []}
-                  disabled={!selectedTagKey}
+                  disabled={!editSelectedTagKey}
                   allowClear
                 />
                 <Button
                   type="primary"
-                  onClick={handleAddTag}
-                  disabled={!selectedTagKey || !selectedTagValue}
+                  onClick={handleEditAddTag}
+                  disabled={!editSelectedTagKey || !editSelectedTagValue}
                 >
                   添加标签
                 </Button>
               </Space>
               <div>
-                {selectedTags.map(tag => (
+                {editSelectedTags.map(tag => (
                   <Tag
                     key={tag.id}
                     closable
-                    onClose={() => handleTagRemove(tag)}
+                    onClose={() => handleEditTagRemove(tag)}
                     style={{ marginBottom: '4px', marginRight: '4px' }}
                   >
                     {tag.key}: {tag.value}
