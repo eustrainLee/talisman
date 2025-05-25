@@ -42,6 +42,9 @@ const Assets: React.FC = () => {
   const [isTagModalVisible, setIsTagModalVisible] = useState(false);
   const [tagForm] = Form.useForm();
   const [tagLoading, setTagLoading] = useState(false);
+  const [isEditTagModalVisible, setIsEditTagModalVisible] = useState(false);
+  const [editingTag, setEditingTag] = useState<AssetTag | null>(null);
+  const [editTagForm] = Form.useForm();
 
   // 创建资产相关状态
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -304,6 +307,37 @@ const Assets: React.FC = () => {
     }
   };
 
+  // 处理标签编辑
+  const handleEditTag = (tag: AssetTag) => {
+    setEditingTag(tag);
+    editTagForm.setFieldsValue({
+      key: tag.key,
+      value: tag.value,
+    });
+    setIsEditTagModalVisible(true);
+  };
+
+  // 处理标签编辑提交
+  const handleEditTagSubmit = async () => {
+    try {
+      if (!editingTag) return;
+      const values = await editTagForm.validateFields();
+      await financeAPI.updateTag(editingTag.id, {
+        key: values.key,
+        value: values.value,
+      });
+      message.success('标签更新成功');
+      setIsEditTagModalVisible(false);
+      editTagForm.resetFields();
+      setEditingTag(null);
+      // 刷新标签列表
+      fetchTags();
+    } catch (error) {
+      console.error('更新标签失败:', error);
+      message.error('更新标签失败');
+    }
+  };
+
   // 资产列表列定义
   const assetColumns: ColumnsType<Asset> = [
     {
@@ -505,7 +539,13 @@ const Assets: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" size="small">编辑</Button>
+          <Button 
+            type="link" 
+            size="small"
+            onClick={() => handleEditTag(record)}
+          >
+            编辑
+          </Button>
           <Button 
             type="link" 
             danger 
@@ -1203,6 +1243,40 @@ const Assets: React.FC = () => {
       >
         <Form
           form={tagForm}
+          layout="vertical"
+        >
+          <Form.Item
+            name="key"
+            label="标签键名"
+            rules={[{ required: true, message: '请输入标签键名' }]}
+          >
+            <Input placeholder="请输入标签键名" />
+          </Form.Item>
+          <Form.Item
+            name="value"
+            label="标签值"
+            rules={[{ required: true, message: '请输入标签值' }]}
+          >
+            <Input placeholder="请输入标签值" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑标签对话框 */}
+      <Modal
+        title="编辑标签"
+        open={isEditTagModalVisible}
+        onOk={handleEditTagSubmit}
+        onCancel={() => {
+          setIsEditTagModalVisible(false);
+          editTagForm.resetFields();
+          setEditingTag(null);
+        }}
+        width={400}
+        confirmLoading={tagLoading}
+      >
+        <Form
+          form={editTagForm}
           layout="vertical"
         >
           <Form.Item
