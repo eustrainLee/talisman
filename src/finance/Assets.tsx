@@ -291,6 +291,19 @@ const Assets: React.FC = () => {
     }
   };
 
+  // 处理标签删除
+  const handleDeleteTag = async (tag: AssetTag) => {
+    try {
+      await financeAPI.deleteTag(tag.id);
+      message.success('标签删除成功');
+      // 刷新标签列表
+      fetchTags();
+    } catch (error) {
+      console.error('删除标签失败:', error);
+      message.error('删除标签失败');
+    }
+  };
+
   // 资产列表列定义
   const assetColumns: ColumnsType<Asset> = [
     {
@@ -493,7 +506,22 @@ const Assets: React.FC = () => {
       render: (_, record) => (
         <Space size="middle">
           <Button type="link" size="small">编辑</Button>
-          <Button type="link" danger size="small">删除</Button>
+          <Button 
+            type="link" 
+            danger 
+            size="small"
+            onClick={() => {
+              Modal.confirm({
+                title: '确认删除',
+                content: `确定要删除标签"${record.key}: ${record.value}"吗？`,
+                okText: '确认',
+                cancelText: '取消',
+                onOk: () => handleDeleteTag(record)
+              });
+            }}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
