@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Input, Card, Space, Button, DatePicker, Select, Tag, Tabs, Modal, Form, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { Asset, BorrowRecord, MaintenanceRecord, Tag as AssetTag } from '../../electron/server/asset/def';
 import { financeAPI } from '../api/finance';
 
-const { Search } = Input;
 const { RangePicker } = DatePicker;
-const { TabPane } = Tabs;
 
 dayjs.extend(isBetween);
 

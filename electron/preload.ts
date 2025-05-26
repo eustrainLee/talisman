@@ -263,5 +263,3 @@ declare global {
     electronAPI: IElectronAPI;
   }
 }
-
-type PeriodType = 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
