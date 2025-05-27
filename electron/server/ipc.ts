@@ -986,6 +986,15 @@ export function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('finance:get-tag', async (_, id: number) => {
+    try {
+      return await assetApi.getTag(id);
+    } catch (error) {
+      console.error('获取标签失败:', error);
+      throw error;
+    }
+  });
+
   ipcMain.handle('finance:create-tag', async (_, tag) => {
     try {
       return await assetApi.createTag(tag);
@@ -1033,9 +1042,9 @@ export function setupIpcHandlers() {
   });
 
   // 获取标签绑定关系
-  ipcMain.handle('finance:get-tag-bindings', async (_, tagId?: number, assetId?: number) => {
+  ipcMain.handle('finance:get-tag-bindings', async (_, tagIds?: number[], assetIds?: number[]) => {
     try {
-      return await assetApi.getTagBindings(tagId, assetId);
+      return await assetApi.getTagBindings(tagIds, assetIds);
     } catch (error) {
       console.error('获取标签绑定关系失败:', error);
       throw error;

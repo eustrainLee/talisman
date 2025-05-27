@@ -246,6 +246,13 @@ class FinanceAPI {
     throw new Error('非 Electron 环境不支持财务功能');
   }
 
+  async getTag(id: number): Promise<Tag> {
+    if (USE_IPC) {
+      return window.electronAPI.getTag(id);
+    }
+    throw new Error('非 Electron 环境不支持财务功能');
+  }
+
   async createTag(tag: CreateTag): Promise<Tag> {
     if (USE_IPC) {
       return window.electronAPI.createTag(tag);
@@ -283,9 +290,9 @@ class FinanceAPI {
   }
 
   // 获取标签绑定关系
-  async getTagBindings(tagId?: number, assetId?: number): Promise<AssetTag[]> {
+  async getTagBindings(tagIds?: number[], assetIds?: number[]): Promise<AssetTag[]> {
     if (USE_IPC) {
-      return window.electronAPI.getTagBindings(tagId, assetId);
+      return window.electronAPI.getTagBindings(tagIds, assetIds);
     }
     throw new Error('非 Electron 环境不支持财务功能');
   }

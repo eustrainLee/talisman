@@ -288,7 +288,7 @@ const Assets: React.FC = () => {
       });
 
       // 获取当前资产的标签绑定关系
-      const currentBindings = await financeAPI.getTagBindings(undefined, editingAsset.id);
+      const currentBindings = await financeAPI.getTagBindings(undefined, [editingAsset.id]);
       const currentTagIds = currentBindings.map(binding => binding.tag_id);
       const newTagIds = editSelectedTags.map(tag => tag.id);
 
@@ -411,6 +411,20 @@ const Assets: React.FC = () => {
       dataIndex: 'acquisition_cost',
       key: 'acquisition_cost',
       render: (cost: number | null) => cost ? `${(cost / 100).toFixed(2)}` : '-',
+    },
+    {
+      title: '标签',
+      dataIndex: 'tags',
+      key: 'tags',
+      render: (tags: AssetTag[]) => (
+        <Space direction="vertical" size={[0, 4]} style={{ width: '100%' }}>
+          {tags?.map(tag => (
+            <Tag key={tag.id}>
+              {tag.key}: {tag.value}
+            </Tag>
+          ))}
+        </Space>
+      ),
     },
     {
       title: '获得备注',

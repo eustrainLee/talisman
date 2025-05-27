@@ -3,7 +3,32 @@ import { Asset, BorrowRecord, MaintenanceRecord, CreateAsset, UpdateAsset, Creat
 import * as db from './db';
 
 // 物件相关操作
-export const getAssets = () => db.getAssets();
+export const getAssets = async () => {
+  const assets = await db.getAssets();
+  
+  // 获取所有资产的标签绑定关系
+  const assetIds = assets.map(asset => asset.id);
+  const tagBindings = await db.getTagBindings(undefined, assetIds);
+  
+  // 获取所有相关的标签ID
+  const tagIds = [...new Set(tagBindings.map(binding => binding.tag_id))];
+  
+  // 加载所有标签信息
+  const tags = await Promise.all(tagIds.map(tagId => db.getTag(tagId)));
+  
+  // 将标签信息添加到资产中
+  return assets.map(asset => {
+    const assetTagIds = tagBindings
+      .filter(binding => binding.asset_id === asset.id)
+      .map(binding => binding.tag_id);
+    
+    return {
+      ...asset,
+      tags: tags.filter(tag => assetTagIds.includes(tag.id))
+    };
+  });
+};
+
 export const getAsset = (id: number) => db.getAsset(id);
 export const createAsset = (asset: CreateAsset) => db.createAsset(asset);
 export const updateAsset = (id: number, data: UpdateAsset) => db.updateAsset(id, data);
@@ -122,6 +147,7 @@ export const getAssetValueSummary = async () => {
 
 // 标签相关操作
 export const getAllTags = () => db.getAllTags();
+export const getTag = (id: number) => db.getTag(id);
 export const createTag = (tag: CreateTag) => db.createTag(tag);
 export const updateTag = (id: number, data: Partial<CreateTag>) => db.updateTag(id, data);
 export const deleteTag = (id: number) => db.deleteTag(id);
@@ -131,4 +157,4 @@ export const bindTag = (assetId: number, tagId: number) => db.bindTag(assetId, t
 export const unbindTag = (assetId: number, tagId: number) => db.unbindTag(assetId, tagId);
 
 // 获取标签绑定关系
-export const getTagBindings = (tagId?: number, assetId?: number) => db.getTagBindings(tagId, assetId); 
+export const getTagBindings = (tagIds?: number[], assetIds?: number[]) => db.getTagBindings(tagIds, assetIds); 

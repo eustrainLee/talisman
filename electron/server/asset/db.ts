@@ -332,6 +332,16 @@ export async function getAllTags(): Promise<Tag[]> {
   return stmt.all() as Tag[];
 }
 
+// 获取单个标签
+export async function getTag(id: number): Promise<Tag> {
+  const stmt = getDatabase().prepare('SELECT * FROM tags WHERE id = ?');
+  const tag = stmt.get(id) as Tag | undefined;
+  if (!tag) {
+    throw new Error('标签不存在');
+  }
+  return tag;
+}
+
 // 创建标签
 export async function createTag(tag: CreateTag): Promise<Tag> {
   const db = getDatabase();
@@ -417,23 +427,26 @@ export async function unbindTag(assetId: number, tagId: number): Promise<void> {
 }
 
 // 获取标签绑定关系
-export async function getTagBindings(tagId?: number, assetId?: number): Promise<AssetTag[]> {
+export async function getTagBindings(tagIds?: number[], assetIds?: number[]): Promise<AssetTag[]> {
   const db = getDatabase();
   let sql = 'SELECT id, asset_id, tag_id, created_at FROM asset_tags';
-  const params: any[] = [];
+  const conditions: string[] = [];
+  const values: any[] = [];
 
-  if (tagId !== undefined && assetId !== undefined) {
-    sql += ' WHERE tag_id = ? AND asset_id = ?';
-    params.push(tagId, assetId);
-  } else if (tagId !== undefined) {
-    sql += ' WHERE tag_id = ?';
-    params.push(tagId);
-  } else if (assetId !== undefined) {
-    sql += ' WHERE asset_id = ?';
-    params.push(assetId);
+  if (tagIds) {
+    conditions.push(`tag_id IN (SELECT value FROM json_each(?))`);
+    values.push(JSON.stringify(tagIds));
+  }
+
+  if (assetIds) {
+    conditions.push(`asset_id IN (SELECT value FROM json_each(?))`);
+    values.push(JSON.stringify(assetIds));
+  }
+
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
   }
 
   const stmt = db.prepare(sql);
-  const results = stmt.all(...params) as AssetTag[];
-  return results;
+  return stmt.all(...values) as AssetTag[];
 } 
