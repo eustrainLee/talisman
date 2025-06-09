@@ -10,15 +10,23 @@ const { RangePicker } = DatePicker;
 
 dayjs.extend(isBetween);
 
+type AssetFilter = {
+  name: string;
+  status: string[];
+  dateRange: [dayjs.Dayjs, dayjs.Dayjs] | null;
+  tags: AssetTag[];
+}
+
 const Assets: React.FC = () => {
   // 资产列表相关状态
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string[]>(['owned']);
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
-  const [selectedTags, setSelectedTags] = useState<AssetTag[]>([]);
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>({
+    name: '',
+    status: ['owned'],
+    dateRange: null,
+    tags: [],
+  });
   const [loading, setLoading] = useState(false);
-  const [availableTags, setAvailableTags] = useState<AssetTag[]>([]);
   const [selectedTagKey, setSelectedTagKey] = useState<string>('');
   const [selectedTagValue, setSelectedTagValue] = useState<string>('');
   const [filteredAssets, setFilteredAssets] = useState<Asset[]>([]);
@@ -58,6 +66,9 @@ const Assets: React.FC = () => {
   // 筛选对话框相关状态
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [filterForm] = Form.useForm();
+  const [filterTagKey, setFilterTagKey] = useState<string>('');
+  const [filterTagValue, setFilterTagValue] = useState<string>('');
+  const [filterTags, setFilterTags] = useState<AssetTag[]>([]);
 
   // 获取资产列表
   const fetchAssets = async () => {
@@ -84,7 +95,7 @@ const Assets: React.FC = () => {
     const fetchTags = async () => {
       try {
         const allTags = await financeAPI.getAllTags();
-        setAvailableTags(allTags);
+        setTags(allTags);
       } catch (error) {
         console.error('获取标签失败:', error);
       }
@@ -96,9 +107,9 @@ const Assets: React.FC = () => {
   // 处理标签添加
   const handleAddTag = () => {
     if (selectedTagKey && selectedTagValue) {
-      const tag = availableTags.find(t => t.key === selectedTagKey && t.value === selectedTagValue);
-      if (tag && !selectedTags.some(t => t.id === tag.id)) {
-        setSelectedTags([...selectedTags, tag]);
+      const tag = tags.find(t => t.key === selectedTagKey && t.value === selectedTagValue);
+      if (tag && !assetFilter.tags.some(t => t.id === tag.id)) {
+        setAssetFilter({ ...assetFilter, tags: [...assetFilter.tags, tag] });
         // 清空选择
         setSelectedTagValue('');
       }
@@ -107,12 +118,12 @@ const Assets: React.FC = () => {
 
   // 处理标签移除
   const handleTagRemove = (tag: AssetTag) => {
-    setSelectedTags(selectedTags.filter(t => t.id !== tag.id));
+    setAssetFilter({ ...assetFilter, tags: assetFilter.tags.filter(t => t.id !== tag.id) });
   };
 
   // 获取特定键名的所有值
   const getTagValues = (key: string) => {
-    return availableTags
+    return tags
       .filter(tag => tag.key === key)
       .map(tag => tag.value);
   };
@@ -121,23 +132,24 @@ const Assets: React.FC = () => {
   const handleFilter = () => {
     const filtered = assets.filter(asset => {
       // 名称搜索
-      if (searchText && !asset.name.toLowerCase().includes(searchText.toLowerCase())) {
+      if (assetFilter.name && !asset.name.toLowerCase().includes(assetFilter.name.toLowerCase())) {
         return false;
       }
       // 状态筛选
-      if (selectedStatus.length > 0 && !selectedStatus.includes(asset.status)) {
+      if (assetFilter.status.length > 0 && !assetFilter.status.includes(asset.status)) {
         return false;
       }
       // 日期范围筛选
-      if (dateRange) {
+      if (assetFilter.dateRange) {
         const assetDate = dayjs(asset.acquisition_date);
-        if (!assetDate.isBetween(dateRange[0], dateRange[1], 'day', '[]')) {
+        if (!assetDate.isBetween(assetFilter.dateRange[0], assetFilter.dateRange[1], 'day', '[]')) {
           return false;
         }
       }
       // 标签筛选
-      if (selectedTags.length > 0) {
-        return selectedTags.every(selectedTag =>
+      console.log('assetFilter.tags', assetFilter.tags);
+      if (assetFilter.tags.length > 0) {
+        return assetFilter.tags.every(selectedTag =>
           asset.tags.some(tag => tag.id === selectedTag.id)
         );
       }
@@ -148,15 +160,18 @@ const Assets: React.FC = () => {
 
   // 处理状态标签移除
   const handleStatusRemove = (status: string) => {
-    setSelectedStatus(selectedStatus.filter(s => s !== status));
+    setAssetFilter({ ...assetFilter, status: assetFilter.status.filter(s => s !== status) });
+    handleFilter();
   };
 
   // 重置筛选
   const handleReset = () => {
-    setSearchText('');
-    setSelectedStatus(['owned']);
-    setDateRange(null);
-    setSelectedTags([]);
+    setAssetFilter({
+      name: '',
+      status: ['owned'],
+      dateRange: null,
+      tags: [],
+    });
     setFilteredAssets(assets);
   };
 
@@ -165,16 +180,20 @@ const Assets: React.FC = () => {
     setFilteredAssets(assets);
   }, [assets]);
 
+  // 监听 selectedTags 变化，自动执行筛选
+  useEffect(() => {
+    handleFilter();
+  }, [assetFilter]);
+
   // 打开搜索对话框时，将当前状态复制到表单
   const handleOpenFilterModal = () => {
     filterForm.setFieldsValue({
-      name: searchText,
-      status: selectedStatus,
-      dateRange: dateRange,
-      tags: selectedTags,
-      tagKey: selectedTagKey,
-      tagValue: selectedTagValue,
+      name: assetFilter.name,
+      status: assetFilter.status,
+      dateRange: assetFilter.dateRange,
+      tags: assetFilter.tags,
     });
+    setFilterTagKey(selectedTagKey);
     setIsFilterModalVisible(true);
   };
 
@@ -182,44 +201,40 @@ const Assets: React.FC = () => {
   const handleFilterConfirm = async () => {
     try {
       const values = await filterForm.validateFields();
-      setSearchText(values.name);
-      setSelectedStatus(values.status);
-      setDateRange(values.dateRange);
-      setSelectedTags(values.tags);
-      setSelectedTagKey(values.tagKey);
-      setSelectedTagValue(values.tagValue);
+      setAssetFilter({
+        name: values.name,
+        status: values.status,
+        dateRange: values.dateRange,
+        tags: filterTags,
+      });
+      setFilterTagKey('');
+      setFilterTagValue('');
+      // setFilterTags([]);
       setIsFilterModalVisible(false);
-      handleFilter();
     } catch (error) {
-      // 表单验证失败
+      console.error('搜索对话框验证失败:', error);
     }
   };
 
   // 处理搜索对话框的取消按钮
   const handleFilterCancel = () => {
+    setFilterTagKey('');
     setIsFilterModalVisible(false);
   };
 
   // 处理临时标签添加
   const handleTempAddTag = () => {
-    const values = filterForm.getFieldsValue();
-    if (values.tagKey && values.tagValue) {
-      const tag = availableTags.find(t => t.key === values.tagKey && t.value === values.tagValue);
-      if (tag && !values.tags?.some((t: AssetTag) => t.id === tag.id)) {
-        filterForm.setFieldsValue({
-          tags: [...(values.tags || []), tag],
-          tagValue: '',
-        });
+    if (filterTagKey && filterTagValue) {
+      const tag = tags.find(t => t.key === filterTagKey && t.value === filterTagValue);
+      if (tag && !filterTags.some((t: AssetTag) => t.id === tag.id)) {
+        setFilterTags([...filterTags, tag]);
       }
     }
   };
 
   // 处理临时标签移除
   const handleTempTagRemove = (tag: AssetTag) => {
-    const values = filterForm.getFieldsValue();
-    filterForm.setFieldsValue({
-      tags: values.tags.filter((t: AssetTag) => t.id !== tag.id),
-    });
+    setFilterTags(filterTags.filter((t: AssetTag) => t.id !== tag.id));
   };
 
   // 处理删除资产
@@ -255,7 +270,7 @@ const Assets: React.FC = () => {
   // 处理编辑资产中的标签添加
   const handleEditAddTag = () => {
     if (editSelectedTagKey && editSelectedTagValue) {
-      const tag = availableTags.find(t => t.key === editSelectedTagKey && t.value === editSelectedTagValue);
+      const tag = tags.find(t => t.key === editSelectedTagKey && t.value === editSelectedTagValue);
       if (tag && !editSelectedTags.some(t => t.id === tag.id)) {
         setEditSelectedTags([...editSelectedTags, tag]);
         // 清空选择
@@ -419,7 +434,16 @@ const Assets: React.FC = () => {
       render: (tags: AssetTag[]) => (
         <Space direction="vertical" size={[0, 4]} style={{ width: '100%' }}>
           {tags?.map(tag => (
-            <Tag key={tag.id}>
+            <Tag 
+              key={tag.id}
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                // 保持其他筛选条件不变，只更新标签筛选
+                setAssetFilter({ ...assetFilter, tags: [tag] });
+                // 应用筛选
+                handleFilter();
+              }}
+            >
               {tag.key}: {tag.value}
             </Tag>
           ))}
@@ -702,12 +726,12 @@ const Assets: React.FC = () => {
         actual_disposal_date: null,
         disposal_method: null,
         disposal_note: null,
-        tags: selectedTags,
+        tags: assetFilter.tags,
       });
       message.success('创建成功');
       setIsCreateModalVisible(false);
       createForm.resetFields();
-      setSelectedTags([]);
+      setAssetFilter({ ...assetFilter, tags: [] });
       // 刷新资产列表
       fetchAssets();
     } catch (error) {
@@ -740,12 +764,12 @@ const Assets: React.FC = () => {
                     <div style={{ marginTop: '8px', padding: '8px', background: '#f5f5f5', borderRadius: '4px' }}>
                       <Space wrap size="small">
                         <span>当前筛选：</span>
-                        {searchText && (
-                          <Tag closable onClose={() => setSearchText('')}>
-                            名称包含：{searchText}
+                        {assetFilter.name && (
+                          <Tag closable onClose={() => setAssetFilter({ ...assetFilter, name: '' })}>
+                            名称包含：{assetFilter.name}
                           </Tag>
                         )}
-                        {selectedStatus.map(status => {
+                        {assetFilter.status.map(status => {
                           const statusMap = {
                             pending: '待获得',
                             owned: '持有中',
@@ -762,12 +786,12 @@ const Assets: React.FC = () => {
                             </Tag>
                           );
                         })}
-                        {dateRange && (
-                          <Tag closable onClose={() => setDateRange(null)}>
-                            日期范围：{dateRange[0].format('YYYY-MM-DD')} 至 {dateRange[1].format('YYYY-MM-DD')}
+                        {assetFilter.dateRange && (
+                          <Tag closable onClose={() => setAssetFilter({ ...assetFilter, dateRange: null })}>
+                            日期范围：{assetFilter.dateRange[0].format('YYYY-MM-DD')} 至 {assetFilter.dateRange[1].format('YYYY-MM-DD')}
                           </Tag>
                         )}
-                        {selectedTags.map(tag => (
+                        {assetFilter.tags.map(tag => (
                           <Tag
                             key={tag.id}
                             closable
@@ -967,7 +991,7 @@ const Assets: React.FC = () => {
                     setSelectedTagKey(value);
                     setSelectedTagValue('');
                   }}
-                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                  options={Array.from(new Set(tags.map(tag => tag.key))).map(key => ({
                     label: key,
                     value: key,
                   }))}
@@ -994,7 +1018,7 @@ const Assets: React.FC = () => {
                 </Button>
               </Space>
               <div>
-                {selectedTags.map(tag => (
+                {assetFilter.tags.map(tag => (
                   <Tag
                     key={tag.id}
                     closable
@@ -1107,7 +1131,7 @@ const Assets: React.FC = () => {
                     setEditSelectedTagKey(value);
                     setEditSelectedTagValue('');
                   }}
-                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                  options={Array.from(new Set(tags.map(tag => tag.key))).map(key => ({
                     label: key,
                     value: key,
                   }))}
@@ -1152,7 +1176,7 @@ const Assets: React.FC = () => {
 
       {/* 筛选对话框 */}
       <Modal
-        title="搜索条件"
+        title="搜索"
         open={isFilterModalVisible}
         onOk={handleFilterConfirm}
         onCancel={handleFilterCancel}
@@ -1221,14 +1245,11 @@ const Assets: React.FC = () => {
                 <Select
                   placeholder="选择标签类型"
                   style={{ width: 120 }}
-                  value={filterForm.getFieldValue('tagKey')}
+                  value={filterTagKey}
                   onChange={(value) => {
-                    filterForm.setFieldsValue({
-                      tagKey: value,
-                      tagValue: '',
-                    });
+                    setFilterTagKey(value);
                   }}
-                  options={Array.from(new Set(availableTags.map(tag => tag.key))).map(key => ({
+                  options={Array.from(new Set(tags.map(tag => tag.key))).map(key => ({
                     label: key,
                     value: key,
                   }))}
@@ -1237,26 +1258,28 @@ const Assets: React.FC = () => {
                 <Select
                   placeholder="选择标签值"
                   style={{ width: 120 }}
-                  value={filterForm.getFieldValue('tagValue')}
-                  onChange={(value) => filterForm.setFieldValue('tagValue', value)}
-                  options={filterForm.getFieldValue('tagKey') ? getTagValues(filterForm.getFieldValue('tagKey')).map(value => ({
+                  value={filterTagValue}
+                  onChange={(value) => {
+                    setFilterTagValue(value);
+                  }}
+                  options={filterTagKey ? getTagValues(filterTagKey).map(value => ({
                     label: value,
                     value: value,
                   })) : []}
-                  disabled={!filterForm.getFieldValue('tagKey')}
+                  disabled={!filterTagKey}
                   allowClear
                 />
                 <Button
                   type="primary"
                   onClick={handleTempAddTag}
-                  disabled={!filterForm.getFieldValue('tagKey') || !filterForm.getFieldValue('tagValue')}
+                  disabled={!filterTagKey || !filterTagValue}
                   size="small"
                 >
                   添加标签
                 </Button>
               </Space>
               <div>
-                {filterForm.getFieldValue('tags')?.map((tag: AssetTag) => (
+                {filterTags.map((tag: AssetTag) => (
                   <Tag
                     key={tag.id}
                     closable
